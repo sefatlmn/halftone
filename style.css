@@ -56,7 +56,8 @@ body {
   text-rendering: optimizeLegibility;
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  height: 100vh; /* fallback */
+  height: 100dvh; /* fill the visible viewport on every device (mobile URL-bar safe) */
   overflow: hidden;
 }
 
@@ -983,22 +984,96 @@ input[type="color"]::-moz-color-swatch {
   background: color-mix(in srgb, var(--ink) 50%, transparent);
 }
 
-/* ---------------- Responsive ---------------- */
-@media (max-width: 920px) {
-  body {
-    overflow: auto;
+/* ---------------- Responsive ----------------
+   The app always fills the viewport (100dvh, no page scroll). Only two regions
+   ever scroll: the control rail (.rail-scroll) and the effect strip (.films). */
+
+/* Tablet & small laptops — keep the two-column layout, just tighten it. */
+@media (max-width: 1024px) {
+  :root {
+    --rail-w: 300px;
   }
+  .stage {
+    padding: 22px 22px 16px;
+  }
+}
+
+/* Phones — stack into one viewport-tall column: masthead + canvas + strip fixed
+   on top, the controls drawer fills the rest. Still no page scroll; the drawer
+   (.rail-scroll) and the strip (.films) are the only things that scroll. */
+@media (max-width: 720px) {
   .body {
-    grid-template-columns: 1fr;
+    display: flex;
+    flex-direction: column;
   }
-  .rail {
-    border-right: none;
+
+  /* canvas + strip first (fixed), controls drawer second (fills + scrolls) */
+  .workarea {
+    order: 1;
+    flex: 0 0 auto;
     border-bottom: var(--hair);
   }
+  .stage {
+    flex: 0 0 auto;
+    height: 35vh; /* fallback */
+    height: 35dvh;
+    padding: 14px 16px 10px;
+    gap: 8px;
+  }
+  .rail {
+    order: 2;
+    flex: 1 1 auto;
+    min-height: 0;
+    border-right: none;
+  }
+
+  /* condensed masthead (drop the meta strip, trim the brand) */
   .mh-meta {
     display: none;
   }
-  .stage {
-    height: 60vh;
+  .mh-brand {
+    padding: 12px 16px;
+    border-right: none;
+  }
+  .mh-title {
+    font-size: 17px;
+  }
+
+  /* compact stage meta so it never wraps and steals canvas height */
+  .stage-meta {
+    font-size: 9px;
+  }
+  .stage-meta .grp {
+    gap: 12px;
+  }
+
+  /* smaller, tighter filmstrip */
+  .strip-head {
+    padding: 9px 16px 7px;
+  }
+  .films {
+    gap: 10px;
+    padding: 0 16px 14px;
+  }
+  .film,
+  .film .thumb {
+    width: 96px;
+  }
+  .film .thumb {
+    height: 72px;
+  }
+
+  /* tighter rail body + export bar for thumb reach */
+  .block-head {
+    padding: 11px 16px 9px;
+  }
+  .block-body {
+    padding: 13px 16px;
+  }
+  .exp-opts {
+    padding: 10px 16px;
+  }
+  .exp button {
+    padding: 13px;
   }
 }

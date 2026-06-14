@@ -103,7 +103,7 @@ export default {
     { key: 'cell',   label: 'Cell size',    type: 'range', min: 3, max: 40, step: 1, value: 8 },
     { key: 'shape',  label: 'Dot shape',    type: 'select', options: ['circle', 'square', 'line'], value: 'circle' },
     { key: 'angle',  label: 'Screen angle', type: 'range', min: 0, max: 90, step: 1, value: 45 },
-    { key: 'cmyk',   label: 'CMYK split',   type: 'toggle', value: false },
+    { key: 'cmyk',   label: 'CMYK split',   type: 'toggle', value: true },
     { key: 'ink',    label: 'Ink',          type: 'color', value: '#FF3B22' },
     { key: 'paper',  label: 'Paper',        type: 'color', value: '#ffffff', lockRandom: true },
     { key: 'invert', label: 'Invert',       type: 'toggle', value: false },

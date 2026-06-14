@@ -81,8 +81,7 @@ const activeEffect = () => EFFECTS.find((e) => e.id === App.activeId);
 const activeState = () => App.states[App.activeId];
 const effect2 = () => EFFECTS.find((e) => e.id === App.effect2Id);
 const effect2State = () => App.states2[App.effect2Id];
-// The effect whose output the canvas finally shows — slot 2 when stacked, else slot 1.
-const finalEffect = () => (App.effect2On ? effect2() : activeEffect());
+// The param state the canvas finally shows — slot 2 when stacked, else slot 1.
 const finalState = () => (App.effect2On ? effect2State() : activeState());
 // The effect id the filmstrip presets currently apply to (slot A or B).
 const targetEffectId = () =>
@@ -303,8 +302,8 @@ function useDemo() {
   g.textAlign(p.CENTER, p.CENTER);
   g.textFont("Archivo");
   g.textStyle(p.BOLD);
-  g.textSize(170);
-  g.text("PRESS", W * 0.5, H * 0.88);
+  g.textSize(140);
+  g.text("HALFTONE", W * 0.5, H * 0.88);
   const img = g.get();
   g.remove();
   setSource(img);
@@ -596,26 +595,8 @@ function buildEffect2Panel() {
     makeTool("× Remove", "Remove second effect", disableEffect2),
   );
 
-  // Effect picker for slot 2 (no filmstrip drives this one).
-  const sel = document.createElement("select");
-  for (const e of EFFECTS) {
-    const o = document.createElement("option");
-    o.value = e.id;
-    o.textContent = e.name;
-    sel.appendChild(o);
-  }
-  sel.value = App.effect2Id;
-  sel.addEventListener("change", () => {
-    App.effect2Id = sel.value;
-    buildEffect2Panel();
-    buildEffectChips(); // keep the filmstrip highlight in sync when targeting B
-    updateMeta();
-    requestRender();
-  });
-  const row = labeledRow("Effect", sel);
-  row.classList.add("row--base");
-  body.appendChild(row);
-
+  // Slot B's effect is chosen from the bottom filmstrip (with the B target
+  // toggle) — no separate picker here. The header shows the current choice.
   appendParams(body, effect2().params, effect2State(), onParam2Change);
 }
 

@@ -64,7 +64,7 @@ export default {
   params: [
     { key: 'mode',       label: 'Algorithm',   type: 'select', options: ['ordered', 'floyd-steinberg'], value: 'floyd-steinberg' },
     { key: 'matrixSize', label: 'Bayer matrix', type: 'select', options: ['2', '4', '8'], value: '4' },
-    { key: 'palette',    label: 'Palette',     type: 'select', options: ['bw', 'duotone', '3-tone', '4-tone', 'cmy'], value: 'duotone' },
+    { key: 'palette',    label: 'Palette',     type: 'select', options: ['bw', 'duotone', '3-tone', '4-tone', 'cmy'], value: 'cmy' },
     { key: 'pixelScale', label: 'Pixel size',  type: 'range', min: 1, max: 14, step: 1, value: 3 },
     { key: 'serpentine', label: 'Serpentine',  type: 'toggle', value: true },
     { key: 'modulation', label: 'Modulation',  type: 'range', min: 0, max: 1, step: 0.01, value: 0 },

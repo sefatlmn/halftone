@@ -19,7 +19,7 @@ const mod = {
   params: [
     { key: 'cell',      label: 'Cell size',  type: 'range', min: 5, max: 26, step: 1, value: 11 },
     { key: 'ramp',      label: 'Glyph ramp', type: 'text', value: DEFAULT_RAMP },
-    { key: 'colorMode', label: 'Colour',     type: 'select', options: ['mono', 'source'], value: 'mono' },
+    { key: 'colorMode', label: 'Colour',     type: 'select', options: ['mono', 'source'], value: 'source' },
     { key: 'font',      label: 'Font',       type: 'select', options: ['Space Mono', 'Courier New', 'monospace'], value: 'Space Mono' },
     { key: 'invert',    label: 'Invert',     type: 'toggle', value: false },
     { key: 'showText',  label: 'Selectable text', type: 'toggle', value: false, lockRandom: true },

@@ -6,11 +6,9 @@
 // raster) — the first effect is drawn into an intermediate buffer, then handed
 // to the second as its source. Off unless the bundle carries `effect2`.
 //
-// Single mode owns ONE stack (rendered straight onto the main canvas); each
-// Poster image element owns its own stack (rendered into an offscreen buffer).
-// The effect/colour logic itself is NOT duplicated — every stage calls the same
-// modules in src/effects. Each stack instance keeps its own working/staged/base
-// buffers and recomputes a stage only when that stage's inputs change.
+// The stack renders straight onto the main canvas (or, for export, a clean
+// offscreen buffer). Each instance keeps its own working/staged/base buffers
+// and recomputes a stage only when that stage's inputs change.
 
 import EFFECTS from './index.js';
 import { buildWorking } from '../input.js';
@@ -44,9 +42,8 @@ export function emptyBundle() {
 }
 
 export function createEffectStack(p) {
-  let srcRef = null;
-  let working = null, staged = null, basePG = null, outPG = null, chainPG = null;
-  let wSig = null, sSig = null, bSig = null, oSig = null;
+  let working = null, staged = null, basePG = null, chainPG = null;
+  let wSig = null, sSig = null, bSig = null;
 
   function sizeBuffer(buf, w, h) {
     if (buf && buf.width === w && buf.height === h) return buf;
@@ -68,7 +65,6 @@ export function createEffectStack(p) {
       working = buildWorking(p, src, w, h, 'contain', b.pre || {});
       wSig = wsig; sSig = null; bSig = null;
     }
-    srcRef = src;
 
     // 2. colour pre-stage (optional)
     let stagedBuf = working;
@@ -139,19 +135,6 @@ export function createEffectStack(p) {
     return eff2;
   }
 
-  // Render into an internally cached output buffer (used by Poster element
-  // preview — repeated calls with unchanged inputs return the cached buffer).
-  function render(src, bundle, w, h) {
-    outPG = sizeBuffer(outPG, w, h);
-    const osig = `${imgId(src)}|${w}x${h}|${j(bundle)}`;
-    if (osig !== oSig) {
-      outPG.clear();
-      renderInto(outPG, src, bundle, w, h);
-      oSig = osig;
-    }
-    return outPG;
-  }
-
   // The source buffer the active effect samples (staged + base), at sampling
   // res — handy for SVG export, which re-renders the effect at scale.
   function sourceFor(src, bundle, w, h) {
@@ -159,10 +142,10 @@ export function createEffectStack(p) {
   }
 
   function dispose() {
-    [working, staged, basePG, outPG, chainPG].forEach((g) => g && g.remove());
-    working = staged = basePG = outPG = chainPG = null;
-    wSig = sSig = bSig = oSig = null; srcRef = null;
+    [working, staged, basePG, chainPG].forEach((g) => g && g.remove());
+    working = staged = basePG = chainPG = null;
+    wSig = sSig = bSig = null;
   }
 
-  return { render, renderInto, sourceFor, prepare, dispose };
+  return { renderInto, sourceFor, prepare, dispose };
 }
