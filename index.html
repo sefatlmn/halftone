@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Halftone Tools — print-effects workshop</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&family=Archivo+Expanded:wght@600;700;800;900&family=Space+Mono:wght@400;700&display=swap"
+      rel="stylesheet"
+    />
+
+    <link rel="stylesheet" href="style.css" />
+
+    <!-- p5.js 1.x from CDN (used in INSTANCE mode; see src/main.js) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.11.3/p5.min.js"></script>
+  </head>
+  <body>
+    <!-- MASTHEAD -->
+    <header class="masthead">
+      <div class="mh-brand">
+        <span class="mh-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span class="mh-title">Halftone&nbsp;Tools</span>
+      </div>
+      <div class="mh-meta">
+        <span>
+          PRINT-EFFECTS WORKSHOP /
+          <b>
+            <a href="https://www.sefatolaman.design">By Sefa Tolaman</a></b
+          ></span
+        >
+        <span>ED.&nbsp;001 / No AI / No Backend</span>
+      </div>
+    </header>
+
+    <div class="body">
+      <!-- LEFT CONTROL RAIL -->
+      <aside class="rail">
+        <div class="rail-scroll">
+          <section class="block">
+            <div class="block-head">
+              <span class="ix">01</span>
+              <h3>Source</h3>
+            </div>
+            <div class="block-body">
+              <div class="row row--buttons">
+                <button class="btn btn--block" id="btn-upload-2" type="button">
+                  Load image
+                </button>
+                <button class="btn" id="btn-demo-2" type="button">Demo</button>
+              </div>
+              <p class="note" id="drop-note">
+                Everything runs locally in your browser, images are not stored.
+              </p>
+            </div>
+          </section>
+
+          <section class="block block--b">
+            <div class="block-head">
+              <span class="ix">02</span>
+              <h3>Pre-adjust</h3>
+            </div>
+            <div class="block-body" id="preadjust-controls"></div>
+            <div class="block-body block-body--sub">
+              <div id="prestage-select"></div>
+              <div id="prestage-controls"></div>
+            </div>
+          </section>
+
+          <section class="block">
+            <div class="block-head">
+              <span class="ix">A</span>
+              <h3 id="param-title">Parameters</h3>
+              <div class="block-tools">
+                <button
+                  class="tool"
+                  id="btn-randomize"
+                  type="button"
+                  title="Randomize (R)"
+                >
+                  Randomize
+                </button>
+                <button class="tool" id="btn-reset" type="button" title="Reset">
+                  Reset
+                </button>
+              </div>
+            </div>
+            <div class="block-body" id="param-controls"></div>
+          </section>
+
+          <section class="block block--stack" id="block-effect2">
+            <div class="block-head">
+              <span class="ix">B</span>
+              <h3 id="param2-title">Stack effect</h3>
+              <div class="block-tools" id="effect2-tools"></div>
+            </div>
+            <div class="block-body" id="param2-controls"></div>
+          </section>
+        </div>
+
+        <!-- Export options + actions, pinned to the rail foot -->
+        <div class="exp-opts">
+          <div id="export-controls"></div>
+          <p class="note" id="svg-note"></p>
+        </div>
+        <div class="exp">
+          <button class="primary" id="btn-png" type="button">Export PNG</button>
+          <button id="btn-svg" type="button">SVG</button>
+        </div>
+      </aside>
+
+      <!-- RIGHT WORK AREA -->
+      <section class="workarea">
+        <div class="stage">
+          <div class="stage-frame">
+            <span class="tick tl"></span><span class="tick tr"></span>
+            <span class="tick bl"></span><span class="tick br"></span>
+
+            <div class="proof" id="canvas-holder"></div>
+
+            <!-- ASCII selectable-text overlay -->
+            <pre class="ascii-text" id="ascii-text" hidden></pre>
+
+            <!-- Empty state / drop zone -->
+            <div class="empty" id="empty">
+              <div class="empty-inner">
+                <div class="empty-glyph">⊕</div>
+                <h2>Drop an image here</h2>
+                <p>or load one from your disk.</p>
+                <div class="empty-actions">
+                  <button
+                    class="btn btn--primary"
+                    id="btn-upload"
+                    type="button"
+                  >
+                    Choose image
+                  </button>
+                  <button class="btn" id="btn-demo" type="button">
+                    Use demo plate
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="stage-meta">
+            <div class="grp">
+              <span>SIZE <b id="meta-dims">— × —</b></span>
+              <span>EFFECT <b id="meta-fx">no plate</b></span>
+            </div>
+            <span class="dot-live">RENDER <b id="meta-fps">—</b></span>
+          </div>
+        </div>
+
+        <!-- EFFECT FILMSTRIP -->
+        <div class="strip">
+          <div class="strip-head">
+            <div class="strip-head__lead">
+              <h4>Effect</h4>
+              <div
+                class="abtog"
+                id="film-target"
+                role="tablist"
+                aria-label="Preset target"
+              ></div>
+            </div>
+            <span id="strip-count">CLICK TO APPLY</span>
+          </div>
+          <div
+            class="films"
+            id="films"
+            role="tablist"
+            aria-label="Effect"
+          ></div>
+        </div>
+      </section>
+    </div>
+
+    <input type="file" id="file-input" accept="image/*" hidden />
+
+    <script type="module" src="src/main.js"></script>
+  </body>
+</html>

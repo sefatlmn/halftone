@@ -1,0 +1,944 @@
+// main.js — p5 instance, app state, and all the wiring between the input stage,
+// the auto-generated controls, the effect pipeline, and export.
+
+import EFFECTS from "./effects/index.js";
+import { createEffectStack } from "./effects/stack.js";
+import {
+  buildPanel,
+  appendParams,
+  buildSegmented,
+  defaultsOf,
+  randomizeInto,
+} from "./controls.js";
+import { exportPNG, exportSVG } from "./export.js";
+
+const $ = (sel) => document.querySelector(sel);
+
+/* ----------------------------------------------------------------
+   App state
+   ---------------------------------------------------------------- */
+const App = {
+  p: null,
+  srcImage: null,
+  stack: null, // the reusable EffectStack (whole pipeline, self-caching)
+  pre: { brightness: 0, contrast: 0, gamma: 1, invert: false },
+  activeId: EFFECTS[0].id,
+  states: {}, // per-effect param values
+  exportScale: 1,
+  canvasW: 0,
+  canvasH: 0,
+  baseLayer: "none", // composition: id of a base effect, or 'none'
+  preStage: "none", // color pre-stage: id of a color module, or 'none'
+  preStageParams: {}, // pre-stage params, kept separate from active-effect params
+  effect2On: false, // stack a second effect on the first's output?
+  effect2Id: EFFECTS[1] ? EFFECTS[1].id : EFFECTS[0].id, // default pick for slot 2
+  states2: {}, // per-effect param values for the second slot (independent)
+  filmTarget: "A", // which slot the preset filmstrip currently edits: 'A' | 'B'
+  _pending: false,
+  _debounce: null,
+  _resize: null,
+};
+
+const PRE_SCHEMA = [
+  {
+    key: "brightness",
+    label: "Brightness",
+    type: "range",
+    min: -100,
+    max: 100,
+    step: 1,
+    value: 0,
+  },
+  {
+    key: "contrast",
+    label: "Contrast",
+    type: "range",
+    min: -100,
+    max: 100,
+    step: 1,
+    value: 0,
+  },
+  {
+    key: "gamma",
+    label: "Gamma",
+    type: "range",
+    min: 0.2,
+    max: 3,
+    step: 0.05,
+    value: 1,
+  },
+  { key: "invert", label: "Invert source", type: "toggle", value: false },
+];
+
+for (const e of EFFECTS) App.states[e.id] = defaultsOf(e.params);
+// the stacked second effect keeps its own independent param set per effect
+for (const e of EFFECTS) App.states2[e.id] = defaultsOf(e.params);
+// color modules keep a second, independent set of params for the pre-stage
+for (const e of EFFECTS)
+  if (e.category === "color") App.preStageParams[e.id] = defaultsOf(e.params);
+
+const activeEffect = () => EFFECTS.find((e) => e.id === App.activeId);
+const activeState = () => App.states[App.activeId];
+const effect2 = () => EFFECTS.find((e) => e.id === App.effect2Id);
+const effect2State = () => App.states2[App.effect2Id];
+// The effect whose output the canvas finally shows — slot 2 when stacked, else slot 1.
+const finalEffect = () => (App.effect2On ? effect2() : activeEffect());
+const finalState = () => (App.effect2On ? effect2State() : activeState());
+// The effect id the filmstrip presets currently apply to (slot A or B).
+const targetEffectId = () =>
+  App.filmTarget === "B" ? App.effect2Id : App.activeId;
+
+/* ----------------------------------------------------------------
+   p5 instance (INSTANCE mode — coexists with the DOM panel)
+   ---------------------------------------------------------------- */
+new p5((p) => {
+  p.setup = () => {
+    App.p = p;
+    App.stack = createEffectStack(p);
+    const { w, h } = computeCanvasSize();
+    App.canvasW = w;
+    App.canvasH = h;
+    const c = p.createCanvas(w, h);
+    c.parent("canvas-holder");
+    p.pixelDensity(1);
+    p.noLoop();
+    p.background(255);
+  };
+
+  p.draw = () => renderActive();
+
+  p.windowResized = () => {
+    clearTimeout(App._resize);
+    App._resize = setTimeout(() => {
+      const { w, h } = computeCanvasSize();
+      App.canvasW = w;
+      App.canvasH = h;
+      p.resizeCanvas(w, h, true);
+      if (App.srcImage) recompute();
+      else p.background(255);
+    }, 120);
+  };
+});
+
+/* ----------------------------------------------------------------
+   Sizing / pipeline
+   ---------------------------------------------------------------- */
+// Sizing limits. The proof always shows the *whole* image (contain — never
+// cropped), so the canvas itself takes the image's aspect ratio and is fitted
+// inside the stage frame. AR_MIN/AR_MAX clamp the proof's shape so a freakishly
+// tall/wide image can't collapse the canvas or overflow the layout (such images
+// just letterbox onto paper inside the clamped proof); EDGE_CAP caps resolution.
+const AR_MIN = 0.45; // tallest proof allowed (~9:20)
+const AR_MAX = 2.2; // widest proof allowed (~11:5)
+const EDGE_CAP = 1600; // absolute long-edge cap (performance)
+
+function computeCanvasSize() {
+  const frame = $("#canvas-holder").parentElement; // .stage-frame
+  const rect = frame.getBoundingClientRect();
+  const pad = 44;
+  const availW = Math.max(120, rect.width - pad);
+  const availH = Math.max(120, rect.height - pad);
+
+  // No image yet → fill the available area (the empty-state overlay covers it).
+  if (!App.srcImage || !App.srcImage.height) {
+    return {
+      w: Math.round(Math.min(availW, EDGE_CAP)),
+      h: Math.round(Math.min(availH, EDGE_CAP)),
+    };
+  }
+
+  // Proof = image aspect ratio (clamped), fitted inside the frame.
+  const ar = Math.min(
+    AR_MAX,
+    Math.max(AR_MIN, App.srcImage.width / App.srcImage.height),
+  );
+  let w = availW,
+    h = w / ar;
+  if (h > availH) {
+    h = availH;
+    w = h * ar;
+  }
+
+  const long = Math.max(w, h);
+  if (long > EDGE_CAP) {
+    const k = EDGE_CAP / long;
+    w *= k;
+    h *= k;
+  }
+
+  return { w: Math.round(w), h: Math.round(h) };
+}
+
+// The EffectStack rebuilds its working buffer automatically when the image,
+// pre-adjust, or canvas size changes (it keys each stage by a signature), so a
+// "recompute" is just a request to redraw. Kept as a named function because
+// pre-adjust / fit / resize callbacks read clearer calling it.
+function recompute() {
+  if (!App.p || !App.srcImage) return;
+  requestRender();
+}
+
+function requestRender() {
+  const eff = activeEffect();
+  if (eff && eff.heavy) {
+    if (App.srcImage) $("#meta-fps").textContent = "rendering…";
+    clearTimeout(App._debounce);
+    App._debounce = setTimeout(scheduleFrame, 70); // debounce heavy passes
+  } else {
+    scheduleFrame();
+  }
+}
+
+// Single mode's params bundle for the shared EffectStack: the global pre-adjust,
+// colour pre-stage, active effect, and (for glitch-family effects) the base layer.
+function singleBundle() {
+  const eff = activeEffect();
+  const usesBase = eff.acceptsBase && App.baseLayer !== "none";
+  return {
+    pre: App.pre,
+    preStage: App.preStage,
+    preStageParams: App.preStageParams[App.preStage] || {},
+    effect: App.activeId,
+    effectParams: activeState(),
+    baseLayer: eff.acceptsBase ? App.baseLayer : "none",
+    baseParams: usesBase ? App.states[App.baseLayer] : {},
+    effect2: App.effect2On ? App.effect2Id : "none",
+    effect2Params: App.effect2On ? effect2State() : {},
+  };
+}
+
+// The buffer the active effect samples from (staged + optional base layer), at
+// sampling resolution — used by export, which re-renders the effect at scale.
+function getSourceForActive() {
+  if (!App.srcImage) return null;
+  return App.stack.sourceFor(
+    App.srcImage,
+    singleBundle(),
+    App.canvasW,
+    App.canvasH,
+  );
+}
+
+function scheduleFrame() {
+  if (!App.p || App._pending) return;
+  App._pending = true;
+  requestAnimationFrame(() => {
+    App._pending = false;
+    App.p.redraw();
+  });
+}
+
+function renderActive() {
+  const p = App.p;
+  if (!App.srcImage) return;
+  const t0 = performance.now();
+  p.push();
+  const eff = App.stack.renderInto(
+    p,
+    App.srcImage,
+    singleBundle(),
+    App.canvasW,
+    App.canvasH,
+  );
+  p.pop();
+  $("#meta-fps").textContent = `${Math.round(performance.now() - t0)} ms`;
+  updateAsciiOverlay(eff, finalState());
+}
+
+/* ----------------------------------------------------------------
+   Source loading
+   ---------------------------------------------------------------- */
+function loadFromFile(file) {
+  if (!file || !file.type.startsWith("image/")) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    App.p.loadImage(
+      reader.result,
+      (img) => setSource(img),
+      () => note("Could not read that image file."),
+    );
+  };
+  reader.readAsDataURL(file);
+}
+
+function setSource(img) {
+  App.srcImage = img;
+  $("#empty").setAttribute("hidden", "");
+  const { w, h } = computeCanvasSize();
+  App.canvasW = w;
+  App.canvasH = h;
+  App.p.resizeCanvas(w, h, true);
+  recompute();
+  updateMeta();
+}
+
+// A generated demo "plate" so the tool works without an upload — smooth tones
+// for halftone/dither plus shapes and a wordmark for ASCII/stamp texture.
+function useDemo() {
+  const p = App.p;
+  const W = 1000,
+    H = 1250;
+  const g = p.createGraphics(W, H);
+  g.pixelDensity(1);
+  for (let y = 0; y < H; y++) {
+    g.stroke(40 + (y / H) * 175);
+    g.line(0, y, W, y);
+  }
+  g.noStroke();
+  const cx = W * 0.5,
+    cy = H * 0.4,
+    R = 360;
+  for (let r = R; r > 0; r -= 1.5) {
+    g.fill(255 * Math.pow(1 - r / R, 0.6));
+    g.circle(cx, cy, r * 2);
+  }
+  // colour accents so CMYK / RGB-split modes have something to separate
+  g.fill(198, 32, 58);
+  g.circle(W * 0.78, H * 0.72, 200); // crimson
+  g.fill(18, 142, 132);
+  g.circle(W * 0.24, H * 0.78, 160); // teal
+  g.fill(242, 172, 28);
+  g.circle(W * 0.21, H * 0.24, 130); // amber
+  g.fill(15);
+  g.textAlign(p.CENTER, p.CENTER);
+  g.textFont("Archivo");
+  g.textStyle(p.BOLD);
+  g.textSize(170);
+  g.text("PRESS", W * 0.5, H * 0.88);
+  const img = g.get();
+  g.remove();
+  setSource(img);
+}
+
+/* ----------------------------------------------------------------
+   UI building
+   ---------------------------------------------------------------- */
+function labeledRow(text, control) {
+  const row = document.createElement("div");
+  row.className = "row";
+  const top = document.createElement("div");
+  top.className = "field__top";
+  const l = document.createElement("span");
+  l.className = "field__label";
+  l.textContent = text;
+  top.appendChild(l);
+  row.appendChild(top);
+  row.appendChild(control);
+  return row;
+}
+
+// The bottom filmstrip IS the effect selector — one "film" per effect, each
+// with a small printer's motif thumbnail and a numbered caption. Clicking a film
+// applies that effect to the currently targeted slot (A or B); the highlight
+// follows the target and recolours (red → blue) to match it.
+function buildEffectChips() {
+  const root = $("#films");
+  root.innerHTML = "";
+  root.classList.toggle("is-b", App.filmTarget === "B");
+  const sel = targetEffectId();
+  EFFECTS.forEach((e, i) => {
+    const film = document.createElement("button");
+    film.type = "button";
+    film.className = "film" + (e.id === sel ? " on" : "");
+    film.setAttribute("role", "tab");
+    film.setAttribute("aria-selected", String(e.id === sel));
+    film.innerHTML =
+      `<span class="thumb">${effectMotif(e.id, i)}</span>` +
+      `<span class="cap"><b>${e.no}</b><span>${e.name}</span></span>`;
+    film.addEventListener("click", () => applyPreset(e.id));
+    root.appendChild(film);
+  });
+  const count = $("#strip-count");
+  if (count) count.textContent = `${EFFECTS.length} · CLICK TO APPLY`;
+}
+
+// Apply a filmstrip preset to whichever slot is targeted.
+function applyPreset(id) {
+  if (App.filmTarget === "B") {
+    App.effect2Id = id;
+    buildEffect2Panel();
+    buildEffectChips();
+    updateMeta();
+    requestRender();
+  } else {
+    setEffect(id);
+  }
+}
+
+// The A / B toggle in the strip head — chooses which slot presets edit. Picking
+// B with no second effect yet adds one. Each active slot lights in its colour.
+function buildFilmTargetToggle() {
+  const root = $("#film-target");
+  if (!root) return;
+  root.innerHTML = "";
+  ["A", "B"].forEach((slot) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "abtog__btn" + (slot === App.filmTarget ? " is-active" : "");
+    if (slot === "B" && !App.effect2On) b.classList.add("is-empty");
+    b.dataset.slot = slot;
+    b.textContent = slot;
+    b.title =
+      slot === "A"
+        ? "Edit effect A"
+        : App.effect2On
+          ? "Edit effect B"
+          : "Add & edit effect B";
+    b.addEventListener("click", () => setFilmTarget(slot));
+    root.appendChild(b);
+  });
+}
+
+function setFilmTarget(slot) {
+  if (slot === "B" && !App.effect2On) {
+    enableEffect2();
+    return;
+  } // adds B and targets it
+  App.filmTarget = slot;
+  buildFilmTargetToggle();
+  buildEffectChips();
+}
+
+// A tiny, on-brand SVG motif per effect for its filmstrip thumbnail. Static
+// (not a live render) — fast, and faithful to the design mockup. `idx` keeps
+// any internal pattern/gradient ids unique across films.
+function effectMotif(id, idx) {
+  // Motif palette mirrors the CSS tokens (SVG strings can't read CSS vars):
+  // P paper · K ink · A signal red · S press mustard — the five-colour system.
+  const P = "#EEEBE3",
+    A = "#FF3B22",
+    K = "#15120D",
+    S = "#D4920A";
+  const u = (s) => `${s}${idx}`;
+  const wrap = (inner) =>
+    `<svg viewBox="0 0 118 88" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">` +
+    `<rect width="118" height="88" fill="${P}"/>${inner}</svg>`;
+  switch (id) {
+    case "halftone":
+      return wrap(
+        `<defs><pattern id="${u("hp")}" width="10" height="10" patternUnits="userSpaceOnUse">` +
+          `<circle cx="5" cy="5" r="3.6" fill="${A}"/></pattern></defs>` +
+          `<rect width="118" height="88" fill="url(#${u("hp")})" opacity=".92"/>`,
+      );
+    case "dither":
+      return wrap(
+        `<g fill="${K}">` +
+          [
+            [6, 8],
+            [16, 8],
+            [11, 16],
+            [26, 12],
+            [36, 20],
+            [46, 10],
+            [56, 26],
+            [20, 34],
+            [70, 14],
+            [84, 30],
+            [96, 18],
+            [40, 48],
+            [64, 54],
+            [100, 60],
+            [30, 64],
+            [80, 70],
+            [52, 74],
+          ]
+            .map(([x, y]) => `<rect x="${x}" y="${y}" width="4" height="4"/>`)
+            .join("") +
+          `</g>`,
+      );
+    case "ascii":
+      return wrap(
+        `<g font-family="monospace" font-size="13" fill="${K}">` +
+          `<text x="8" y="22">@%#*+=-:.</text><text x="8" y="40">#*+=-:. @%</text>` +
+          `<text x="8" y="58">+=-:.@%#*</text><text x="8" y="76">%#*+= :.@</text></g>`,
+      );
+    case "riso":
+      return wrap(
+        `<circle cx="45" cy="44" r="30" fill="${A}" opacity=".85"/>` +
+          `<circle cx="64" cy="50" r="30" fill="${K}" opacity=".5"/>`,
+      );
+    case "xerox":
+      return wrap(
+        `<g fill="${K}" opacity=".82"><rect x="14" y="16" width="90" height="6"/>` +
+          `<rect x="14" y="30" width="70" height="6"/><rect x="20" y="44" width="84" height="6"/>` +
+          `<rect x="14" y="58" width="60" height="6"/></g>`,
+      );
+    case "stamp":
+      return wrap(
+        `<rect x="26" y="20" width="66" height="48" fill="none" stroke="${K}" stroke-width="5"/>` +
+          `<circle cx="40" cy="34" r="3" fill="${K}"/><circle cx="80" cy="56" r="2.5" fill="${K}"/>` +
+          `<circle cx="60" cy="44" r="5" fill="${A}"/>`,
+      );
+    case "glitch":
+      return wrap(
+        `<rect x="0" y="18" width="118" height="12" fill="${A}" opacity=".8"/>` +
+          `<rect x="20" y="40" width="118" height="10" fill="${K}" opacity=".7"/>` +
+          `<rect x="-14" y="60" width="118" height="9" fill="${K}" opacity=".5"/>`,
+      );
+    case "rgb-shift":
+      return wrap(
+        `<circle cx="52" cy="44" r="24" fill="none" stroke="${A}" stroke-width="3"/>` +
+          `<circle cx="64" cy="44" r="24" fill="none" stroke="${K}" stroke-width="3"/>` +
+          `<circle cx="58" cy="48" r="24" fill="none" stroke="${S}" stroke-width="1.5"/>`,
+      );
+    case "pixel-sort":
+      return wrap(
+        `<g>` +
+          [
+            [14, A, 30, 0.9],
+            [26, K, 55, 0.7],
+            [38, K, 20, 0.5],
+            [50, A, 44, 0.8],
+            [62, K, 60, 0.6],
+            [74, K, 34, 0.7],
+            [86, A, 50, 0.5],
+            [98, K, 24, 0.6],
+          ]
+            .map(
+              ([x, c, h, o]) =>
+                `<rect x="${x}" y="${82 - h}" width="6" height="${h}" fill="${c}" opacity="${o}"/>`,
+            )
+            .join("") +
+          `</g>`,
+      );
+    case "gradient-map":
+      return wrap(
+        `<defs><linearGradient id="${u("gm")}" x1="0" y1="0" x2="1" y2="0">` +
+          `<stop offset="0" stop-color="${K}"/><stop offset=".5" stop-color="${A}"/>` +
+          `<stop offset="1" stop-color="${P}"/></linearGradient></defs>` +
+          `<rect x="10" y="22" width="98" height="44" fill="url(#${u("gm")})"/>`,
+      );
+    case "tone":
+      return wrap(
+        `<polyline points="14,74 104,14" fill="none" stroke="${S}" stroke-width="1" opacity=".5"/>` +
+          `<path d="M14,74 C44,72 46,28 104,14" fill="none" stroke="${A}" stroke-width="3"/>`,
+      );
+    case "hue-sat":
+      return wrap(
+        `<g>` +
+          [A, K, S, A, K, S]
+            .map(
+              (c, i) =>
+                `<rect x="${14 + i * 15}" y="22" width="13" height="44" fill="${c}" opacity="${[0.9, 0.8, 0.6, 0.7, 0.85, 0.5][i]}"/>`,
+            )
+            .join("") +
+          `</g>`,
+      );
+    default:
+      return wrap(
+        `<text x="59" y="50" text-anchor="middle" font-size="14" fill="${K}">${idx + 1}</text>`,
+      );
+  }
+}
+
+function buildParamPanel() {
+  const eff = activeEffect();
+  $("#param-title").textContent = eff.name;
+  const root = $("#param-controls");
+  root.innerHTML = "";
+  if (eff.acceptsBase) root.appendChild(buildBaseLayerControl());
+  appendParams(root, eff.params, activeState(), onParamChange);
+}
+
+// Param change: if the param gates others' visibility, rebuild the panel so
+// showIf re-evaluates; then re-render.
+function onParamChange(key) {
+  const param = activeEffect().params.find((p) => p.key === key);
+  if (param && param.rebuildOnChange) buildParamPanel();
+  requestRender();
+}
+
+/* ----------------------------------------------------------------
+   Stage 04 — stacked second effect (runs on the first's output)
+   ---------------------------------------------------------------- */
+function makeTool(label, title, onClick) {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.className = "tool";
+  b.textContent = label;
+  if (title) b.title = title;
+  b.addEventListener("click", onClick);
+  return b;
+}
+
+// Builds both the header tools and the body of block 04. When inactive it's
+// just a "+ Add effect" prompt; when active it mirrors block 03 (effect picker,
+// params, Randomize/Reset) plus a Remove.
+function buildEffect2Panel() {
+  const tools = $("#effect2-tools");
+  const body = $("#param2-controls");
+  tools.innerHTML = "";
+  body.innerHTML = "";
+
+  const section = $("#block-effect2");
+  section.classList.toggle("is-on", App.effect2On);
+  $("#param2-title").textContent = App.effect2On
+    ? effect2().name
+    : "Stack effect";
+
+  if (!App.effect2On) {
+    const add = makeTool("+ Add", "Stack a second effect", enableEffect2);
+    add.classList.add("tool--add");
+    tools.appendChild(add);
+    const hint = document.createElement("p");
+    hint.className = "note note--add";
+    hint.innerHTML =
+      "No second effect. <b>+ Add</b> one to run it on the output of the effect above.";
+    body.appendChild(hint);
+    return;
+  }
+
+  tools.appendChild(
+    makeTool("Randomize", "Randomize second effect", doRandomize2),
+  );
+  tools.appendChild(makeTool("Reset", "Reset second effect", doReset2));
+  tools.appendChild(
+    makeTool("× Remove", "Remove second effect", disableEffect2),
+  );
+
+  // Effect picker for slot 2 (no filmstrip drives this one).
+  const sel = document.createElement("select");
+  for (const e of EFFECTS) {
+    const o = document.createElement("option");
+    o.value = e.id;
+    o.textContent = e.name;
+    sel.appendChild(o);
+  }
+  sel.value = App.effect2Id;
+  sel.addEventListener("change", () => {
+    App.effect2Id = sel.value;
+    buildEffect2Panel();
+    buildEffectChips(); // keep the filmstrip highlight in sync when targeting B
+    updateMeta();
+    requestRender();
+  });
+  const row = labeledRow("Effect", sel);
+  row.classList.add("row--base");
+  body.appendChild(row);
+
+  appendParams(body, effect2().params, effect2State(), onParam2Change);
+}
+
+function onParam2Change(key) {
+  const param = effect2().params.find((p) => p.key === key);
+  if (param && param.rebuildOnChange) buildEffect2Panel();
+  requestRender();
+}
+
+function enableEffect2() {
+  App.effect2On = true;
+  App.filmTarget = "B"; // the freshly added slot becomes the preset target
+  buildEffect2Panel();
+  buildFilmTargetToggle();
+  buildEffectChips();
+  updateMeta();
+  updateSVGAvailability();
+  requestRender();
+}
+
+function disableEffect2() {
+  App.effect2On = false;
+  App.filmTarget = "A"; // nothing to target in B anymore
+  buildEffect2Panel();
+  buildFilmTargetToggle();
+  buildEffectChips();
+  updateMeta();
+  updateSVGAvailability();
+  requestRender();
+}
+
+function doRandomize2() {
+  if (!App.srcImage) {
+    note("Load an image first.");
+    return;
+  }
+  randomizeInto(effect2().params, effect2State());
+  buildEffect2Panel();
+  requestRender();
+}
+
+function doReset2() {
+  App.states2[App.effect2Id] = defaultsOf(effect2().params);
+  buildEffect2Panel();
+  requestRender();
+}
+
+// Global "Base layer" selector — only shown for effects that accept a base.
+// Options: None + every non-glitch effect (you can't base a glitch on a glitch).
+function buildBaseLayerControl() {
+  const sel = document.createElement("select");
+  const opts = [{ value: "none", label: "None (source image)" }].concat(
+    EFFECTS.filter((e) => !e.acceptsBase && e.category !== "color").map(
+      (e) => ({ value: e.id, label: e.name }),
+    ),
+  );
+  for (const o of opts) {
+    const opt = document.createElement("option");
+    opt.value = o.value;
+    opt.textContent = o.label;
+    sel.appendChild(opt);
+  }
+  sel.value = App.baseLayer;
+  sel.addEventListener("change", () => {
+    App.baseLayer = sel.value;
+    requestRender();
+  });
+  const row = labeledRow("Base layer", sel);
+  row.classList.add("row--base");
+  return row;
+}
+
+// Color pre-stage selector (None + each color module) + its own param group.
+function buildPreStageSelect() {
+  const root = $("#prestage-select");
+  root.innerHTML = "";
+  const sel = document.createElement("select");
+  const none = document.createElement("option");
+  none.value = "none";
+  none.textContent = "None";
+  sel.appendChild(none);
+  for (const m of EFFECTS.filter((e) => e.category === "color")) {
+    const o = document.createElement("option");
+    o.value = m.id;
+    o.textContent = m.name;
+    sel.appendChild(o);
+  }
+  sel.value = App.preStage;
+  sel.addEventListener("change", () => {
+    App.preStage = sel.value;
+    buildPreStageControls();
+    requestRender();
+  });
+  root.appendChild(labeledRow("Color pre-stage", sel));
+}
+
+// The pre-stage module's params (auto-generated) — written to preStageParams,
+// with their own rebuild-on-change handling, independent of the active effect.
+function buildPreStageControls() {
+  const root = $("#prestage-controls");
+  root.innerHTML = "";
+  if (App.preStage === "none") return;
+  const mod = EFFECTS.find((e) => e.id === App.preStage);
+  if (!mod) return;
+  appendParams(root, mod.params, App.preStageParams[mod.id], (key) => {
+    const param = mod.params.find((p) => p.key === key);
+    if (param && param.rebuildOnChange) buildPreStageControls();
+    requestRender();
+  });
+}
+
+function buildExportControls() {
+  const root = $("#export-controls");
+  root.innerHTML = "";
+  const seg = buildSegmented(
+    [
+      { value: 1, label: "1×" },
+      { value: 2, label: "2×" },
+    ],
+    App.exportScale,
+    (v) => {
+      App.exportScale = v;
+    },
+  );
+  root.appendChild(labeledRow("Export scale", seg));
+}
+
+function setEffect(id) {
+  App.activeId = id;
+  buildEffectChips();
+  buildParamPanel();
+  updateMeta();
+  updateSVGAvailability();
+  requestRender();
+}
+
+function doRandomize() {
+  if (!App.srcImage) {
+    note("Load an image first.");
+    return;
+  }
+  randomizeInto(activeEffect().params, activeState());
+  buildParamPanel();
+  requestRender();
+}
+
+function doReset() {
+  App.states[App.activeId] = defaultsOf(activeEffect().params);
+  buildParamPanel();
+  requestRender();
+}
+
+/* ----------------------------------------------------------------
+   Export
+   ---------------------------------------------------------------- */
+function doExportPNG() {
+  if (!App.srcImage) {
+    note("Load an image first.");
+    return;
+  }
+  const eff = activeEffect();
+  const src = getSourceForActive();
+  const w = App.canvasW * App.exportScale,
+    h = App.canvasH * App.exportScale;
+  const second = App.effect2On
+    ? { effect: effect2(), state: effect2State() }
+    : null;
+  const name = second ? `${eff.id}+${App.effect2Id}` : eff.id;
+  exportPNG(
+    App.p,
+    eff,
+    src,
+    activeState(),
+    App.canvasW,
+    App.canvasH,
+    App.exportScale,
+    `halftone-press_${name}_${w}x${h}.png`,
+    second,
+  );
+  note(`Exported PNG · ${w}×${h}`);
+}
+
+function doExportSVG() {
+  if (!App.srcImage) {
+    note("Load an image first.");
+    return;
+  }
+  const eff = activeEffect();
+  const res = exportSVG(
+    eff,
+    getSourceForActive(),
+    activeState(),
+    App.canvasW,
+    App.canvasH,
+    `halftone-press_${eff.id}.svg`,
+  );
+  if (res.ok) note("Exported SVG (vector).");
+  else if (res.reason === "unsupported")
+    note("SVG isn’t 1:1 in CMYK mode — switch CMYK off or export PNG.");
+  else note("SVG export isn’t available for this effect.");
+}
+
+function updateSVGAvailability() {
+  const eff = activeEffect();
+  const btn = $("#btn-svg");
+  // A stacked chain is raster-on-raster — it can't be flattened to vector 1:1.
+  const has = !App.effect2On && typeof eff.renderSVG === "function";
+  btn.disabled = !has;
+  $("#svg-note").textContent = App.effect2On
+    ? "SVG isn’t available while a second effect is stacked."
+    : has
+      ? "SVG: true vector dots / glyphs for print."
+      : "SVG export isn’t available for this effect.";
+}
+
+/* ----------------------------------------------------------------
+   Misc UI
+   ---------------------------------------------------------------- */
+function updateMeta() {
+  const chain =
+    activeEffect().name + (App.effect2On ? ` → ${effect2().name}` : "");
+  $("#meta-fx").textContent = chain + (App.srcImage ? "" : " · idle");
+  $("#meta-dims").textContent = App.srcImage
+    ? `${App.srcImage.width}×${App.srcImage.height}`
+    : "— × —";
+}
+
+function updateAsciiOverlay(eff, state) {
+  const pre = $("#ascii-text");
+  if (eff.id === "ascii" && state && state.showText && eff.lastText) {
+    pre.textContent = eff.lastText;
+    pre.hidden = false;
+  } else {
+    pre.hidden = true;
+  }
+}
+
+let noteTimer = null;
+function note(msg) {
+  const el = $("#drop-note");
+  el.textContent = msg;
+  el.style.color = "var(--ink)";
+  el.style.fontWeight = "700";
+  clearTimeout(noteTimer);
+  noteTimer = setTimeout(() => {
+    el.textContent = "Tip: drag & drop an image anywhere onto the proof.";
+    el.style.color = "";
+    el.style.fontWeight = "";
+  }, 2600);
+}
+
+/* ----------------------------------------------------------------
+   Events
+   ---------------------------------------------------------------- */
+function wireEvents() {
+  $("#file-input").addEventListener("change", (e) => {
+    loadFromFile(e.target.files[0]);
+    e.target.value = "";
+  });
+  ["#btn-upload", "#btn-upload-2"].forEach((s) =>
+    $(s).addEventListener("click", () => $("#file-input").click()),
+  );
+  ["#btn-demo", "#btn-demo-2"].forEach((s) =>
+    $(s).addEventListener("click", () => useDemo()),
+  );
+
+  $("#btn-randomize").addEventListener("click", doRandomize);
+  $("#btn-reset").addEventListener("click", doReset);
+  $("#btn-png").addEventListener("click", doExportPNG);
+  $("#btn-svg").addEventListener("click", doExportSVG);
+
+  // Drag & drop anywhere
+  const empty = $("#empty");
+  ["dragenter", "dragover"].forEach((ev) =>
+    window.addEventListener(ev, (e) => {
+      e.preventDefault();
+      empty.classList.add("is-hover");
+    }),
+  );
+  ["dragleave", "dragend"].forEach((ev) =>
+    window.addEventListener(ev, (e) => {
+      if (e.relatedTarget === null) empty.classList.remove("is-hover");
+    }),
+  );
+  window.addEventListener("drop", (e) => {
+    e.preventDefault();
+    empty.classList.remove("is-hover");
+    const f = e.dataTransfer && e.dataTransfer.files[0];
+    if (f) loadFromFile(f);
+  });
+
+  // Keyboard: R randomize, E export
+  window.addEventListener("keydown", (e) => {
+    const tag = (e.target.tagName || "").toLowerCase();
+    if (tag === "input" || tag === "select" || tag === "textarea") return;
+    if (e.key === "r" || e.key === "R") doRandomize();
+    else if (e.key === "e" || e.key === "E") doExportPNG();
+  });
+
+  // Re-render once webfonts are ready (ASCII metrics depend on them)
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(() => requestRender());
+  }
+}
+
+/* ----------------------------------------------------------------
+   Init
+   ---------------------------------------------------------------- */
+function init() {
+  buildPanel($("#preadjust-controls"), PRE_SCHEMA, App.pre, () => recompute());
+  buildPreStageSelect();
+  buildPreStageControls();
+  buildEffectChips();
+  buildFilmTargetToggle();
+  buildParamPanel();
+  buildEffect2Panel();
+  buildExportControls();
+  updateSVGAvailability();
+  updateMeta();
+  wireEvents();
+}
+
+init();
+
+// Debug / automation handle — lets you inspect state from the console.
+window.__hp = App;
