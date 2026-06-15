@@ -17,12 +17,9 @@
     <!-- p5.js 1.x from CDN (used in INSTANCE mode; see src/main.js) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.11.3/p5.min.js"></script>
 
-    <!-- Privacy-friendly analytics by Plausible -->
-    <script async src="https://plausible.io/js/pa-4spEPK3XpaGAh2OFV3QcS.js"></script>
-    <script>
-      window.plausible=window.plausible||function(){(plausible.q=plausible.q||[]).push(arguments)},plausible.init=plausible.init||function(i){plausible.o=i||{}};
-      plausible.init()
-    </script>
+    <!-- Privacy-friendly analytics by GoatCounter -->
+    <script data-goatcounter="https://sefatlmn.goatcounter.com/count"
+            async src="//gc.zgo.at/count.js"></script>
   </head>
   <body>
     <!-- MASTHEAD -->
@@ -38,7 +35,6 @@
             <a href="https://www.sefatolaman.design">By Sefa Tolaman</a></b
           ></span
         >
-        <span>ED.&nbsp;001 / No AI / No Backend</span>
       </div>
     </header>
 
@@ -76,7 +72,7 @@
             </div>
           </section>
 
-          <section class="block">
+          <section class="block block--a">
             <div class="block-head">
               <span class="ix">A</span>
               <h3 id="param-title">Parameters</h3>
@@ -125,7 +121,7 @@
             <span class="tick tl"></span><span class="tick tr"></span>
             <span class="tick bl"></span><span class="tick br"></span>
 
-            <div class="proof" id="canvas-holder"></div>
+            <div class="proof" id="canvas-holder" hidden></div>
 
             <!-- ASCII selectable-text overlay -->
             <pre class="ascii-text" id="ascii-text" hidden></pre>
@@ -173,7 +169,6 @@
                 aria-label="Preset target"
               ></div>
             </div>
-            <span id="strip-count">CLICK TO APPLY</span>
           </div>
           <div
             class="films"

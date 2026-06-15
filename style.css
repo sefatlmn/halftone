@@ -80,7 +80,6 @@ kbd {
   align-items: center;
   gap: 18px;
   padding: 16px 26px;
-  border-right: var(--hair);
 }
 .mh-mark {
   display: flex;
@@ -113,7 +112,7 @@ kbd {
   flex: 1;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   padding: 0 26px;
   gap: 30px;
   font-size: 11px;
@@ -211,7 +210,6 @@ kbd {
 }
 .block--b .block-head .ix {
   color: var(--ink);
-  opacity: 0.55;
 }
 .block--b .block-head h3 {
   color: var(--ink);
@@ -219,6 +217,9 @@ kbd {
 .block-tools {
   display: flex;
   gap: 14px;
+}
+.block-tools[hidden] {
+  display: none;
 }
 .tool {
   font-family: var(--font);
@@ -235,21 +236,50 @@ kbd {
   color: var(--accent);
 }
 
-/* Stage 04 — stacked second effect. The "+ Add" reads in the secondary colour;
-   when active a left ink-stripe marks the block as an extra pass. */
-.tool--add {
-  color: var(--accent-2);
-  font-weight: 700;
+/* Pre-adjust (02) — all accent elements read in ink only, never red */
+.block--b .field__val {
+  color: var(--ink);
 }
-.tool--add:hover {
-  color: var(--accent-2);
-  opacity: 0.7;
+.block--b input[type="range"]::-webkit-slider-thumb {
+  background: var(--ink);
+  border-color: var(--ink);
 }
+.block--b input[type="range"]::-moz-range-thumb {
+  background: var(--ink);
+  border-color: var(--ink);
+}
+.block--b input[type="range"]:focus-visible {
+  outline-color: var(--ink);
+}
+.block--b .toggle input:checked + .toggle__track {
+  background: var(--ink);
+}
+.block--b .toggle input:focus-visible + .toggle__track {
+  outline-color: var(--ink);
+}
+
+/* Stage B — stacked second effect. Slot ix badges read in their slot colour. */
+.block--a .block-head .ix {
+  color: var(--accent);
+} /* slot A reads red */
 .block--stack .block-head .ix {
   color: var(--accent-2);
-} /* slot B reads blue */
-.block--stack.is-on {
-  box-shadow: inset 3px 0 0 var(--accent-2);
+} /* slot B reads mustard */
+/* Slot B active: recolour all accent-tinted controls to mustard */
+.block--stack.is-on .field__val {
+  color: var(--accent-2);
+}
+.block--stack.is-on input[type="range"]::-webkit-slider-thumb {
+  background: var(--accent-2);
+}
+.block--stack.is-on input[type="range"]::-moz-range-thumb {
+  background: var(--accent-2);
+}
+.block--stack.is-on input[type="range"]:focus-visible {
+  outline-color: var(--accent-2);
+}
+.block--stack.is-on .toggle input:checked + .toggle__track {
+  background: var(--accent-2);
 }
 .note--add {
   margin: 0;
@@ -336,6 +366,7 @@ input[type="range"]::-webkit-slider-thumb {
   appearance: none;
   width: 11px;
   height: 11px;
+  border-radius: 50%;
   background: var(--accent);
   border: var(--hair);
   margin-top: -5px;
@@ -343,6 +374,7 @@ input[type="range"]::-webkit-slider-thumb {
 input[type="range"]::-moz-range-thumb {
   width: 11px;
   height: 11px;
+  border-radius: 50%;
   background: var(--accent);
   border: var(--hair);
 }
@@ -782,8 +814,6 @@ input[type="color"]::-moz-color-swatch {
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px dashed var(--ink);
-  background: color-mix(in srgb, var(--paper) 93%, transparent);
   z-index: 5;
 }
 .empty.is-hover {
@@ -813,11 +843,11 @@ input[type="color"]::-moz-color-swatch {
   text-transform: uppercase;
   font-size: 26px;
   letter-spacing: -0.01em;
-  margin: 12px 0 4px;
+  margin: 22px 0 10px;
 }
 .empty p {
   color: var(--ink-soft);
-  margin: 0 0 16px;
+  margin: 0 0 28px;
 }
 .empty.is-hover h2,
 .empty.is-hover p {

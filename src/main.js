@@ -30,8 +30,7 @@ const App = {
   baseLayer: "none", // composition: id of a base effect, or 'none'
   preStage: "none", // color pre-stage: id of a color module, or 'none'
   preStageParams: {}, // pre-stage params, kept separate from active-effect params
-  effect2On: false, // stack a second effect on the first's output?
-  effect2Id: EFFECTS[1] ? EFFECTS[1].id : EFFECTS[0].id, // default pick for slot 2
+  effect2Id: "none", // the second slot's effect; 'none' = no second pass (slot B off)
   states2: {}, // per-effect param values for the second slot (independent)
   filmTarget: "A", // which slot the preset filmstrip currently edits: 'A' | 'B'
   _pending: false,
@@ -81,8 +80,10 @@ const activeEffect = () => EFFECTS.find((e) => e.id === App.activeId);
 const activeState = () => App.states[App.activeId];
 const effect2 = () => EFFECTS.find((e) => e.id === App.effect2Id);
 const effect2State = () => App.states2[App.effect2Id];
+// Slot B is "on" whenever its effect isn't the null/None pass-through.
+const isEffect2On = () => App.effect2Id !== "none";
 // The param state the canvas finally shows — slot 2 when stacked, else slot 1.
-const finalState = () => (App.effect2On ? effect2State() : activeState());
+const finalState = () => (isEffect2On() ? effect2State() : activeState());
 // The effect id the filmstrip presets currently apply to (slot A or B).
 const targetEffectId = () =>
   App.filmTarget === "B" ? App.effect2Id : App.activeId;
@@ -201,8 +202,8 @@ function singleBundle() {
     effectParams: activeState(),
     baseLayer: eff.acceptsBase ? App.baseLayer : "none",
     baseParams: usesBase ? App.states[App.baseLayer] : {},
-    effect2: App.effect2On ? App.effect2Id : "none",
-    effect2Params: App.effect2On ? effect2State() : {},
+    effect2: App.effect2Id, // 'none' → the stack skips the second pass
+    effect2Params: effect2State(),
   };
 }
 
@@ -263,6 +264,7 @@ function loadFromFile(file) {
 function setSource(img) {
   App.srcImage = img;
   $("#empty").setAttribute("hidden", "");
+  $("#canvas-holder").removeAttribute("hidden");
   const { w, h } = computeCanvasSize();
   App.canvasW = w;
   App.canvasH = h;
@@ -347,17 +349,18 @@ function buildEffectChips() {
     film.addEventListener("click", () => applyPreset(e.id));
     root.appendChild(film);
   });
-  const count = $("#strip-count");
-  if (count) count.textContent = `${EFFECTS.length} · CLICK TO APPLY`;
 }
 
-// Apply a filmstrip preset to whichever slot is targeted.
+// Apply a filmstrip preset to whichever slot is targeted. For slot B, picking
+// None clears the second pass; picking anything else stacks it on A's output.
 function applyPreset(id) {
   if (App.filmTarget === "B") {
     App.effect2Id = id;
     buildEffect2Panel();
+    buildFilmTargetToggle();
     buildEffectChips();
     updateMeta();
+    updateSVGAvailability();
     requestRender();
   } else {
     setEffect(id);
@@ -373,26 +376,26 @@ function buildFilmTargetToggle() {
   ["A", "B"].forEach((slot) => {
     const b = document.createElement("button");
     b.type = "button";
-    b.className = "abtog__btn" + (slot === App.filmTarget ? " is-active" : "");
-    if (slot === "B" && !App.effect2On) b.classList.add("is-empty");
+    const active = slot === App.filmTarget;
+    b.className = "abtog__btn" + (active ? " is-active" : "");
+    // Dim B when it holds no effect — unless it's the slot you're aiming at.
+    if (slot === "B" && !isEffect2On() && !active) b.classList.add("is-empty");
     b.dataset.slot = slot;
     b.textContent = slot;
     b.title =
       slot === "A"
-        ? "Edit effect A"
-        : App.effect2On
-          ? "Edit effect B"
-          : "Add & edit effect B";
+        ? "Target effect A"
+        : isEffect2On()
+          ? "Target effect B"
+          : "Target slot B — pick an effect to stack";
     b.addEventListener("click", () => setFilmTarget(slot));
     root.appendChild(b);
   });
 }
 
+// Switch which slot the filmstrip edits. Slot B starts empty (None); choosing
+// it just aims the strip there so the next pick stacks onto A's output.
 function setFilmTarget(slot) {
-  if (slot === "B" && !App.effect2On) {
-    enableEffect2();
-    return;
-  } // adds B and targets it
   App.filmTarget = slot;
   buildFilmTargetToggle();
   buildEffectChips();
@@ -413,6 +416,11 @@ function effectMotif(id, idx) {
     `<svg viewBox="0 0 118 88" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">` +
     `<rect width="118" height="88" fill="${P}"/>${inner}</svg>`;
   switch (id) {
+    case "none":
+      return wrap(
+        `<rect x="24" y="20" width="70" height="48" fill="none" stroke="${K}" stroke-width="2"/>` +
+          `<line x1="24" y1="68" x2="94" y2="20" stroke="${K}" stroke-width="2"/>`,
+      );
     case "halftone":
       return wrap(
         `<defs><pattern id="${u("hp")}" width="10" height="10" patternUnits="userSpaceOnUse">` +
@@ -533,9 +541,16 @@ function effectMotif(id, idx) {
 function buildParamPanel() {
   const eff = activeEffect();
   $("#param-title").textContent = eff.name;
+  $(".block--a .block-tools").hidden = !eff.params.length;
   const root = $("#param-controls");
   root.innerHTML = "";
   if (eff.acceptsBase) root.appendChild(buildBaseLayerControl());
+  if (!eff.params.length && eff.hint) {
+    const hint = document.createElement("p");
+    hint.className = "note";
+    hint.textContent = eff.hint;
+    root.appendChild(hint);
+  }
   appendParams(root, eff.params, activeState(), onParamChange);
 }
 
@@ -560,29 +575,25 @@ function makeTool(label, title, onClick) {
   return b;
 }
 
-// Builds both the header tools and the body of block 04. When inactive it's
-// just a "+ Add effect" prompt; when active it mirrors block 03 (effect picker,
-// params, Randomize/Reset) plus a Remove.
+// Builds the header tools and body of block B. With None selected it's just a
+// prompt to pick a second effect; with a real effect it mirrors block A (params,
+// Randomize/Reset). The effect itself is chosen from the filmstrip (target B) —
+// selecting None there clears it, so there's no separate Add/Remove button.
 function buildEffect2Panel() {
   const tools = $("#effect2-tools");
   const body = $("#param2-controls");
   tools.innerHTML = "";
   body.innerHTML = "";
 
-  const section = $("#block-effect2");
-  section.classList.toggle("is-on", App.effect2On);
-  $("#param2-title").textContent = App.effect2On
-    ? effect2().name
-    : "Stack effect";
+  const on = isEffect2On();
+  $("#block-effect2").classList.toggle("is-on", on);
+  $("#param2-title").textContent = effect2().name;
 
-  if (!App.effect2On) {
-    const add = makeTool("+ Add", "Stack a second effect", enableEffect2);
-    add.classList.add("tool--add");
-    tools.appendChild(add);
+  if (!on) {
     const hint = document.createElement("p");
     hint.className = "note note--add";
     hint.innerHTML =
-      "No second effect. <b>+ Add</b> one to run it on the output of the effect above.";
+      "No second effect. Target <b>B</b> in the strip below and pick one to run it on the output of the effect above.";
     body.appendChild(hint);
     return;
   }
@@ -591,40 +602,12 @@ function buildEffect2Panel() {
     makeTool("Randomize", "Randomize second effect", doRandomize2),
   );
   tools.appendChild(makeTool("Reset", "Reset second effect", doReset2));
-  tools.appendChild(
-    makeTool("× Remove", "Remove second effect", disableEffect2),
-  );
-
-  // Slot B's effect is chosen from the bottom filmstrip (with the B target
-  // toggle) — no separate picker here. The header shows the current choice.
   appendParams(body, effect2().params, effect2State(), onParam2Change);
 }
 
 function onParam2Change(key) {
   const param = effect2().params.find((p) => p.key === key);
   if (param && param.rebuildOnChange) buildEffect2Panel();
-  requestRender();
-}
-
-function enableEffect2() {
-  App.effect2On = true;
-  App.filmTarget = "B"; // the freshly added slot becomes the preset target
-  buildEffect2Panel();
-  buildFilmTargetToggle();
-  buildEffectChips();
-  updateMeta();
-  updateSVGAvailability();
-  requestRender();
-}
-
-function disableEffect2() {
-  App.effect2On = false;
-  App.filmTarget = "A"; // nothing to target in B anymore
-  buildEffect2Panel();
-  buildFilmTargetToggle();
-  buildEffectChips();
-  updateMeta();
-  updateSVGAvailability();
   requestRender();
 }
 
@@ -649,9 +632,9 @@ function doReset2() {
 function buildBaseLayerControl() {
   const sel = document.createElement("select");
   const opts = [{ value: "none", label: "None (source image)" }].concat(
-    EFFECTS.filter((e) => !e.acceptsBase && e.category !== "color").map(
-      (e) => ({ value: e.id, label: e.name }),
-    ),
+    EFFECTS.filter(
+      (e) => e.id !== "none" && !e.acceptsBase && e.category !== "color",
+    ).map((e) => ({ value: e.id, label: e.name })),
   );
   for (const o of opts) {
     const opt = document.createElement("option");
@@ -761,7 +744,7 @@ function doExportPNG() {
   const src = getSourceForActive();
   const w = App.canvasW * App.exportScale,
     h = App.canvasH * App.exportScale;
-  const second = App.effect2On
+  const second = isEffect2On()
     ? { effect: effect2(), state: effect2State() }
     : null;
   const name = second ? `${eff.id}+${App.effect2Id}` : eff.id;
@@ -803,9 +786,9 @@ function updateSVGAvailability() {
   const eff = activeEffect();
   const btn = $("#btn-svg");
   // A stacked chain is raster-on-raster — it can't be flattened to vector 1:1.
-  const has = !App.effect2On && typeof eff.renderSVG === "function";
+  const has = !isEffect2On() && typeof eff.renderSVG === "function";
   btn.disabled = !has;
-  $("#svg-note").textContent = App.effect2On
+  $("#svg-note").textContent = isEffect2On()
     ? "SVG isn’t available while a second effect is stacked."
     : has
       ? "SVG: true vector dots / glyphs for print."
@@ -817,8 +800,8 @@ function updateSVGAvailability() {
    ---------------------------------------------------------------- */
 function updateMeta() {
   const chain =
-    activeEffect().name + (App.effect2On ? ` → ${effect2().name}` : "");
-  $("#meta-fx").textContent = chain + (App.srcImage ? "" : " · idle");
+    activeEffect().name + (isEffect2On() ? ` → ${effect2().name}` : "");
+  $("#meta-fx").textContent = chain;
   $("#meta-dims").textContent = App.srcImage
     ? `${App.srcImage.width}×${App.srcImage.height}`
     : "— × —";

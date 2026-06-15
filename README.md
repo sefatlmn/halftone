@@ -2,7 +2,7 @@
 
 A browser-based **print-effects workshop** built with [p5.js](https://p5js.org/). Load an
 image, run it through a dozen halftone / dither / glitch / colour screens with live controls,
-**stack two effects**, and export to PNG or SVG. No backend, no framework, no build step, no AI —
+**stack two effects**, and export to PNG or SVG. No backend, no framework, no build step —
 just static files, all processing in your browser.
 
 ![Halftone Tools](https://img.shields.io/badge/p5.js-1.11.x-ff3d8b) ![No build step](https://img.shields.io/badge/build-none-181410)
@@ -11,6 +11,7 @@ just static files, all processing in your browser.
 
 | #   | Effect          | What it does                                                                                                                                                                                  |
 | --- | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 00  | **None**        | Pass-through — shows the source after Pre-adjust with no screen. Default on load; selecting it in slot B clears the second effect.                                                            |
 | 01  | **Halftone**    | Rotated dot screen, radius ∝ √(darkness). Circle / square / line dots, single mono ink or full **CMYK** separation (15° / 75° / 0° / 45°, MULTIPLY).                                          |
 | 02  | **Dither**      | **Ordered** (2×2 / 4×4 / 8×8 Bayer) and **Floyd–Steinberg** error diffusion with optional serpentine scan. Palettes (1-bit, duotone, 3/4-tone, C/M/Y), chunky pixels, and a modulation field. |
 | 03  | **ASCII**       | Glyph grid from an editable ramp, mono or source-coloured, in a real monospace font. Optional selectable-text overlay.                                                                        |
@@ -48,12 +49,12 @@ Tested on current Chrome, Firefox, and Safari.
 
 ## Using it
 
-1. **Load image** (or **Demo plate**) — or just drag & drop an image onto the proof.
+1. **Load image** (or **Demo plate**) — or drag & drop an image onto the stage.
 2. **Pre-adjust** (brightness / contrast / gamma / invert), and optionally a **Colour pre-stage**
    (Gradient Map / Tone / Hue·Sat) — applied once into the working buffer before the effect.
 3. Pick **Effect A** from the bottom filmstrip and tweak its parameters; the preview updates live.
-4. Optionally **stack Effect B** on top — the **A / B** toggle in the filmstrip header chooses which
-   slot the presets apply to; B runs on A's rendered output.
+4. To **stack a second effect**, click **B** in the filmstrip toggle, then pick any effect —
+   B runs on A's rendered output. Picking **00 None** in slot B clears the stack.
 5. **Export PNG** at 1× or 2×. For mono Halftone and ASCII you can also **Export SVG** (true vectors);
    SVG isn't available while two effects are stacked.
 
@@ -62,7 +63,7 @@ Tested on current Chrome, Firefox, and Safari.
 ## Architecture
 
 ```
-index.html        # markup + p5 CDN + Google Fonts + Plausible analytics
+index.html        # markup + p5 CDN + Google Fonts + GoatCounter analytics
 style.css         # print-shop / risograph styling (five-colour token system, no rounded corners)
 src/
   main.js         # p5 instance (instance mode), app state, all wiring
@@ -72,6 +73,7 @@ src/
   effects/
     index.js      # registry (array of effect modules, in UI order)
     stack.js      # the pipeline: pre-adjust → colour pre-stage → [base →] effect → [stacked effect]
+    none.js       # pass-through (00 None) — default state and "clear B" mechanism
     halftone.js  dither.js  ascii.js  riso.js  xerox.js  stamp.js
     glitch.js  rgb-shift.js  pixel-sort.js      # glitch-family (accept a base layer)
     gradient-map.js  tone.js  hue-sat.js         # colour modules (effect or pre-stage)
@@ -127,7 +129,8 @@ source image → pre-adjust → colour pre-stage → [base effect →] effect A 
 Each stage is keyed by a signature and only recomputed when its inputs change. **Effect B**
 (when stacked) renders on **A's rasterised output**: A is drawn into an intermediate buffer,
 its pixels loaded, then handed to B as its `src` — so any second effect, even a pixel reader,
-can sample it.
+can sample it. Slot B is considered active whenever its selected effect is anything other than
+`none`; selecting `00 None` in slot B is how you clear the stack.
 
 ### Base layer (composition)
 
@@ -162,9 +165,9 @@ effect's last-used params — configure Halftone, then switch to Glitch with Hal
 ## Privacy
 
 Your images never leave your machine — all processing happens in the browser, and there is no
-backend or upload. The site loads **[Plausible](https://plausible.io/)**, a lightweight,
+backend or upload. The site loads **[GoatCounter](https://www.goatcounter.com/)**, a lightweight,
 cookieless analytics script that records only anonymous, aggregate page-view counts. No
-personal data, no cross-site tracking, no fingerprinting — GDPR / CCPA / PECR-friendly.
+personal data, no cross-site tracking, no fingerprinting — GDPR-friendly.
 
 ## License
 
