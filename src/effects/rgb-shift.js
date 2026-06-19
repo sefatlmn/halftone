@@ -81,4 +81,72 @@ export default {
     g.image(out, 0, 0, w, h); // smooth upscale is fine for chromatic fringing
     out.remove();
   },
+
+  // RGB channel separations — additive: each channel is rendered in its own
+  // colour on black, so the three plates recombine to the full image. The
+  // per-pixel shift mirrors render() (kept inline there for speed) and is
+  // computed once, lazily, on the first plate draw, then shared.
+  separations(src, params, ctx) {
+    const { p, w, h } = ctx;
+    const sw = src.width, sh = src.height;
+    let planes = null;
+
+    const build = () => {
+      if (planes) return planes;
+      const sp = src.pixels;
+      const cx = sw / 2, cy = sh / 2;
+      const maxD = Math.sqrt(cx * cx + cy * cy) || 1;
+      const { mode, advanced, edgeBias } = params;
+      const ar = (params.angle * Math.PI) / 180;
+      const dx = Math.cos(ar) * params.amount, dy = Math.sin(ar) * params.amount;
+      const R = new Uint8ClampedArray(sw * sh * 4);
+      const G = new Uint8ClampedArray(sw * sh * 4);
+      const B = new Uint8ClampedArray(sw * sh * 4);
+
+      for (let y = 0; y < sh; y++) {
+        for (let x = 0; x < sw; x++) {
+          let rOx, rOy, gOx, gOy, bOx, bOy;
+          if (mode === 'radial') {
+            const ddx = x - cx, ddy = y - cy;
+            const d = Math.sqrt(ddx * ddx + ddy * ddy) || 1;
+            const mag = params.radialStrength * (d / maxD);
+            const ux = ddx / d, uy = ddy / d;
+            rOx = ux * mag; rOy = uy * mag; gOx = 0; gOy = 0; bOx = -ux * mag; bOy = -uy * mag;
+            if (advanced) { rOx += params.rx; rOy += params.ry; gOx = params.gx; gOy = params.gy; bOx += params.bx; bOy += params.by; }
+          } else if (advanced) {
+            rOx = params.rx; rOy = params.ry; gOx = params.gx; gOy = params.gy; bOx = params.bx; bOy = params.by;
+          } else {
+            rOx = dx; rOy = dy; gOx = 0; gOy = 0; bOx = -dx; bOy = -dy;
+          }
+
+          let s = 1;
+          if (edgeBias > 0) {
+            const ddx = x - cx, ddy = y - cy;
+            s = 1 + edgeBias * 2 * (Math.sqrt(ddx * ddx + ddy * ddy) / maxD);
+          }
+
+          const oi = (y * sw + x) << 2;
+          R[oi]     = chan(sp, sw, sh, x - rOx * s, y - rOy * s, 0); R[oi + 3] = 255;
+          G[oi + 1] = chan(sp, sw, sh, x - gOx * s, y - gOy * s, 1); G[oi + 3] = 255;
+          B[oi + 2] = chan(sp, sw, sh, x - bOx * s, y - bOy * s, 2); B[oi + 3] = 255;
+        }
+      }
+      planes = [R, G, B];
+      return planes;
+    };
+
+    const plate = (name, i) => ({
+      name,
+      draw: (g) => {
+        const out = p.createGraphics(sw, sh);
+        out.pixelDensity(1);
+        out.loadPixels();
+        out.pixels.set(build()[i]);
+        out.updatePixels();
+        g.image(out, 0, 0, w, h);
+        out.remove();
+      },
+    });
+    return [plate('Red', 0), plate('Green', 1), plate('Blue', 2)];
+  },
 };

@@ -2,7 +2,7 @@
 // layers (by luminance band or RGB channel), screens each in a spot colour,
 // offsets them (misregistration), composites with MULTIPLY, then lays grain.
 import { avgLuma, avgRGB } from '../input.js';
-import { hex2rgb, rng, clamp } from './_shared.js';
+import { hex2rgb, rng, clamp, n, svgDoc } from './_shared.js';
 
 const D2R = Math.PI / 180;
 
@@ -32,6 +32,32 @@ function layerAmount(src, split, layers, li, nx, ny, hwN, hhN) {
   const d = 1 - avgLuma(src, nx, ny, hwN, hhN);
   const center = (li + 0.5) / layers;
   return clamp(1 - Math.abs(d - center) * layers, 0, 1);
+}
+
+const RISO_ANGLES = [15, 75, 45];
+const RISO_OFFSETS = [[-1, -0.4], [1, 0.6], [0.25, -1]];
+
+// Draw layer `li`'s screened dots into g in its spot colour. `rand` drives the
+// stochastic 'grain' screen; ox/oy apply misregistration (0 for a clean plate).
+function drawRisoLayer(g, src, params, ctx, li, col, rand, ox, oy) {
+  const { w, h } = ctx;
+  const layers = parseInt(params.layers, 10);
+  const cell = Math.max(3, params.cell);
+  const half = cell / 2;
+  g.fill(col[0], col[1], col[2]);
+  forEachCell(w, h, cell, RISO_ANGLES[li], (wx, wy, nx, ny, hwN, hhN) => {
+    const amt = layerAmount(src, params.split, layers, li, nx, ny, hwN, hhN);
+    if (amt <= 0.01) return;
+    let r;
+    if (params.screen === 'grain') {
+      if (rand() > amt) return;          // stochastic coverage
+      r = half * (0.45 + 0.55 * rand());
+    } else {
+      r = half * Math.sqrt(clamp(amt, 0, 1));
+    }
+    if (r < 0.35) return;
+    g.circle(wx + ox, wy + oy, 2 * r);
+  });
 }
 
 function addGrain(g, ctx, amount) {
@@ -67,39 +93,78 @@ export default {
   ],
 
   render(g, src, params, ctx) {
-    const { p, w, h } = ctx;
+    const { p } = ctx;
     const layers = parseInt(params.layers, 10);
     const cols = [hex2rgb(params.color1), hex2rgb(params.color2), hex2rgb(params.color3)];
-    const cell = Math.max(3, params.cell);
-    const half = cell / 2;
-    const angles = [15, 75, 45];
-    const offs = [[-1, -0.4], [1, 0.6], [0.25, -1]];
     const rand = rng(99);
 
     g.background(params.paper);
     g.noStroke();
     g.blendMode(p.MULTIPLY);
     for (let li = 0; li < layers; li++) {
+      const ox = RISO_OFFSETS[li][0] * params.misreg;
+      const oy = RISO_OFFSETS[li][1] * params.misreg;
+      drawRisoLayer(g, src, params, ctx, li, cols[li], rand, ox, oy);
+    }
+    g.blendMode(p.BLEND); // ALWAYS reset after MULTIPLY
+
+    if (params.grain > 0) addGrain(g, ctx, params.grain);
+  },
+
+  // Spot-colour separations — one registered plate per layer (no misregistration,
+  // no paper grain), each its spot ink on paper: the natural riso print workflow.
+  separations(src, params, ctx) {
+    const { p } = ctx;
+    const layers = parseInt(params.layers, 10);
+    const cols = [hex2rgb(params.color1), hex2rgb(params.color2), hex2rgb(params.color3)];
+    const plates = [];
+    for (let li = 0; li < layers; li++) {
+      plates.push({
+        name: `Layer ${li + 1}`,
+        draw: (g) => {
+          g.background(params.paper);
+          g.noStroke();
+          g.blendMode(p.BLEND);
+          drawRisoLayer(g, src, params, ctx, li, cols[li], rng(99 + li * 1000), 0, 0);
+        },
+      });
+    }
+    return plates;
+  },
+
+  // Vector export — one multiply-blended group of spot-colour dots per layer,
+  // in colour, with misregistration preserved (paper grain is raster-only, so
+  // it's dropped). Mirrors render(); overprints like the canvas in viewers that
+  // honour mix-blend-mode.
+  renderSVG(src, params, view) {
+    const { w, h } = view;
+    const layers = parseInt(params.layers, 10);
+    const cols = [hex2rgb(params.color1), hex2rgb(params.color2), hex2rgb(params.color3)];
+    const cell = Math.max(3, params.cell);
+    const half = cell / 2;
+    const rand = rng(99);
+    const parts = [`<rect width="${w}" height="${h}" fill="${params.paper}"/>`];
+    for (let li = 0; li < layers; li++) {
       const col = cols[li];
-      const ox = offs[li][0] * params.misreg;
-      const oy = offs[li][1] * params.misreg;
-      g.fill(col[0], col[1], col[2]);
-      forEachCell(w, h, cell, angles[li], (wx, wy, nx, ny, hwN, hhN) => {
+      const fill = `rgb(${col[0]},${col[1]},${col[2]})`;
+      const ox = RISO_OFFSETS[li][0] * params.misreg;
+      const oy = RISO_OFFSETS[li][1] * params.misreg;
+      const dots = [];
+      forEachCell(w, h, cell, RISO_ANGLES[li], (wx, wy, nx, ny, hwN, hhN) => {
         const amt = layerAmount(src, params.split, layers, li, nx, ny, hwN, hhN);
         if (amt <= 0.01) return;
         let r;
         if (params.screen === 'grain') {
-          if (rand() > amt) return;          // stochastic coverage
+          if (rand() > amt) return;
           r = half * (0.45 + 0.55 * rand());
         } else {
           r = half * Math.sqrt(clamp(amt, 0, 1));
         }
         if (r < 0.35) return;
-        g.circle(wx + ox, wy + oy, 2 * r);
+        dots.push(`<circle cx="${n(wx + ox)}" cy="${n(wy + oy)}" r="${n(r)}"/>`);
       });
+      if (dots.length) parts.push(`<g fill="${fill}" style="mix-blend-mode:multiply">${dots.join('')}</g>`);
     }
-    g.blendMode(p.BLEND); // ALWAYS reset after MULTIPLY
-
-    if (params.grain > 0) addGrain(g, ctx, params.grain);
+    return svgDoc(w, h, parts.join('\n'));
   },
 };

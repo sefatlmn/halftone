@@ -63,35 +63,42 @@ function renderMono(g, src, params, ctx) {
   });
 }
 
-function renderCMYK(g, src, params, ctx) {
+// Process inks + screen angles, shared by the composite (overprinted with
+// MULTIPLY) and the per-plate separations export so the two stay identical.
+const CMYK_CHANNELS = [
+  { id: 'c', name: 'Cyan',    ang: 15, col: [0, 174, 239], pick: c => c.c },
+  { id: 'm', name: 'Magenta', ang: 75, col: [236, 0, 140], pick: c => c.m },
+  { id: 'y', name: 'Yellow',  ang: 0,  col: [255, 242, 0], pick: c => c.y },
+  { id: 'k', name: 'Black',   ang: 45, col: [22, 22, 22],  pick: c => c.k },
+];
+
+// Draw one CMYK channel's dot screen into g; the fill colour IS the ink. The
+// caller picks the blend mode — MULTIPLY to overprint, BLEND for a lone plate.
+function drawCmykChannel(g, src, params, ctx, ch) {
   const { p, w, h } = ctx;
-  const { cell, shape, invert } = params;
-  const cellSize = Math.max(2, cell);
+  const cellSize = Math.max(2, params.cell);
   const half = cellSize / 2;
-  const channels = [
-    { ang: 15, col: [0, 174, 239], pick: c => c.c }, // cyan
-    { ang: 75, col: [236, 0, 140], pick: c => c.m }, // magenta
-    { ang: 0,  col: [255, 242, 0], pick: c => c.y }, // yellow
-    { ang: 45, col: [22, 22, 22],  pick: c => c.k }, // black
-  ];
+  g.fill(ch.col[0], ch.col[1], ch.col[2]);
+  forEachCell(w, h, cellSize, ch.ang, (wx, wy, nx, ny, hwN, hhN) => {
+    let [r, gg, b] = avgRGB(src, nx, ny, hwN, hhN);
+    if (params.invert) { r = 255 - r; gg = 255 - gg; b = 255 - b; }
+    const amt = ch.pick(rgb2cmyk(r, gg, b));
+    const rad = half * Math.sqrt(clamp(amt, 0, 1));
+    if (rad < 0.35) return;
+    if (params.shape === 'square') {
+      g.push(); g.translate(wx, wy); g.rotate(ch.ang * D2R);
+      g.rectMode(p.CENTER); g.rect(0, 0, 2 * rad, 2 * rad); g.pop();
+    } else {
+      g.circle(wx, wy, 2 * rad); // circle/line → dots in CMYK
+    }
+  });
+}
+
+function renderCMYK(g, src, params, ctx) {
+  const { p } = ctx;
   g.noStroke();
   g.blendMode(p.MULTIPLY);
-  for (const ch of channels) {
-    g.fill(ch.col[0], ch.col[1], ch.col[2]);
-    forEachCell(w, h, cellSize, ch.ang, (wx, wy, nx, ny, hwN, hhN) => {
-      let [r, gg, b] = avgRGB(src, nx, ny, hwN, hhN);
-      if (invert) { r = 255 - r; gg = 255 - gg; b = 255 - b; }
-      const amt = ch.pick(rgb2cmyk(r, gg, b));
-      const rad = half * Math.sqrt(clamp(amt, 0, 1));
-      if (rad < 0.35) return;
-      if (shape === 'square') {
-        g.push(); g.translate(wx, wy); g.rotate(ch.ang * D2R);
-        g.rectMode(p.CENTER); g.rect(0, 0, 2 * rad, 2 * rad); g.pop();
-      } else {
-        g.circle(wx, wy, 2 * rad); // circle/line → dots in CMYK
-      }
-    });
-  }
+  for (const ch of CMYK_CHANNELS) drawCmykChannel(g, src, params, ctx, ch);
   g.blendMode(p.BLEND); // ALWAYS reset after MULTIPLY
 }
 
@@ -115,14 +122,52 @@ export default {
     else renderMono(g, src, params, ctx);
   },
 
-  // Vector export (mono only — CMYK MULTIPLY can't be flattened 1:1 to SVG).
+  // Per-plate separations — CMYK only (one screened plate per ink, each in its
+  // process colour on paper). Mono is a single plate, so it returns null.
+  separations(src, params, ctx) {
+    if (!params.cmyk) return null;
+    const { p } = ctx;
+    return CMYK_CHANNELS.map((ch) => ({
+      name: ch.name,
+      draw: (g) => {
+        g.background(params.paper);
+        g.noStroke();
+        g.blendMode(p.BLEND);
+        drawCmykChannel(g, src, params, ctx, ch);
+      },
+    }));
+  },
+
+  // Vector export. Mono → ink-coloured dots/lines. CMYK → one multiply-blended
+  // group of process-colour dots per channel (true colour; overprints exactly
+  // like the canvas in any viewer that honours mix-blend-mode).
   renderSVG(src, params, view) {
-    if (params.cmyk) return null;
     const { w, h } = view;
     const { cell, shape, angle, ink, paper, invert } = params;
     const cellSize = Math.max(2, cell);
     const half = cellSize / 2;
     const parts = [`<rect width="${w}" height="${h}" fill="${paper}"/>`];
+
+    if (params.cmyk) {
+      for (const ch of CMYK_CHANNELS) {
+        const fill = `rgb(${ch.col[0]},${ch.col[1]},${ch.col[2]})`;
+        const dots = [];
+        forEachCell(w, h, cellSize, ch.ang, (wx, wy, nx, ny, hwN, hhN) => {
+          let [r, gg, b] = avgRGB(src, nx, ny, hwN, hhN);
+          if (invert) { r = 255 - r; gg = 255 - gg; b = 255 - b; }
+          const rad = half * Math.sqrt(clamp(ch.pick(rgb2cmyk(r, gg, b)), 0, 1));
+          if (rad < 0.35) return;
+          if (shape === 'square') {
+            dots.push(`<rect x="${n(-rad)}" y="${n(-rad)}" width="${n(2 * rad)}" height="${n(2 * rad)}" transform="translate(${n(wx)} ${n(wy)}) rotate(${ch.ang})"/>`);
+          } else {
+            dots.push(`<circle cx="${n(wx)}" cy="${n(wy)}" r="${n(rad)}"/>`);
+          }
+        });
+        if (dots.length) parts.push(`<g fill="${fill}" style="mix-blend-mode:multiply">${dots.join('')}</g>`);
+      }
+      return svgDoc(w, h, parts.join('\n'));
+    }
+
     forEachCell(w, h, cellSize, angle, (wx, wy, nx, ny, hwN, hhN) => {
       let l = avgLuma(src, nx, ny, hwN, hhN);
       if (invert) l = 1 - l;

@@ -6,11 +6,10 @@ import { createEffectStack } from "./effects/stack.js";
 import {
   buildPanel,
   appendParams,
-  buildSegmented,
   defaultsOf,
   randomizeInto,
 } from "./controls.js";
-import { exportPNG, exportSVG } from "./export.js";
+import { exportPNG, exportSeparations, exportSVG } from "./export.js";
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -24,7 +23,6 @@ const App = {
   pre: { brightness: 0, contrast: 0, gamma: 1, invert: false },
   activeId: EFFECTS[0].id,
   states: {}, // per-effect param values
-  exportScale: 1,
   canvasW: 0,
   canvasH: 0,
   baseLayer: "none", // composition: id of a base effect, or 'none'
@@ -181,7 +179,6 @@ function recompute() {
 function requestRender() {
   const eff = activeEffect();
   if (eff && eff.heavy) {
-    if (App.srcImage) $("#meta-fps").textContent = "rendering…";
     clearTimeout(App._debounce);
     App._debounce = setTimeout(scheduleFrame, 70); // debounce heavy passes
   } else {
@@ -231,7 +228,6 @@ function scheduleFrame() {
 function renderActive() {
   const p = App.p;
   if (!App.srcImage) return;
-  const t0 = performance.now();
   p.push();
   const eff = App.stack.renderInto(
     p,
@@ -241,7 +237,6 @@ function renderActive() {
     App.canvasH,
   );
   p.pop();
-  $("#meta-fps").textContent = `${Math.round(performance.now() - t0)} ms`;
   updateAsciiOverlay(eff, finalState());
 }
 
@@ -359,8 +354,8 @@ function applyPreset(id) {
     buildEffect2Panel();
     buildFilmTargetToggle();
     buildEffectChips();
+    updateSwapBtn();
     updateMeta();
-    updateSVGAvailability();
     requestRender();
   } else {
     setEffect(id);
@@ -691,28 +686,12 @@ function buildPreStageControls() {
   });
 }
 
-function buildExportControls() {
-  const root = $("#export-controls");
-  root.innerHTML = "";
-  const seg = buildSegmented(
-    [
-      { value: 1, label: "1×" },
-      { value: 2, label: "2×" },
-    ],
-    App.exportScale,
-    (v) => {
-      App.exportScale = v;
-    },
-  );
-  root.appendChild(labeledRow("Export scale", seg));
-}
-
 function setEffect(id) {
   App.activeId = id;
   buildEffectChips();
   buildParamPanel();
+  updateSwapBtn();
   updateMeta();
-  updateSVGAvailability();
   requestRender();
 }
 
@@ -735,36 +714,104 @@ function doReset() {
 /* ----------------------------------------------------------------
    Export
    ---------------------------------------------------------------- */
-function doExportPNG() {
-  if (!App.srcImage) {
-    note("Load an image first.");
-    return;
-  }
+// scale 1 = free Screen PNG; scale 2 = Print PNG (tier ≥ 1). The composition is
+// identical — exportPNG just renders the effect at scale× device resolution.
+function doExportPNG(scale) {
+  if (!App.srcImage) { note("Load an image first."); return; }
   const eff = activeEffect();
   const src = getSourceForActive();
-  const w = App.canvasW * App.exportScale,
-    h = App.canvasH * App.exportScale;
   const second = isEffect2On()
     ? { effect: effect2(), state: effect2State() }
     : null;
   const name = second ? `${eff.id}+${App.effect2Id}` : eff.id;
+  const w = App.canvasW * scale, h = App.canvasH * scale;
   exportPNG(
-    App.p,
-    eff,
-    src,
-    activeState(),
-    App.canvasW,
-    App.canvasH,
-    App.exportScale,
+    App.p, eff, src, activeState(),
+    App.canvasW, App.canvasH, scale,
     `halftone-press_${name}_${w}x${h}.png`,
     second,
   );
   note(`Exported PNG · ${w}×${h}`);
+  closeExportPanel();
+}
+
+/* ----------------------------------------------------------------
+   Swap A ↔ B
+   ---------------------------------------------------------------- */
+function doSwap() {
+  if (!isEffect2On()) return;
+  const oldAId = App.activeId;
+  const oldBId = App.effect2Id;
+  const aState = App.states[oldAId];
+  const bState = App.states2[oldBId];
+  App.activeId = oldBId;
+  App.effect2Id = oldAId;
+  App.states[oldBId] = bState;
+  App.states2[oldAId] = aState;
+  buildEffectChips();
+  buildParamPanel();
+  buildEffect2Panel();
+  buildFilmTargetToggle();
+  updateSwapBtn();
+  updateMeta();
+  requestRender();
+}
+
+function updateSwapBtn() {
+  const btn = $("#btn-swap");
+  if (btn) btn.disabled = !isEffect2On();
+}
+
+// The active effect's separation plates, or null. Gated like SVG: a stacked
+// chain has no single set of plates, so it's disabled while slot B is on.
+function activeSeparations() {
+  if (isEffect2On()) return null;
+  const eff = activeEffect();
+  if (typeof eff.separations !== "function") return null;
+  const src = getSourceForActive();
+  if (!src) return null;
+  const list = eff.separations(src, activeState(), {
+    p: App.p,
+    w: App.canvasW,
+    h: App.canvasH,
+  });
+  return list && list.length ? list : null;
+}
+
+async function doExportSeparations() {
+  const plates = activeSeparations();
+  if (!plates) {
+    note("No separations for this effect.");
+    return;
+  }
+  const btn = $("#xbtn-sep");
+  const label = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "Building…";
+  try {
+    const n = await exportSeparations(
+      App.p,
+      plates,
+      App.canvasW,
+      App.canvasH,
+      2, // tier 2 includes 2× resolution
+      `halftone-press_${App.activeId}_separations_2x.zip`,
+    );
+    note(`Exported ${n} separation plates · 2× ZIP.`);
+    closeExportPanel();
+  } catch (e) {
+    console.error(e);
+    note("Couldn’t build the separations ZIP.");
+  } finally {
+    btn.textContent = label;
+    btn.disabled = false;
+  }
 }
 
 function doExportSVG() {
-  if (!App.srcImage) {
-    note("Load an image first.");
+  if (!App.srcImage) { note("Load an image first."); return; }
+  if (isEffect2On()) {
+    note("SVG isn’t available while a second effect is stacked.");
     return;
   }
   const eff = activeEffect();
@@ -775,24 +822,49 @@ function doExportSVG() {
     App.canvasW,
     App.canvasH,
     `halftone-press_${eff.id}.svg`,
+    App.p,
   );
-  if (res.ok) note("Exported SVG (vector).");
-  else if (res.reason === "unsupported")
-    note("SVG isn’t 1:1 in CMYK mode — switch CMYK off or export PNG.");
-  else note("SVG export isn’t available for this effect.");
+  if (res.ok) {
+    note("Exported SVG (vector).");
+    closeExportPanel();
+  } else if (res.reason === "unsupported") {
+    note("SVG isn’t 1:1 for these settings — export PNG instead.");
+  } else {
+    note("SVG export isn’t available for this effect.");
+  }
 }
 
-function updateSVGAvailability() {
+/* ----------------------------------------------------------------
+   Export overlay — all exports are free. Buttons export directly; the only
+   gating left is availability (separations/SVG don't apply to every effect,
+   or to a stacked chain).
+   ---------------------------------------------------------------- */
+function openExportPanel() {
+  if (!App.srcImage) { note("Load an image first."); return; }
   const eff = activeEffect();
-  const btn = $("#btn-svg");
-  // A stacked chain is raster-on-raster — it can't be flattened to vector 1:1.
-  const has = !isEffect2On() && typeof eff.renderSVG === "function";
-  btn.disabled = !has;
-  $("#svg-note").textContent = isEffect2On()
-    ? "SVG isn’t available while a second effect is stacked."
-    : has
-      ? "SVG: true vector dots / glyphs for print."
-      : "SVG export isn’t available for this effect.";
+  const stacked = isEffect2On();
+
+  // Color separations — available only when the active effect yields plates.
+  const plates = activeSeparations();
+  $("#xbtn-sep").disabled = !plates;
+  $("#xsep-desc").textContent = plates
+    ? `${eff.name} · ${plates.length} plates · 2× ZIP`
+    : stacked ? "Not available when effects are stacked."
+              : "Not available for this effect.";
+
+  // Vector SVG — needs a vector renderer and not a stacked chain.
+  const svgOk = !stacked && typeof eff.renderSVG === "function";
+  $("#xbtn-svg").disabled = !svgOk;
+  $("#xsvg-desc").textContent = svgOk
+    ? "True vector · scalable to any size."
+    : stacked ? "Not available when effects are stacked."
+              : "Not available for this effect.";
+
+  $("#xpanel").removeAttribute("hidden");
+}
+
+function closeExportPanel() {
+  $("#xpanel").setAttribute("hidden", "");
 }
 
 /* ----------------------------------------------------------------
@@ -848,8 +920,13 @@ function wireEvents() {
 
   $("#btn-randomize").addEventListener("click", doRandomize);
   $("#btn-reset").addEventListener("click", doReset);
-  $("#btn-png").addEventListener("click", doExportPNG);
-  $("#btn-svg").addEventListener("click", doExportSVG);
+  $("#btn-swap").addEventListener("click", doSwap);
+  $("#btn-export").addEventListener("click", openExportPanel);
+  $("#xpanel-close").addEventListener("click", closeExportPanel);
+  $("#xpanel-backdrop").addEventListener("click", closeExportPanel);
+  $("#xbtn-print").addEventListener("click", () => doExportPNG(2));
+  $("#xbtn-svg").addEventListener("click", doExportSVG);
+  $("#xbtn-sep").addEventListener("click", doExportSeparations);
 
   // Drag & drop anywhere
   const empty = $("#empty");
@@ -876,7 +953,8 @@ function wireEvents() {
     const tag = (e.target.tagName || "").toLowerCase();
     if (tag === "input" || tag === "select" || tag === "textarea") return;
     if (e.key === "r" || e.key === "R") doRandomize();
-    else if (e.key === "e" || e.key === "E") doExportPNG();
+    else if (e.key === "e" || e.key === "E") openExportPanel();
+    else if (e.key === "Escape") closeExportPanel();
   });
 
   // Re-render once webfonts are ready (ASCII metrics depend on them)
@@ -896,8 +974,7 @@ function init() {
   buildFilmTargetToggle();
   buildParamPanel();
   buildEffect2Panel();
-  buildExportControls();
-  updateSVGAvailability();
+  updateSwapBtn();
   updateMeta();
   wireEvents();
 }

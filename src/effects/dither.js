@@ -2,7 +2,7 @@
 // Quantises to a palette derived from ink/paper. Computed at a low grid
 // resolution then upscaled with smoothing OFF for crisp chunky pixels.
 import { lumaAt } from '../input.js';
-import { hex2rgb, mix, clamp } from './_shared.js';
+import { hex2rgb, mix, clamp, n, svgDoc } from './_shared.js';
 
 const BAYER = {
   2: [[0, 2], [3, 1]],
@@ -56,6 +56,59 @@ function floydSteinberg(lum, idx, cols, rows, L, serpentine) {
   }
 }
 
+// Shared quantiser: sample a luminance grid at pixel-scale resolution, apply
+// optional noise modulation, then map each cell to a palette index (ordered
+// Bayer or Floyd–Steinberg). Used by both the raster render and the SVG export
+// so they produce the same image. `p` is only needed for noise modulation.
+function computeDither(src, params, w, h, p) {
+  const { mode, matrixSize, palette, pixelScale, serpentine, modulation } = params;
+  const pal = paletteFor(palette, hex2rgb(params.ink), hex2rgb(params.paper));
+  const L = pal.length;
+
+  const ps = Math.max(1, pixelScale);
+  let cols = Math.max(1, Math.round(w / ps));
+  let rows = Math.max(1, Math.round(h / ps));
+  const MAXC = 1000; // keep error diffusion bounded
+  if (cols > MAXC) { rows = Math.max(1, Math.round(rows * MAXC / cols)); cols = MAXC; }
+  if (rows > MAXC) { cols = Math.max(1, Math.round(cols * MAXC / rows)); rows = MAXC; }
+
+  // sample luminance grid
+  const lum = new Float32Array(cols * rows);
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < cols; x++) {
+      lum[y * cols + x] = lumaAt(src, (x + 0.5) / cols, (y + 0.5) / rows);
+    }
+  }
+  // modulation: warp the tone with a coherent noise field (needs p5's noise)
+  if (modulation > 0 && p) {
+    p.noiseSeed(7);
+    for (let y = 0; y < rows; y++) {
+      for (let x = 0; x < cols; x++) {
+        lum[y * cols + x] += (p.noise(x * 0.05, y * 0.05) - 0.5) * modulation * 0.55;
+      }
+    }
+  }
+
+  // quantise to palette indices
+  const idx = new Uint8Array(cols * rows);
+  if (mode === 'floyd-steinberg') {
+    floydSteinberg(lum, idx, cols, rows, L, serpentine);
+  } else {
+    const m = BAYER[matrixSize] || BAYER[4];
+    const N = m.length, NN = N * N;
+    for (let y = 0; y < rows; y++) {
+      for (let x = 0; x < cols; x++) {
+        const t = (m[y % N][x % N] + 0.5) / NN;
+        const v = clamp(lum[y * cols + x] + (t - 0.5) / L, 0, 1);
+        idx[y * cols + x] = Math.round(v * (L - 1));
+      }
+    }
+  }
+  return { cols, rows, idx, pal };
+}
+
+const rgbCss = (c) => '#' + c.map(v => clamp(Math.round(v), 0, 255).toString(16).padStart(2, '0')).join('');
+
 export default {
   id: 'dither',
   name: 'Dither',
@@ -74,49 +127,7 @@ export default {
 
   render(g, src, params, ctx) {
     const { p, w, h } = ctx;
-    const { mode, matrixSize, palette, pixelScale, serpentine, modulation } = params;
-    const pal = paletteFor(palette, hex2rgb(params.ink), hex2rgb(params.paper));
-    const L = pal.length;
-
-    const ps = Math.max(1, pixelScale);
-    let cols = Math.max(1, Math.round(w / ps));
-    let rows = Math.max(1, Math.round(h / ps));
-    const MAXC = 1000; // keep error diffusion bounded
-    if (cols > MAXC) { rows = Math.max(1, Math.round(rows * MAXC / cols)); cols = MAXC; }
-    if (rows > MAXC) { cols = Math.max(1, Math.round(cols * MAXC / rows)); rows = MAXC; }
-
-    // sample luminance grid
-    const lum = new Float32Array(cols * rows);
-    for (let y = 0; y < rows; y++) {
-      for (let x = 0; x < cols; x++) {
-        lum[y * cols + x] = lumaAt(src, (x + 0.5) / cols, (y + 0.5) / rows);
-      }
-    }
-    // modulation: warp the tone with a coherent noise field
-    if (modulation > 0) {
-      p.noiseSeed(7);
-      for (let y = 0; y < rows; y++) {
-        for (let x = 0; x < cols; x++) {
-          lum[y * cols + x] += (p.noise(x * 0.05, y * 0.05) - 0.5) * modulation * 0.55;
-        }
-      }
-    }
-
-    // quantise to palette indices
-    const idx = new Uint8Array(cols * rows);
-    if (mode === 'floyd-steinberg') {
-      floydSteinberg(lum, idx, cols, rows, L, serpentine);
-    } else {
-      const m = BAYER[matrixSize] || BAYER[4];
-      const N = m.length, NN = N * N;
-      for (let y = 0; y < rows; y++) {
-        for (let x = 0; x < cols; x++) {
-          const t = (m[y % N][x % N] + 0.5) / NN;
-          const v = clamp(lum[y * cols + x] + (t - 0.5) / L, 0, 1);
-          idx[y * cols + x] = Math.round(v * (L - 1));
-        }
-      }
-    }
+    const { cols, rows, idx, pal } = computeDither(src, params, w, h, p);
 
     // paint indices into a small buffer, then upscale crisply
     const tmp = p.createGraphics(cols, rows);
@@ -135,5 +146,32 @@ export default {
     g.image(tmp, 0, 0, w, h);
     g.drawingContext.imageSmoothingEnabled = true;
     tmp.remove(); // free the offscreen buffer (avoid leaking canvases)
+  },
+
+  // Vector export — the chunky pixels become <rect>s, in colour. Equal-colour
+  // cells in a row are merged into one rect and all rects of a palette colour
+  // share a <g fill>, which keeps the file far smaller than one rect per cell.
+  renderSVG(src, params, view) {
+    const { w, h } = view;
+    const { cols, rows, idx, pal } = computeDither(src, params, w, h, view.p);
+    const cw = w / cols, ch = h / rows;
+    const buckets = pal.map(() => []);
+    for (let y = 0; y < rows; y++) {
+      let x = 0;
+      while (x < cols) {
+        const id = idx[y * cols + x];
+        let x2 = x + 1;
+        while (x2 < cols && idx[y * cols + x2] === id) x2++;
+        buckets[id].push(
+          `<rect x="${n(x * cw)}" y="${n(y * ch)}" width="${n((x2 - x) * cw)}" height="${n(ch)}"/>`,
+        );
+        x = x2;
+      }
+    }
+    const parts = [`<rect width="${w}" height="${h}" fill="${params.paper}"/>`];
+    for (let i = 0; i < pal.length; i++) {
+      if (buckets[i].length) parts.push(`<g fill="${rgbCss(pal[i])}" shape-rendering="crispEdges">${buckets[i].join('')}</g>`);
+    }
+    return svgDoc(w, h, parts.join('\n'));
   },
 };

@@ -1,4 +1,7 @@
-// export.js — PNG (full-res, 1× / 2×) and SVG (for vector-native effects).
+// export.js — PNG (full-res, 1× / 2×), SVG (for vector-native effects), and
+// color-separation ZIP (one plate per ink/channel, bundled via src/zip.js).
+
+import { makeZipBlob } from "./zip.js";
 
 function download(blob, filename) {
   const url = URL.createObjectURL(blob);
@@ -57,11 +60,48 @@ export function exportPNG(p, effect, src, state, w, h, scale, filename, second) 
   mid.remove();
 }
 
+// PNG-encode a p5 buffer's canvas to raw bytes (for zipping).
+function canvasToPngBytes(buf) {
+  return new Promise((resolve, reject) => {
+    buf.canvas.toBlob((blob) => {
+      if (!blob) { reject(new Error("toBlob returned null")); return; }
+      blob.arrayBuffer().then((ab) => resolve(new Uint8Array(ab)), reject);
+    }, "image/png");
+  });
+}
+
+const slug = (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+
+// Render each color-separation plate to its own scale× buffer, PNG-encode it, and
+// bundle the lot into one ZIP. `plates` is [{ name, draw(g) }] from an effect's
+// separations() (drawn at logical w×h); the buffer is scaled like exportPNG so
+// plates come out at full export resolution. Returns the number of plates written.
+export async function exportSeparations(p, plates, w, h, scale, filename) {
+  const W = Math.round(w * scale), H = Math.round(h * scale);
+  const files = [];
+  for (let i = 0; i < plates.length; i++) {
+    const buf = p.createGraphics(W, H);
+    buf.pixelDensity(1);
+    buf.push();
+    buf.scale(scale);
+    plates[i].draw(buf);
+    buf.pop();
+    const bytes = await canvasToPngBytes(buf);
+    buf.remove();
+    const num = String(i + 1).padStart(2, "0");
+    files.push({ name: `${num}_${slug(plates[i].name)}.png`, bytes });
+  }
+  download(makeZipBlob(files), filename);
+  return files.length;
+}
+
 // Vector export. Returns a status so the UI can explain a skip.
 //   { ok:true } | { ok:false, reason:'no-svg'|'unsupported' }
-export function exportSVG(effect, src, state, w, h, filename) {
+// `p` is passed through in the view so effects that need p5 (e.g. dither's
+// noise-based modulation) can reproduce the raster exactly in vector form.
+export function exportSVG(effect, src, state, w, h, filename, p) {
   if (typeof effect.renderSVG !== 'function') return { ok: false, reason: 'no-svg' };
-  const svg = effect.renderSVG(src, state, { w, h });
+  const svg = effect.renderSVG(src, state, { w, h, p });
   if (!svg) return { ok: false, reason: 'unsupported' };
   download(new Blob([svg], { type: 'image/svg+xml' }), filename);
   return { ok: true };

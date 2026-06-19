@@ -103,14 +103,9 @@
           </section>
         </div>
 
-        <!-- Export options + actions, pinned to the rail foot -->
-        <div class="exp-opts">
-          <div id="export-controls"></div>
-          <p class="note" id="svg-note"></p>
-        </div>
+        <!-- Export — single button, opens the export overlay -->
         <div class="exp">
-          <button class="primary" id="btn-png" type="button">Export PNG</button>
-          <button id="btn-svg" type="button">SVG</button>
+          <button class="primary" id="btn-export" type="button">Export</button>
         </div>
       </aside>
 
@@ -149,11 +144,8 @@
           </div>
 
           <div class="stage-meta">
-            <div class="grp">
-              <span>SIZE <b id="meta-dims">— × —</b></span>
-              <span>EFFECT <b id="meta-fx">no plate</b></span>
-            </div>
-            <span class="dot-live">RENDER <b id="meta-fps">—</b></span>
+            <span>SIZE <b id="meta-dims">— × —</b></span>
+            <span>EFFECT <b id="meta-fx">no plate</b></span>
           </div>
         </div>
 
@@ -168,6 +160,7 @@
                 role="tablist"
                 aria-label="Preset target"
               ></div>
+              <button class="swap-btn" id="btn-swap" type="button" title="Swap A ↔ B" disabled>A ⇄ B</button>
             </div>
           </div>
           <div
@@ -181,6 +174,43 @@
     </div>
 
     <input type="file" id="file-input" accept="image/*" hidden />
+
+    <!-- Export overlay panel -->
+    <div class="xpanel" id="xpanel" hidden>
+      <div class="xpanel__backdrop" id="xpanel-backdrop"></div>
+      <div class="xpanel__body">
+        <div class="xpanel__head">
+          <span class="xpanel__title">Export</span>
+          <button class="xpanel__close" id="xpanel-close" type="button" aria-label="Close">✕</button>
+        </div>
+        <div class="xpanel__tiers">
+          <div class="xtier">
+            <span class="xtier__badge">Free</span>
+            <span class="xtier__label">Like it?</span>
+            <span class="xtier__desc">All exports are free. A coffee helps.</span>
+            <a class="bmc" href="https://www.buymeacoffee.com/sefatolaman" target="_blank" rel="noopener">☕ Buy me a coffee</a>
+          </div>
+          <div class="xtier">
+            <span class="xtier__badge">2x Res</span>
+            <span class="xtier__label">Print PNG</span>
+            <span class="xtier__desc" id="xprint-desc">Double resolution · lossless</span>
+            <button class="xtier__btn" id="xbtn-print" type="button">Download 2×</button>
+          </div>
+          <div class="xtier">
+            <span class="xtier__badge">2x Res</span>
+            <span class="xtier__label">Color separation</span>
+            <span class="xtier__desc" id="xsep-desc">One plate per ink · 2× ZIP</span>
+            <button class="xtier__btn" id="xbtn-sep" type="button">Download ZIP</button>
+          </div>
+          <div class="xtier" id="xtier-svg">
+            <span class="xtier__badge">Vector</span>
+            <span class="xtier__label">Vector SVG</span>
+            <span class="xtier__desc" id="xsvg-desc">True vector · scalable to any size</span>
+            <button class="xtier__btn" id="xbtn-svg" type="button">Download</button>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <script type="module" src="src/main.js"></script>
   </body>

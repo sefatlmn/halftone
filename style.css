@@ -463,9 +463,15 @@ input[type="text"]:focus-visible {
 .toggle {
   display: inline-flex;
   cursor: pointer;
+  /* contain the absolutely-positioned checkbox: without this it resolves against
+     a distant ancestor and lands off-screen, so focusing it on click scrolls the
+     whole page (which can't be undone under body{overflow:hidden}). */
+  position: relative;
 }
 .toggle input {
   position: absolute;
+  inset: 0;
+  margin: 0;
   opacity: 0;
   pointer-events: none;
 }
@@ -633,53 +639,195 @@ input[type="color"]::-moz-color-swatch {
 }
 
 /* ---------------- Export (pinned bottom of rail) ---------------- */
-.exp-opts {
-  padding: 12px 20px;
-  border-top: var(--hair-soft);
-}
-.exp-opts .note {
-  margin-top: 8px;
-}
 .exp {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
   border-top: var(--hair);
   flex: 0 0 auto;
 }
 .exp button {
+  display: block;
+  width: 100%;
   font-family: var(--font);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   padding: 16px;
-  background: transparent;
   border: none;
-  border-right: var(--hair);
   cursor: pointer;
-  color: var(--ink);
-}
-.exp button:last-child {
-  border-right: none;
-}
-.exp button.primary {
   background: var(--accent);
   color: var(--paper);
 }
 .exp button:hover {
   background: var(--ink);
-  color: var(--paper);
 }
-.exp button.primary:hover {
-  background: var(--ink);
+
+/* ---------------- Swap A↔B button (strip head) ---------------- */
+.swap-btn {
+  font-family: var(--font);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  background: none;
+  border: 1px solid color-mix(in srgb, var(--ink) 22%, transparent);
+  padding: 4px 9px;
+  cursor: pointer;
+  line-height: 1.4;
 }
-.exp button[disabled] {
-  opacity: 0.4;
+.swap-btn:not([disabled]):hover {
+  color: var(--ink);
+  border-color: var(--ink);
+}
+.swap-btn[disabled] {
+  opacity: 0.3;
   cursor: not-allowed;
 }
-.exp button[disabled]:hover {
+
+/* ---------------- Export overlay panel ---------------- */
+.xpanel {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.xpanel[hidden] { display: none; }
+
+.xpanel__backdrop {
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--ink) 72%, transparent);
+  cursor: pointer;
+}
+
+.xpanel__body {
+  position: relative;
+  background: var(--paper);
+  border: var(--hair);
+  width: 680px;
+  max-width: calc(100vw - 40px);
+}
+
+.xpanel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  border-bottom: var(--hair);
+}
+
+.xpanel__title {
+  font-family: var(--exp);
+  font-weight: 800;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.xpanel__close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--ink-soft);
+  font-size: 14px;
+  line-height: 1;
+  padding: 4px 6px;
+}
+.xpanel__close:hover { color: var(--accent); }
+
+.xpanel__tiers {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+}
+@media (max-width: 620px) {
+  .xpanel__tiers { grid-template-columns: repeat(2, 1fr); }
+  /* never let the panel exceed the screen on short phones — scroll instead */
+  .xpanel__body { max-height: calc(100dvh - 28px); overflow-y: auto; }
+}
+
+.xtier {
+  padding: 20px 14px 18px;
+  border-right: var(--hair);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.xtier:last-child { border-right: none; }
+
+.xtier--pro { background: var(--paper-2); }
+
+.xtier__badge {
+  font-family: var(--exp);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.xtier__badge--pro { color: var(--accent-2); }
+
+.xtier__label {
+  font-family: var(--exp);
+  font-weight: 800;
+  font-size: 14px;
+  letter-spacing: 0.01em;
+  margin-top: 4px;
+}
+
+.xtier__desc {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--ink-soft);
+  letter-spacing: 0.03em;
+  flex: 1;
+}
+
+.xtier__btn {
+  margin-top: 14px;
+  font-family: var(--font);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 10px 14px;
+  border: var(--hair);
+  cursor: pointer;
+  background: var(--accent);
+  color: var(--paper);
+}
+.xtier__btn:not([disabled]):hover { background: var(--ink); border-color: var(--ink); }
+
+.xtier__btn--locked,
+.xtier__btn[disabled] {
   background: transparent;
+  color: var(--ink-soft);
+  border-color: color-mix(in srgb, var(--ink) 22%, transparent);
+  cursor: not-allowed;
+}
+
+/* Buy-me-a-coffee tip jar — lives in the first export-panel column and mirrors a
+   tier button's box, but in the secondary (B) colour and sentence case so it reads
+   as "support", not an export action. The desc above it (flex:1) bottom-aligns it
+   with the real download buttons. */
+.bmc {
+  margin-top: 14px;
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 10px 12px;
+  border: var(--hair);
+  cursor: pointer;
+  background: var(--accent-2);
   color: var(--ink);
+  text-decoration: none;
+  text-align: center;
+}
+.bmc:hover {
+  background: var(--ink);
+  color: var(--paper);
+  border-color: var(--ink);
 }
 
 /* ---------------- Right work area ---------------- */
@@ -978,11 +1126,13 @@ input[type="color"]::-moz-color-swatch {
 .film .cap {
   display: flex;
   justify-content: space-between;
+  gap: 6px;
   margin-top: 7px;
   font-size: 9.5px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--ink-soft);
+  white-space: nowrap;
 }
 .film .cap b {
   color: var(--ink);
@@ -1077,20 +1227,33 @@ input[type="color"]::-moz-color-swatch {
     gap: 12px;
   }
 
-  /* smaller, tighter filmstrip */
+  /* shorter, tighter filmstrip on phones — keep the 96px width (captions fit it),
+     cut height via shorter thumbs + trimmed padding to reclaim vertical space. */
   .strip-head {
-    padding: 9px 16px 7px;
+    padding: 6px 16px 6px;
   }
   .films {
     gap: 10px;
-    padding: 0 16px 14px;
+    padding: 0 16px 9px;
   }
   .film,
   .film .thumb {
-    width: 96px;
+    width: 78px;
   }
+  /* keep the desktop thumb aspect ratio (78×58 ≈ 118×88) at the shortened height */
   .film .thumb {
-    height: 72px;
+    height: 58px;
+  }
+  /* at the narrower film the index won't fit beside the longest name, so drop it
+     on phones and centre the name (which still reads fine on one line) */
+  .film .cap {
+    font-size: 8.5px;
+    letter-spacing: 0.02em;
+    margin-top: 5px;
+    justify-content: center;
+  }
+  .film .cap b {
+    display: none;
   }
 
   /* tighter rail body + export bar for thumb reach */
@@ -1100,10 +1263,44 @@ input[type="color"]::-moz-color-swatch {
   .block-body {
     padding: 13px 16px;
   }
-  .exp-opts {
-    padding: 10px 16px;
-  }
   .exp button {
-    padding: 13px;
+    padding: 16px;
+  }
+
+  /* Bigger touch targets — the desktop controls are too small to tap reliably.
+     Sliders get a ~40px grab area + larger thumb (the track stays a hairline). */
+  input[type="range"] {
+    height: 40px;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    width: 20px;
+    height: 20px;
+    margin-top: -10px;
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+  }
+
+  /* Taller selects + text fields for fingers (keep the caret padding on selects). */
+  select,
+  input[type="text"] {
+    padding-top: 12px;
+    padding-bottom: 12px;
+    font-size: 12px;
+  }
+
+  /* Source / param buttons: comfortable finger height. The A/B + swap controls
+     keep their compact base size — bumping them looked too chunky in the strip. */
+  .btn {
+    padding: 13px 16px;
+  }
+  .tool {
+    padding: 8px 12px;
+  }
+
+  /* let the last control clear the pinned Export bar */
+  .rail-scroll {
+    padding-bottom: 8px;
   }
 }
