@@ -244,7 +244,15 @@ function renderActive() {
    Source loading
    ---------------------------------------------------------------- */
 function loadFromFile(file) {
-  if (!file || !file.type.startsWith("image/")) return;
+  if (!file) return;
+  // Don't reject on an empty MIME type — mobile pickers (esp. iOS) often report
+  // "" for photos (HEIC, camera captures). The accept="image/*" picker already
+  // filters to images; only block files that *declare* a non-image type, and let
+  // loadImage's error callback catch anything that genuinely can't decode.
+  if (file.type && !file.type.startsWith("image/")) {
+    note("Please choose an image file.");
+    return;
+  }
   const reader = new FileReader();
   reader.onload = () => {
     App.p.loadImage(
@@ -801,6 +809,7 @@ async function doExportSeparations() {
     closeExportPanel();
   } catch (e) {
     console.error(e);
+    closeExportPanel(); // surface the message — it lives in the rail, behind the panel
     note("Couldn’t build the separations ZIP.");
   } finally {
     btn.textContent = label;
@@ -811,6 +820,7 @@ async function doExportSeparations() {
 function doExportSVG() {
   if (!App.srcImage) { note("Load an image first."); return; }
   if (isEffect2On()) {
+    closeExportPanel();
     note("SVG isn’t available while a second effect is stacked.");
     return;
   }
@@ -828,8 +838,10 @@ function doExportSVG() {
     note("Exported SVG (vector).");
     closeExportPanel();
   } else if (res.reason === "unsupported") {
+    closeExportPanel();
     note("SVG isn’t 1:1 for these settings — export PNG instead.");
   } else {
+    closeExportPanel();
     note("SVG export isn’t available for this effect.");
   }
 }

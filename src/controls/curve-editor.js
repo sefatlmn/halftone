@@ -58,10 +58,10 @@ export function buildCurveControl(param, state, onChange) {
     const r = cv.getBoundingClientRect();
     return [clamp01((e.clientX - r.left) / r.width), clamp01(1 - (e.clientY - r.top) / r.height)];
   };
-  const nearest = (x, y) => {
+  const nearest = (x, y, radius = 0.07) => {
     const p = pts(); let bi = -1, bd = 1e9;
     for (let i = 0; i < p.length; i++) { const dx = p[i].x - x, dy = p[i].y - y, d = dx * dx + dy * dy; if (d < bd) { bd = d; bi = i; } }
-    return Math.sqrt(bd) < 0.07 ? bi : -1;
+    return Math.sqrt(bd) < radius ? bi : -1;
   };
 
   function draw() {
@@ -100,7 +100,8 @@ export function buildCurveControl(param, state, onChange) {
   let drag = -1;
   cv.addEventListener('pointerdown', (e) => {
     const [x, y] = fromEvent(e);
-    const i = nearest(x, y);
+    // bigger grab radius for fingers (the ~8px points are hard to hit on touch)
+    const i = nearest(x, y, e.pointerType === 'touch' ? 0.12 : 0.07);
     if (i >= 0) { drag = i; cv.setPointerCapture(e.pointerId); }
   });
   cv.addEventListener('pointermove', (e) => {

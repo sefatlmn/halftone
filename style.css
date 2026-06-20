@@ -592,6 +592,14 @@ input[type="color"]::-moz-color-swatch {
   padding: 6px 4px;
 }
 
+/* Touch: enlarge the draggable gradient stops so they're easy to grab/move/delete. */
+@media (pointer: coarse) {
+  .grad-stop {
+    width: 18px;
+    height: 18px;
+  }
+}
+
 /* ---------------- Buttons ---------------- */
 .btn {
   font-family: var(--font);
@@ -1290,13 +1298,24 @@ input[type="color"]::-moz-color-swatch {
     font-size: 12px;
   }
 
-  /* Source / param buttons: comfortable finger height. The A/B + swap controls
-     keep their compact base size — bumping them looked too chunky in the strip. */
+  /* Source / param buttons: comfortable finger height. */
   .btn {
     padding: 13px 16px;
   }
   .tool {
     padding: 8px 12px;
+  }
+
+  /* Smaller A/B target + swap on phones — reduce both the font and the box. */
+  .abtog__btn {
+    font-size: 9px;
+    padding: 3px 9px;
+  }
+  .swap-btn {
+    font-size: 9px;
+    padding: 3px 8px;
+    letter-spacing: 0.04em;
+    line-height: 1.1;
   }
 
   /* let the last control clear the pinned Export bar */
