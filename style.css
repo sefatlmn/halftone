@@ -592,8 +592,41 @@ input[type="color"]::-moz-color-swatch {
   padding: 6px 4px;
 }
 
-/* Touch: enlarge the draggable gradient stops so they're easy to grab/move/delete. */
-@media (pointer: coarse) {
+/* Finger-friendly control sizing. Triggered by a coarse pointer (phones, iPad &
+   other touch tablets — regardless of width, which is why iPad needs this) OR a
+   narrow screen, so any likely-touch context gets large, draggable controls. */
+@media (pointer: coarse), (max-width: 720px) {
+  /* sliders: ~40px grab area + a larger thumb (the visible track stays a hairline) */
+  input[type="range"] {
+    height: 40px;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    width: 20px;
+    height: 20px;
+    margin-top: -10px;
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+  }
+  /* taller selects + text fields (keep the select's caret padding) */
+  select,
+  input[type="text"] {
+    padding-top: 12px;
+    padding-bottom: 12px;
+    font-size: 12px;
+  }
+  /* comfortable finger height for buttons */
+  .btn {
+    padding: 13px 16px;
+  }
+  .tool {
+    padding: 8px 12px;
+  }
+  .exp button {
+    padding: 16px;
+  }
+  /* enlarge the draggable gradient stops */
   .grad-stop {
     width: 18px;
     height: 18px;
@@ -1271,40 +1304,9 @@ input[type="color"]::-moz-color-swatch {
   .block-body {
     padding: 13px 16px;
   }
-  .exp button {
-    padding: 16px;
-  }
-
-  /* Bigger touch targets — the desktop controls are too small to tap reliably.
-     Sliders get a ~40px grab area + larger thumb (the track stays a hairline). */
-  input[type="range"] {
-    height: 40px;
-  }
-  input[type="range"]::-webkit-slider-thumb {
-    width: 20px;
-    height: 20px;
-    margin-top: -10px;
-  }
-  input[type="range"]::-moz-range-thumb {
-    width: 20px;
-    height: 20px;
-  }
-
-  /* Taller selects + text fields for fingers (keep the caret padding on selects). */
-  select,
-  input[type="text"] {
-    padding-top: 12px;
-    padding-bottom: 12px;
-    font-size: 12px;
-  }
-
-  /* Source / param buttons: comfortable finger height. */
-  .btn {
-    padding: 13px 16px;
-  }
-  .tool {
-    padding: 8px 12px;
-  }
+  /* NB: touch-target sizing (sliders, selects, buttons, export) lives in the
+     @media (pointer: coarse) block — it's an input-type concern, not a width one,
+     so tablets like iPad (which are wider than this breakpoint) get it too. */
 
   /* Smaller A/B target + swap on phones — reduce both the font and the box. */
   .abtog__btn {
