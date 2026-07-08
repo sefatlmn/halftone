@@ -730,17 +730,26 @@ function doReset() {
 // scale 1 = free Screen PNG; scale 2 = Print PNG (tier ≥ 1). The composition is
 // identical — exportPNG just renders the effect at scale× device resolution.
 function doExportPNG(scale) {
-  if (!App.srcImage) { note("Load an image first."); return; }
+  if (!App.srcImage) {
+    note("Load an image first.");
+    return;
+  }
   const eff = activeEffect();
   const src = getSourceForActive();
   const second = isEffect2On()
     ? { effect: effect2(), state: effect2State() }
     : null;
   const name = second ? `${eff.id}+${App.effect2Id}` : eff.id;
-  const w = App.canvasW * scale, h = App.canvasH * scale;
+  const w = App.canvasW * scale,
+    h = App.canvasH * scale;
   exportPNG(
-    App.p, eff, src, activeState(),
-    App.canvasW, App.canvasH, scale,
+    App.p,
+    eff,
+    src,
+    activeState(),
+    App.canvasW,
+    App.canvasH,
+    scale,
     `halftone-press_${name}_${w}x${h}.png`,
     second,
   );
@@ -823,7 +832,10 @@ async function doExportSeparations() {
 }
 
 function doExportSVG() {
-  if (!App.srcImage) { note("Load an image first."); return; }
+  if (!App.srcImage) {
+    note("Load an image first.");
+    return;
+  }
   if (isEffect2On()) {
     closeExportPanel();
     note("SVG isn’t available while a second effect is stacked.");
@@ -857,7 +869,10 @@ function doExportSVG() {
    or to a stacked chain).
    ---------------------------------------------------------------- */
 function openExportPanel() {
-  if (!App.srcImage) { note("Load an image first."); return; }
+  if (!App.srcImage) {
+    note("Load an image first.");
+    return;
+  }
   const eff = activeEffect();
   const stacked = isEffect2On();
 
@@ -865,17 +880,19 @@ function openExportPanel() {
   const plates = activeSeparations();
   $("#xbtn-sep").disabled = !plates;
   $("#xsep-desc").textContent = plates
-    ? `Download ${plates.length} ${eff.name} plates in full resolution`
-    : stacked ? "Not available when effects are stacked."
-              : "Not available for this effect.";
+    ? `Download ${plates.length} ${eff.name} PNG plates in full resolution`
+    : stacked
+      ? "Not available when effects are stacked."
+      : "Not available for this effect.";
 
   // Vector SVG — needs a vector renderer and not a stacked chain.
   const svgOk = !stacked && typeof eff.renderSVG === "function";
   $("#xbtn-svg").disabled = !svgOk;
   $("#xsvg-desc").textContent = svgOk
-    ? "True vector, scalable to any size."
-    : stacked ? "Not available when effects are stacked."
-              : "Not available for this effect.";
+    ? "Color separated vector, scalable to any size."
+    : stacked
+      ? "Not available when effects are stacked."
+      : "Not available for this effect.";
 
   $("#xpanel").removeAttribute("hidden");
 }
