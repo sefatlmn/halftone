@@ -865,7 +865,7 @@ function openExportPanel() {
   const plates = activeSeparations();
   $("#xbtn-sep").disabled = !plates;
   $("#xsep-desc").textContent = plates
-    ? `${eff.name} · ${plates.length} plates · 2× ZIP`
+    ? `Download ${plates.length} ${eff.name} plates in full resolution`
     : stacked ? "Not available when effects are stacked."
               : "Not available for this effect.";
 
@@ -873,7 +873,7 @@ function openExportPanel() {
   const svgOk = !stacked && typeof eff.renderSVG === "function";
   $("#xbtn-svg").disabled = !svgOk;
   $("#xsvg-desc").textContent = svgOk
-    ? "True vector · scalable to any size."
+    ? "True vector, scalable to any size."
     : stacked ? "Not available when effects are stacked."
               : "Not available for this effect.";
 
