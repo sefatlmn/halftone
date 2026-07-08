@@ -6,7 +6,7 @@
 // Effects sample from it with normalised 0..1 coordinates and draw shapes at
 // full display resolution.
 
-export const SAMPLING_CAP = 1200; // px on the long edge of the sampling buffer
+export const SAMPLING_CAP = 3000; // px on the long edge of the sampling buffer
 
 /* ----------------------------------------------------------------
    Working-buffer construction

@@ -108,7 +108,7 @@ export default {
 
 - `g` is the draw target (the live canvas, or an offscreen buffer for export).
 - `src` is the **working buffer**: the source fit + pre-adjusted, downsampled so its
-  long edge is ≤ 1200 px. Effects read luminance/colour from it via the helpers in
+  long edge is ≤ 3000 px. Effects read luminance/colour from it via the helpers in
   `input.js` and draw shapes at full display resolution.
 - `ctx = { p, w, h }` provides the p5 instance (for constants/helpers) and the logical
   canvas size.
@@ -151,7 +151,7 @@ effect's last-used params — configure Halftone, then switch to Glitch with Hal
   and show a brief "rendering…" state; pixel-based effects compute on the capped buffer and
   upscale with smoothing off for crisp output.
 - Renders are coalesced through `requestAnimationFrame`; the display canvas long edge is
-  capped at 1600 px.
+  capped at 3000 px.
 
 ## Notes / scope
 

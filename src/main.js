@@ -25,7 +25,7 @@ const App = {
   states: {}, // per-effect param values
   canvasW: 0,
   canvasH: 0,
-  baseLayer: "none", // composition: id of a base effect, or 'none'
+  baseLayers: {}, // composition: per-effect base choice { effectId: baseId | 'none' }
   preStage: "none", // color pre-stage: id of a color module, or 'none'
   preStageParams: {}, // pre-stage params, kept separate from active-effect params
   effect2Id: "none", // the second slot's effect; 'none' = no second pass (slot B off)
@@ -73,6 +73,9 @@ for (const e of EFFECTS) App.states2[e.id] = defaultsOf(e.params);
 // color modules keep a second, independent set of params for the pre-stage
 for (const e of EFFECTS)
   if (e.category === "color") App.preStageParams[e.id] = defaultsOf(e.params);
+// each base-accepting effect remembers its own base-layer choice, so swapping
+// or switching effects never silently transplants a base onto another effect
+for (const e of EFFECTS) if (e.acceptsBase) App.baseLayers[e.id] = "none";
 
 const activeEffect = () => EFFECTS.find((e) => e.id === App.activeId);
 const activeState = () => App.states[App.activeId];
@@ -128,7 +131,7 @@ new p5((p) => {
 // just letterbox onto paper inside the clamped proof); EDGE_CAP caps resolution.
 const AR_MIN = 0.45; // tallest proof allowed (~9:20)
 const AR_MAX = 2.2; // widest proof allowed (~11:5)
-const EDGE_CAP = 1600; // absolute long-edge cap (performance)
+const EDGE_CAP = 3000; // absolute long-edge cap (performance)
 
 function computeCanvasSize() {
   const frame = $("#canvas-holder").parentElement; // .stage-frame
@@ -190,15 +193,15 @@ function requestRender() {
 // colour pre-stage, active effect, and (for glitch-family effects) the base layer.
 function singleBundle() {
   const eff = activeEffect();
-  const usesBase = eff.acceptsBase && App.baseLayer !== "none";
+  const base = eff.acceptsBase ? App.baseLayers[eff.id] || "none" : "none";
   return {
     pre: App.pre,
     preStage: App.preStage,
     preStageParams: App.preStageParams[App.preStage] || {},
     effect: App.activeId,
     effectParams: activeState(),
-    baseLayer: eff.acceptsBase ? App.baseLayer : "none",
-    baseParams: usesBase ? App.states[App.baseLayer] : {},
+    baseLayer: base,
+    baseParams: base !== "none" ? App.states[base] : {},
     effect2: App.effect2Id, // 'none' → the stack skips the second pass
     effect2Params: effect2State(),
   };
@@ -630,9 +633,11 @@ function doReset2() {
   requestRender();
 }
 
-// Global "Base layer" selector — only shown for effects that accept a base.
+// "Base layer" selector — only shown for effects that accept a base; each such
+// effect remembers its own choice.
 // Options: None + every non-glitch effect (you can't base a glitch on a glitch).
 function buildBaseLayerControl() {
+  const effId = App.activeId;
   const sel = document.createElement("select");
   const opts = [{ value: "none", label: "None (source image)" }].concat(
     EFFECTS.filter(
@@ -645,9 +650,9 @@ function buildBaseLayerControl() {
     opt.textContent = o.label;
     sel.appendChild(opt);
   }
-  sel.value = App.baseLayer;
+  sel.value = App.baseLayers[effId] || "none";
   sel.addEventListener("change", () => {
-    App.baseLayer = sel.value;
+    App.baseLayers[effId] = sel.value;
     requestRender();
   });
   const row = labeledRow("Base layer", sel);
@@ -962,6 +967,7 @@ function wireEvents() {
 
   // Keyboard: R randomize, E export
   window.addEventListener("keydown", (e) => {
+    if (e.metaKey || e.ctrlKey || e.altKey) return; // don't shadow browser shortcuts (⌘R, Ctrl+R, …)
     const tag = (e.target.tagName || "").toLowerCase();
     if (tag === "input" || tag === "select" || tag === "textarea") return;
     if (e.key === "r" || e.key === "R") doRandomize();

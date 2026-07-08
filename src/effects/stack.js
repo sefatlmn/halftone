@@ -68,19 +68,22 @@ export function createEffectStack(p) {
 
     // 2. colour pre-stage (optional)
     let stagedBuf = working;
-    if (b.preStage && b.preStage !== 'none') {
-      const mod = byId(b.preStage);
-      if (mod) {
-        staged = sizeBuffer(staged, working.width, working.height);
-        const sig = `${wSig}|${b.preStage}|${j(b.preStageParams)}`;
-        if (sig !== sSig) {
-          staged.blendMode(p.BLEND);
-          mod.render(staged, working, b.preStageParams || {}, { p, w: staged.width, h: staged.height });
-          staged.loadPixels();
-          sSig = sig; bSig = null;
-        }
-        stagedBuf = staged;
+    const mod = (b.preStage && b.preStage !== 'none') ? byId(b.preStage) : null;
+    if (mod) {
+      staged = sizeBuffer(staged, working.width, working.height);
+      const sig = `${wSig}|${b.preStage}|${j(b.preStageParams)}`;
+      if (sig !== sSig) {
+        staged.blendMode(p.BLEND);
+        mod.render(staged, working, b.preStageParams || {}, { p, w: staged.width, h: staged.height });
+        staged.loadPixels();
+        sSig = sig; bSig = null;
       }
+      stagedBuf = staged;
+    } else {
+      // Pre-stage off: sSig must clear, or the base-layer signature below
+      // (which folds in `sSig || wSig`) would still carry the stale pre-stage
+      // signature and serve an outdated cached base render.
+      sSig = null;
     }
 
     // 3. base layer (only for effects that accept one, e.g. glitch family)

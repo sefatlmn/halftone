@@ -18,8 +18,10 @@ export default {
   acceptsBase: true,
   params: [
     { key: 'mode',           label: 'Mode',            type: 'select', options: ['linear', 'radial'], value: 'linear', rebuildOnChange: true },
-    { key: 'amount',         label: 'Amount',          type: 'range', min: 0, max: 40, step: 0.5, value: 6, showIf: s => !s.advanced },
-    { key: 'angle',          label: 'Angle',           type: 'range', min: 0, max: 360, step: 1, value: 0, showIf: s => !s.advanced },
+    // amount/angle only drive the linear mode — radial ignores them, so hide
+    // them there rather than showing dead sliders
+    { key: 'amount',         label: 'Amount',          type: 'range', min: 0, max: 40, step: 0.5, value: 6, showIf: s => !s.advanced && s.mode !== 'radial' },
+    { key: 'angle',          label: 'Angle',           type: 'range', min: 0, max: 360, step: 1, value: 0, showIf: s => !s.advanced && s.mode !== 'radial' },
     { key: 'radialStrength', label: 'Radial strength', type: 'range', min: 0, max: 60, step: 0.5, value: 18, showIf: s => s.mode === 'radial' },
     { key: 'edgeBias',       label: 'Edge bias',       type: 'range', min: 0, max: 1, step: 0.01, value: 0 },
     { key: 'advanced',       label: 'Advanced (per-channel)', type: 'toggle', value: false, rebuildOnChange: true },

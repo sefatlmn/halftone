@@ -96,7 +96,6 @@ export default {
     const { p } = ctx;
     const layers = parseInt(params.layers, 10);
     const cols = [hex2rgb(params.color1), hex2rgb(params.color2), hex2rgb(params.color3)];
-    const rand = rng(99);
 
     g.background(params.paper);
     g.noStroke();
@@ -104,7 +103,9 @@ export default {
     for (let li = 0; li < layers; li++) {
       const ox = RISO_OFFSETS[li][0] * params.misreg;
       const oy = RISO_OFFSETS[li][1] * params.misreg;
-      drawRisoLayer(g, src, params, ctx, li, cols[li], rand, ox, oy);
+      // per-layer seed, matching separations() — the exported plates must
+      // reproduce this exact grain screen
+      drawRisoLayer(g, src, params, ctx, li, cols[li], rng(99 + li * 1000), ox, oy);
     }
     g.blendMode(p.BLEND); // ALWAYS reset after MULTIPLY
 
@@ -142,9 +143,9 @@ export default {
     const cols = [hex2rgb(params.color1), hex2rgb(params.color2), hex2rgb(params.color3)];
     const cell = Math.max(3, params.cell);
     const half = cell / 2;
-    const rand = rng(99);
     const parts = [`<rect width="${w}" height="${h}" fill="${params.paper}"/>`];
     for (let li = 0; li < layers; li++) {
+      const rand = rng(99 + li * 1000); // per-layer seed, matching render()/separations()
       const col = cols[li];
       const fill = `rgb(${col[0]},${col[1]},${col[2]})`;
       const ox = RISO_OFFSETS[li][0] * params.misreg;
