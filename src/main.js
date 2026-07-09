@@ -18,7 +18,8 @@ const $ = (sel) => document.querySelector(sel);
    ---------------------------------------------------------------- */
 const App = {
   p: null,
-  srcImage: null,
+  srcImage: null, // working source, downscaled to SRC_CAP for the pipeline
+  srcDims: null, // { w, h } of the original upload, for the meta readout
   stack: null, // the reusable EffectStack (whole pipeline, self-caching)
   pre: { brightness: 0, contrast: 0, gamma: 1, invert: false },
   activeId: EFFECTS[0].id,
@@ -34,6 +35,7 @@ const App = {
   _pending: false,
   _debounce: null,
   _resize: null,
+  _frameFallback: null,
 };
 
 const PRE_SCHEMA = [
@@ -131,7 +133,7 @@ new p5((p) => {
 // just letterbox onto paper inside the clamped proof); EDGE_CAP caps resolution.
 const AR_MIN = 0.45; // tallest proof allowed (~9:20)
 const AR_MAX = 2.2; // widest proof allowed (~11:5)
-const EDGE_CAP = 3000; // absolute long-edge cap (performance)
+const EDGE_CAP = 2200; // absolute long-edge cap (performance)
 
 function computeCanvasSize() {
   const frame = $("#canvas-holder").parentElement; // .stage-frame
@@ -222,10 +224,22 @@ function getSourceForActive() {
 function scheduleFrame() {
   if (!App.p || App._pending) return;
   App._pending = true;
-  requestAnimationFrame(() => {
+  // Whichever of rAF / fallback fires first paints; the guard makes the other a
+  // no-op. requestAnimationFrame is SUSPENDED while the page is hidden or the
+  // window is unfocused — the entire time the native file picker is open, on a
+  // tab switch, or when a mobile app is backgrounded — and Safari suspends it
+  // most aggressively. Without the timer, a frame scheduled at that moment never
+  // runs, `_pending` stays true, and every later scheduleFrame() early-returns:
+  // the canvas freezes until reload. The setTimeout keeps firing when rAF won't,
+  // so the guard can never wedge the pipeline permanently.
+  const paint = () => {
+    if (!App._pending) return;
     App._pending = false;
+    clearTimeout(App._frameFallback);
     App.p.redraw();
-  });
+  };
+  requestAnimationFrame(paint);
+  App._frameFallback = setTimeout(paint, 200);
 }
 
 function renderActive() {
@@ -267,8 +281,34 @@ function loadFromFile(file) {
   reader.readAsDataURL(file);
 }
 
+// Retained-source long-edge cap. The pipeline never samples the source above
+// SAMPLING_CAP — buildWorking downsamples it into the working buffer, and export
+// re-renders from that same buffer — so a full-res phone photo (often 50–400 MB
+// once decoded) is held for nothing. On memory-limited devices that overshoots
+// the tab's budget and the browser reloads the page (the "loading loop"), so we
+// downscale once on load. Kept ≥ SAMPLING_CAP so it never bottlenecks sampling.
+const SRC_CAP = 2560;
+
+// Downscale an over-cap image into a detached buffer and hand back a p5.Image at
+// the capped size; smaller images pass through untouched. Aspect is preserved,
+// so the proof/meta stay correct.
+function fitSource(img) {
+  const long = Math.max(img.width, img.height);
+  if (long <= SRC_CAP) return img;
+  const k = SRC_CAP / long;
+  const w = Math.max(1, Math.round(img.width * k));
+  const h = Math.max(1, Math.round(img.height * k));
+  const g = App.p.createGraphics(w, h);
+  g.pixelDensity(1);
+  g.image(img, 0, 0, w, h);
+  const out = g.get(); // detached copy — the full-res decode is now collectable
+  g.remove();
+  return out;
+}
+
 function setSource(img) {
-  App.srcImage = img;
+  App.srcDims = { w: img.width, h: img.height }; // report the true upload size
+  App.srcImage = fitSource(img);
   $("#empty").setAttribute("hidden", "");
   $("#canvas-holder").removeAttribute("hidden");
   const { w, h } = computeCanvasSize();
@@ -908,8 +948,9 @@ function updateMeta() {
   const chain =
     activeEffect().name + (isEffect2On() ? ` → ${effect2().name}` : "");
   $("#meta-fx").textContent = chain;
+  const dims = App.srcDims || App.srcImage;
   $("#meta-dims").textContent = App.srcImage
-    ? `${App.srcImage.width}×${App.srcImage.height}`
+    ? `${dims.w ?? dims.width}×${dims.h ?? dims.height}`
     : "— × —";
 }
 
@@ -991,6 +1032,24 @@ function wireEvents() {
     else if (e.key === "e" || e.key === "E") openExportPanel();
     else if (e.key === "Escape") closeExportPanel();
   });
+
+  // Recover a wedged render pipeline. A frame is scheduled via
+  // requestAnimationFrame, which browsers PAUSE while the page is hidden or the
+  // window is unfocused — notably while the native file picker is open (clicking
+  // "Load image"), on a tab switch, or when a mobile app is backgrounded. If a
+  // frame was in flight at that moment its callback gets dropped, leaving
+  // `_pending` stuck true, and every later scheduleFrame() then early-returns —
+  // the canvas freezes and never repaints again. Clearing the flag and redrawing
+  // when the page comes back un-wedges it (and refreshes a possibly stale proof).
+  const recoverRender = () => {
+    if (!App._pending) return;
+    App._pending = false;
+    if (App.srcImage) requestRender();
+  };
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) recoverRender();
+  });
+  window.addEventListener("focus", recoverRender);
 
   // Re-render once webfonts are ready (ASCII metrics depend on them)
   if (document.fonts && document.fonts.ready) {

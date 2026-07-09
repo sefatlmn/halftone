@@ -6,7 +6,11 @@
 // Effects sample from it with normalised 0..1 coordinates and draw shapes at
 // full display resolution.
 
-export const SAMPLING_CAP = 3000; // px on the long edge of the sampling buffer
+// Long edge of the sampling buffer. Effects iterate over this buffer, so its
+// area sets per-render CPU cost and memory: 3000 quadrupled both vs. the 1200
+// this tool shipped with and could freeze the tab on load. 1600 keeps more
+// detail than the original while staying cheap. Raise for sharper exports.
+export const SAMPLING_CAP = 1600; // px on the long edge of the sampling buffer
 
 /* ----------------------------------------------------------------
    Working-buffer construction
