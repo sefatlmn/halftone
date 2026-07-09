@@ -2,7 +2,7 @@
 
 A browser-based **print-effects workshop** built with [p5.js](https://p5js.org/). Load an
 image, run it through a dozen halftone / dither / glitch / colour screens with live controls,
-**stack two effects**, and export to PNG or SVG. No backend, no framework, no build step —
+**stack two effects**, and export to PNG, SVG, or colour-separated plates. No backend, no framework, no build step —
 just static files, all processing in your browser.
 
 ![Halftone Tools](https://img.shields.io/badge/p5.js-1.11.x-ff3d8b) ![No build step](https://img.shields.io/badge/build-none-181410)
@@ -55,10 +55,13 @@ Tested on current Chrome, Firefox, and Safari.
 3. Pick **Effect A** from the bottom filmstrip and tweak its parameters; the preview updates live.
 4. To **stack a second effect**, click **B** in the filmstrip toggle, then pick any effect —
    B runs on A's rendered output. Picking **00 None** in slot B clears the stack.
-5. **Export PNG** at 1× or 2×. For mono Halftone and ASCII you can also **Export SVG** (true vectors);
-   SVG isn't available while two effects are stacked.
+5. **Export** (button, or `E`) opens the overlay — every export is free and full-resolution:
+   - **PNG** — the composed proof at 2× device resolution.
+   - **Colour separation ZIP** — one plate per ink, for Halftone (CMYK), RGB Shift, and Risograph.
+   - **SVG** (true vectors) — for Halftone, ASCII, Dither, and Risograph; not available for the
+     raster effects or while two effects are stacked.
 
-**Keyboard:** `R` randomize the active effect · `E` export PNG.
+**Keyboard:** `R` randomize the active effect · `E` open Export · `Esc` close it.
 
 ## Architecture
 
@@ -69,7 +72,8 @@ src/
   main.js         # p5 instance (instance mode), app state, all wiring
   input.js        # load / fit / pre-adjust → working buffer + sampling helpers
   controls.js     # auto-generate controls from each effect's param schema
-  export.js       # PNG (1×/2×) + SVG export (single or stacked)
+  export.js       # PNG (2×) + SVG + colour-separation ZIP export
+  zip.js          # minimal STORE-only ZIP writer (bundles separation plates)
   effects/
     index.js      # registry (array of effect modules, in UI order)
     stack.js      # the pipeline: pre-adjust → colour pre-stage → [base →] effect → [stacked effect]
@@ -108,7 +112,7 @@ export default {
 
 - `g` is the draw target (the live canvas, or an offscreen buffer for export).
 - `src` is the **working buffer**: the source fit + pre-adjusted, downsampled so its
-  long edge is ≤ 3000 px. Effects read luminance/colour from it via the helpers in
+  long edge is ≤ 1600 px (`SAMPLING_CAP`). Effects read luminance/colour from it via the helpers in
   `input.js` and draw shapes at full display resolution.
 - `ctx = { p, w, h }` provides the p5 instance (for constants/helpers) and the logical
   canvas size.
@@ -144,22 +148,25 @@ effect's last-used params — configure Halftone, then switch to Glitch with Hal
 
 ### Performance notes
 
+- The uploaded image is downscaled to ≤ 2560 px (`SRC_CAP`) on load — the pipeline never
+  samples above `SAMPLING_CAP`, so keeping the full-res original would only waste memory.
 - The working buffer is rebuilt only when the image, fit, or pre-adjust changes — effect
   params just re-render.
 - Sampling always reads the capped buffer, never the full-res image.
-- Heavier passes (Floyd–Steinberg, Riso, Xerox, Stamp, Glitch, Pixel Sort) are debounced
-  and show a brief "rendering…" state; pixel-based effects compute on the capped buffer and
-  upscale with smoothing off for crisp output.
-- Renders are coalesced through `requestAnimationFrame`; the display canvas long edge is
-  capped at 3000 px.
+- Heavier passes (Dither, Risograph, Xerox, Print Stamp, Glitch, Pixel Sort) are debounced;
+  pixel-based effects compute on the capped buffer and upscale with smoothing off for crisp output.
+- Renders are coalesced through `requestAnimationFrame` — with a `setTimeout` fallback so a
+  frame scheduled while the tab is unfocused (e.g. the file picker is open) can't wedge the
+  pipeline. The display canvas long edge is capped at 2200 px (`EDGE_CAP`).
 
 ## Notes / scope
 
-- **SVG export** is implemented for **Halftone (mono)** and **ASCII** — the effects that
-  are genuinely vector (dots → `<circle>`/`<rect>`/`<line>`, glyphs → `<text>`). CMYK
-  halftone, the raster effects, and any stacked (A → B) chain fall back to PNG, since their
-  MULTIPLY/per-pixel/raster-on-raster looks don't flatten 1:1 to flat SVG. The SVG button
-  disables itself and explains when it can't help.
+- **SVG export** covers **Halftone**, **ASCII**, **Dither**, and **Risograph** — the effects
+  that are genuinely vector (dots → `<circle>`/`<rect>`/`<line>`, glyphs → `<text>`, dither
+  cells → `<rect>`). CMYK / spot-colour overprints use `mix-blend-mode: multiply`, so they
+  match the canvas in any viewer that honours it. The raster effects (Xerox, Print Stamp,
+  Glitch, RGB Shift, Pixel Sort) and any stacked (A → B) chain fall back to PNG; the SVG
+  button disables itself and explains when it can't help.
 - Everything runs locally in the browser; no image ever leaves your machine.
 
 ## Privacy
@@ -171,4 +178,6 @@ personal data, no cross-site tracking, no fingerprinting — GDPR-friendly.
 
 ## License
 
-MIT — do what you like.
+**[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)** — free to use, share, and adapt,
+including commercially. The one condition: **give credit** — _Halftone Tools_ by
+**[Sefa Tolaman](https://www.sefatolaman.design)**, with a link back where reasonable.
