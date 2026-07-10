@@ -705,16 +705,16 @@ input[type="color"]::-moz-color-swatch {
 /* ---------------- Swap A↔B button (strip head) ---------------- */
 .swap-btn {
   font-family: var(--font);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--ink-soft);
   background: none;
   border: 1px solid color-mix(in srgb, var(--ink) 22%, transparent);
-  padding: 4px 9px;
+  padding: 5px 12px;
   cursor: pointer;
-  line-height: 1.4;
+  line-height: 1;
 }
 .swap-btn:not([disabled]):hover {
   color: var(--ink);
@@ -1319,9 +1319,9 @@ input[type="color"]::-moz-color-swatch {
   }
   .swap-btn {
     font-size: 9px;
-    padding: 3px 8px;
+    padding: 3px 9px;
     letter-spacing: 0.04em;
-    line-height: 1.1;
+    line-height: 1;
   }
 
   /* let the last control clear the pinned Export bar */
