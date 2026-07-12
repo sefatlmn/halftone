@@ -4,6 +4,7 @@
 //
 // Works on the raw working buffer OR on another effect's output (acceptsBase).
 import { makeRng } from '../util/prng.js';
+import { getScratch } from '../util/scratch.js';
 
 const idx = (x, y, sw) => (y * sw + x) << 2;
 
@@ -120,11 +121,10 @@ export default {
     const { p, w, h } = ctx;
     const sw = src.width, sh = src.height;
     const sp = src.pixels;
-    const out = p.createGraphics(sw, sh);
-    out.pixelDensity(1);
+    const out = getScratch(p, `${ctx.slot || 'fx'}:glitch`, sw, sh); // pooled — never removed per frame
     out.loadPixels();
     const op = out.pixels;
-    op.set(sp); // baseline = source
+    op.set(sp); // baseline = source (fully overwrites the reused buffer)
 
     const rng = makeRng(params.seed);
     const I = params.intensity;
@@ -152,6 +152,5 @@ export default {
     g.drawingContext.imageSmoothingEnabled = false;
     g.image(out, 0, 0, w, h);
     g.drawingContext.imageSmoothingEnabled = true;
-    out.remove();
   },
 };

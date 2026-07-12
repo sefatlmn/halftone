@@ -36,7 +36,7 @@ export function exportPNG(p, effect, src, state, w, h, scale, filename, second) 
     buf.pixelDensity(1);
     buf.push();
     buf.scale(scale);
-    effect.render(buf, src, state, { p, w, h });
+    effect.render(buf, src, state, { p, w, h, slot: 'exp' });
     buf.pop();
     saveCanvas(buf, filename);
     return;
@@ -46,7 +46,7 @@ export function exportPNG(p, effect, src, state, w, h, scale, filename, second) 
   mid.pixelDensity(1);
   mid.push();
   mid.scale(scale);
-  effect.render(mid, src, state, { p, w, h });
+  effect.render(mid, src, state, { p, w, h, slot: 'exp' });
   mid.pop();
   mid.loadPixels();
 
@@ -54,7 +54,7 @@ export function exportPNG(p, effect, src, state, w, h, scale, filename, second) 
   buf.pixelDensity(1);
   buf.push();
   buf.scale(scale);
-  second.effect.render(buf, mid, second.state, { p, w, h });
+  second.effect.render(buf, mid, second.state, { p, w, h, slot: 'exp2' });
   buf.pop();
   saveCanvas(buf, filename);
   mid.remove();
@@ -79,17 +79,24 @@ const slug = (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(
 export async function exportSeparations(p, plates, w, h, scale, filename) {
   const W = Math.round(w * scale), H = Math.round(h * scale);
   const files = [];
-  for (let i = 0; i < plates.length; i++) {
-    const buf = p.createGraphics(W, H);
-    buf.pixelDensity(1);
-    buf.push();
-    buf.scale(scale);
-    plates[i].draw(buf);
-    buf.pop();
-    const bytes = await canvasToPngBytes(buf);
+  // One buffer for every plate — each plate draw starts with an opaque
+  // background, so no clearing is needed. Allocating a scale× canvas per plate
+  // made Safari (which reclaims removed canvases lazily) spike several hundred
+  // MB per export, enough to trip its tab-reload watchdog.
+  const buf = p.createGraphics(W, H);
+  buf.pixelDensity(1);
+  try {
+    for (let i = 0; i < plates.length; i++) {
+      buf.push();
+      buf.scale(scale);
+      plates[i].draw(buf);
+      buf.pop();
+      const bytes = await canvasToPngBytes(buf);
+      const num = String(i + 1).padStart(2, "0");
+      files.push({ name: `${num}_${slug(plates[i].name)}.png`, bytes });
+    }
+  } finally {
     buf.remove();
-    const num = String(i + 1).padStart(2, "0");
-    files.push({ name: `${num}_${slug(plates[i].name)}.png`, bytes });
   }
   download(makeZipBlob(files), filename);
   return files.length;

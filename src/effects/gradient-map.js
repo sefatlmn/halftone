@@ -1,6 +1,7 @@
 // gradient-map.js — luminance → multi-stop ramp. Covers duotone / tritone /
 // thermal / cyanotype / monochrome / threshold+posterize, all from one ramp.
 import { makeRng } from '../util/prng.js';
+import { getScratch } from '../util/scratch.js';
 import { RAMPS, buildRampLUT, cloneStops } from '../color/ramps.js';
 
 export default {
@@ -21,8 +22,7 @@ export default {
     const { p, w, h } = ctx;
     const sw = src.width, sh = src.height;
     const sp = src.pixels;
-    const out = p.createGraphics(sw, sh);
-    out.pixelDensity(1);
+    const out = getScratch(p, `${ctx.slot || 'fx'}:gradient-map`, sw, sh); // pooled
     out.loadPixels();
     const op = out.pixels;
 
@@ -46,6 +46,5 @@ export default {
 
     out.updatePixels();
     g.image(out, 0, 0, w, h);
-    out.remove();
   },
 };

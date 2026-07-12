@@ -19,22 +19,32 @@ export const SAMPLING_CAP = 1600; // px on the long edge of the sampling buffer
 // Build (or rebuild) the working buffer for a given display aspect.
 // outW/outH describe the display canvas; the buffer matches that aspect but is
 // capped to SAMPLING_CAP on its long edge. Pre-adjust is baked in once here.
-export function buildWorking(p, srcImage, outW, outH, fit, pre, cap = SAMPLING_CAP) {
+// Pass the previous buffer as `reuse`: a pre-adjust slider drag rebuilds this
+// every tick, and allocating a fresh sampling-res canvas per tick is exactly
+// the churn Safari's lazy canvas reclamation turns into an OOM tab reload.
+export function buildWorking(p, srcImage, outW, outH, fit, pre, reuse = null) {
   const aspect = outW / outH;
   let w, h;
   if (outW >= outH) {
-    w = Math.min(outW, cap);
+    w = Math.min(outW, SAMPLING_CAP);
     h = Math.round(w / aspect);
   } else {
-    h = Math.min(outH, cap);
+    h = Math.min(outH, SAMPLING_CAP);
     w = Math.round(h * aspect);
   }
   w = Math.max(2, w);
   h = Math.max(2, h);
 
-  const g = p.createGraphics(w, h);
-  g.pixelDensity(1);
-  g.background(255); // paper-white letterbox for "contain"
+  let g = reuse;
+  if (g && (g.width !== w || g.height !== h)) {
+    g.remove();
+    g = null;
+  }
+  if (!g) {
+    g = p.createGraphics(w, h);
+    g.pixelDensity(1);
+  }
+  g.background(255); // paper-white letterbox for "contain" (also clears a reused buffer)
   drawFitted(g, srcImage, w, h, fit);
   applyPreAdjust(g, pre);
   g.loadPixels(); // keep pixels[] resident for the lifetime of the buffer

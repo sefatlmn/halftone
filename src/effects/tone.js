@@ -1,6 +1,7 @@
 // tone.js — Curves + Levels + Brightness/Contrast folded into one combined
 // 256 LUT per channel (applied by lookup), plus an optional 3×3 colour matrix.
 import { buildLUT, defaultCurve } from '../color/curve.js';
+import { getScratch } from '../util/scratch.js';
 
 const IDENTITY = [1, 0, 0, 0, 1, 0, 0, 0, 1];
 function satMatrix(s) {
@@ -44,8 +45,7 @@ export default {
     const { p, w, h } = ctx;
     const sw = src.width, sh = src.height;
     const sp = src.pixels;
-    const out = p.createGraphics(sw, sh);
-    out.pixelDensity(1);
+    const out = getScratch(p, `${ctx.slot || 'fx'}:tone`, sw, sh); // pooled
     out.loadPixels();
     const op = out.pixels;
 
@@ -98,6 +98,5 @@ export default {
 
     out.updatePixels();
     g.image(out, 0, 0, w, h);
-    out.remove();
   },
 };

@@ -1,6 +1,7 @@
 // stamp.js — rubber-stamp / letterpress 1-bit. Hard threshold with rough,
 // coherent (Perlin) edge jitter plus an ink-texture mask that breaks up solids.
 import { hex2rgb, clamp } from './_shared.js';
+import { getScratch } from '../util/scratch.js';
 
 export default {
   id: 'stamp',
@@ -21,9 +22,8 @@ export default {
     const paper = hex2rgb(params.paper);
     const sw = src.width, sh = src.height;
 
-    const tmp = p.createGraphics(sw, sh);
-    tmp.pixelDensity(1);
-    tmp.image(src, 0, 0);
+    const tmp = getScratch(p, `${ctx.slot || 'fx'}:stamp`, sw, sh); // pooled
+    tmp.image(src, 0, 0); // opaque source covers the full buffer — old frame gone
     tmp.loadPixels();
     const px = tmp.pixels;
 
@@ -51,6 +51,5 @@ export default {
     g.drawingContext.imageSmoothingEnabled = false;
     g.image(tmp, 0, 0, w, h);
     g.drawingContext.imageSmoothingEnabled = true;
-    tmp.remove(); // free the offscreen buffer (avoid leaking canvases)
   },
 };

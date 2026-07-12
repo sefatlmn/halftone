@@ -2,6 +2,7 @@
 // recombine. Static and deterministic (no seed needed).
 //
 // Works on the raw working buffer OR on another effect's output (acceptsBase).
+import { getScratch } from '../util/scratch.js';
 
 // Nearest-neighbour single-channel sample with edge clamp.
 function chan(sp, sw, sh, fx, fy, c) {
@@ -37,8 +38,7 @@ export default {
     const { p, w, h } = ctx;
     const sw = src.width, sh = src.height;
     const sp = src.pixels;
-    const out = p.createGraphics(sw, sh);
-    out.pixelDensity(1);
+    const out = getScratch(p, `${ctx.slot || 'fx'}:rgb-shift`, sw, sh); // pooled
     out.loadPixels();
     const op = out.pixels;
 
@@ -81,7 +81,6 @@ export default {
 
     out.updatePixels();
     g.image(out, 0, 0, w, h); // smooth upscale is fine for chromatic fringing
-    out.remove();
   },
 
   // RGB channel separations — additive: each channel is rendered in its own
@@ -140,13 +139,11 @@ export default {
     const plate = (name, i) => ({
       name,
       draw: (g) => {
-        const out = p.createGraphics(sw, sh);
-        out.pixelDensity(1);
+        const out = getScratch(p, `${ctx.slot || 'fx'}:rgb-shift`, sw, sh); // pooled
         out.loadPixels();
         out.pixels.set(build()[i]);
         out.updatePixels();
         g.image(out, 0, 0, w, h);
-        out.remove();
       },
     });
     return [plate('Red', 0), plate('Green', 1), plate('Blue', 2)];

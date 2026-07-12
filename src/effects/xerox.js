@@ -1,6 +1,7 @@
 // xerox.js — high-contrast 1-bit photocopy. Boost contrast, soft blur, hard
 // threshold with noisy edges, toner dropouts and dust specks.
 import { hex2rgb, rng, clamp } from './_shared.js';
+import { getScratch } from '../util/scratch.js';
 
 export default {
   id: 'xerox',
@@ -22,9 +23,10 @@ export default {
     const paper = hex2rgb(params.paper);
     const sw = src.width, sh = src.height;
 
-    const tmp = p.createGraphics(sw, sh);
-    tmp.pixelDensity(1);
-    tmp.image(src, 0, 0);
+    // Pooled scratch: reusing it also reuses p5's cached blur-filter layer
+    // instead of standing up (and leaking) a fresh one per render.
+    const tmp = getScratch(p, `${ctx.slot || 'fx'}:xerox`, sw, sh);
+    tmp.image(src, 0, 0); // opaque source covers the full buffer — old frame gone
     tmp.filter(p.BLUR, 0.4 + (1 - params.tonerDensity) * 0.7); // photocopier softness
     tmp.loadPixels();
 
@@ -51,6 +53,5 @@ export default {
     g.drawingContext.imageSmoothingEnabled = false;
     g.image(tmp, 0, 0, w, h);
     g.drawingContext.imageSmoothingEnabled = true;
-    tmp.remove(); // free the offscreen buffer (avoid leaking canvases)
   },
 };

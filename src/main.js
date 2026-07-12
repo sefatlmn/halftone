@@ -32,10 +32,12 @@ const App = {
   effect2Id: "none", // the second slot's effect; 'none' = no second pass (slot B off)
   states2: {}, // per-effect param values for the second slot (independent)
   filmTarget: "A", // which slot the preset filmstrip currently edits: 'A' | 'B'
-  _pending: false,
+  _dirty: false, // something changed; the canvas needs a repaint
+  _raf: 0, // armed requestAnimationFrame handle (0 = none armed)
   _debounce: null,
   _resize: null,
-  _frameFallback: null,
+  _resizePending: false, // a resize arrived while hidden; applied on wake
+  _srcOwned: null, // fitSource()'s downscaled graphics — removed when replaced
 };
 
 const PRE_SCHEMA = [
@@ -113,12 +115,15 @@ new p5((p) => {
   p.windowResized = () => {
     clearTimeout(App._resize);
     App._resize = setTimeout(() => {
-      const { w, h } = computeCanvasSize();
-      App.canvasW = w;
-      App.canvasH = h;
-      p.resizeCanvas(w, h, true);
-      if (App.srcImage) recompute();
-      else p.background(255);
+      // While the page is hidden (tab switch, backgrounded app, iOS photo
+      // picker — which resizes the viewport as its sheet animates) don't touch
+      // the canvas: resizeCanvas recreates the backing store, and a repaint
+      // can't happen anyway. Remember the request; the wake handlers apply it.
+      if (document.hidden) {
+        App._resizePending = true;
+        return;
+      }
+      applyResize();
     }, 120);
   };
 });
@@ -172,6 +177,22 @@ function computeCanvasSize() {
   return { w: Math.round(w), h: Math.round(h) };
 }
 
+// Apply a (possibly deferred) window resize. The size-unchanged guard matters:
+// iOS fires resize on URL-bar collapse and picker-sheet animation without the
+// stage actually changing, and every needless resizeCanvas both recreates the
+// canvas backing store (memory churn Safari reclaims lazily) and forces a full
+// pipeline re-render.
+function applyResize() {
+  App._resizePending = false;
+  const { w, h } = computeCanvasSize();
+  if (w === App.canvasW && h === App.canvasH) return;
+  App.canvasW = w;
+  App.canvasH = h;
+  App.p.resizeCanvas(w, h, true);
+  if (App.srcImage) requestRender();
+  else App.p.background(255);
+}
+
 // The EffectStack rebuilds its working buffer automatically when the image,
 // pre-adjust, or canvas size changes (it keys each stage by a signature), so a
 // "recompute" is just a request to redraw. Kept as a named function because
@@ -181,13 +202,25 @@ function recompute() {
   requestRender();
 }
 
+// A bundle is heavy when a redraw runs more than one cheap pass: a heavy
+// effect, a stacked B pass (two full renders + a display-res loadPixels per
+// frame), a base layer, or a colour pre-stage. Heavy bundles get a short
+// debounce so a slider drag doesn't run the full pipeline per input event —
+// the old check only looked at effect A, so any stacked chain re-rendered
+// everything on every tick.
+const isHeavyBundle = () =>
+  !!activeEffect().heavy ||
+  isEffect2On() ||
+  App.preStage !== "none" ||
+  (activeEffect().acceptsBase &&
+    (App.baseLayers[App.activeId] || "none") !== "none");
+
 function requestRender() {
-  const eff = activeEffect();
-  if (eff && eff.heavy) {
+  if (isHeavyBundle()) {
     clearTimeout(App._debounce);
-    App._debounce = setTimeout(scheduleFrame, 70); // debounce heavy passes
+    App._debounce = setTimeout(markDirty, 70);
   } else {
-    scheduleFrame();
+    markDirty();
   }
 }
 
@@ -221,25 +254,44 @@ function getSourceForActive() {
   );
 }
 
-function scheduleFrame() {
-  if (!App.p || App._pending) return;
-  App._pending = true;
-  // Whichever of rAF / fallback fires first paints; the guard makes the other a
-  // no-op. requestAnimationFrame is SUSPENDED while the page is hidden or the
-  // window is unfocused — the entire time the native file picker is open, on a
-  // tab switch, or when a mobile app is backgrounded — and Safari suspends it
-  // most aggressively. Without the timer, a frame scheduled at that moment never
-  // runs, `_pending` stays true, and every later scheduleFrame() early-returns:
-  // the canvas freezes until reload. The setTimeout keeps firing when rAF won't,
-  // so the guard can never wedge the pipeline permanently.
-  const paint = () => {
-    if (!App._pending) return;
-    App._pending = false;
-    clearTimeout(App._frameFallback);
-    App.p.redraw();
-  };
-  requestAnimationFrame(paint);
-  App._frameFallback = setTimeout(paint, 200);
+// The paint half of the scheduler. One rule: requestAnimationFrame is the ONLY
+// thing that paints. Browsers suspend rAF whenever the page can't be seen — the
+// entire time the native file picker is open, on a tab switch, when a mobile
+// app is backgrounded — and Safari suspends it most aggressively. An earlier
+// fix papered over that with a setTimeout fallback that painted anyway; behind
+// the picker sheet that meant multi-second synchronous renders of the full
+// (possibly stacked) pipeline while invisible, which is exactly where Safari
+// froze and its memory watchdog started reloading the tab. Now a suspended rAF
+// simply leaves `_dirty` set with the last frame still on screen, and the wake
+// handlers in wireEvents() re-arm the paint the moment the page can be seen
+// again. Nothing here can wedge: `_dirty` is only cleared by an actual paint,
+// and rearmPaint() recovers even a dead armed frame.
+function markDirty() {
+  App._dirty = true;
+  armPaint();
+}
+
+function armPaint() {
+  if (!App.p || !App._dirty || App._raf) return;
+  App._raf = requestAnimationFrame(() => {
+    App._raf = 0;
+    if (!App._dirty) return;
+    App._dirty = false;
+    App.p.redraw(); // p5 noLoop(): runs draw() synchronously, exactly once
+  });
+}
+
+// Cancel a possibly-dead armed frame and re-arm from scratch. Safari's
+// back/forward cache can restore a page whose queued rAF callbacks were
+// silently dropped; without this, `_raf` would stay non-zero forever and
+// armPaint() would never schedule again — the old "frozen until reload" bug
+// in a new coat. Harmless when the armed frame is alive: it's re-requested.
+function rearmPaint() {
+  if (App._raf) {
+    cancelAnimationFrame(App._raf);
+    App._raf = 0;
+  }
+  armPaint();
 }
 
 function renderActive() {
@@ -270,15 +322,22 @@ function loadFromFile(file) {
     note("Please choose an image file.");
     return;
   }
-  const reader = new FileReader();
-  reader.onload = () => {
-    App.p.loadImage(
-      reader.result,
-      (img) => setSource(img),
-      () => note("Could not read that image file."),
-    );
-  };
-  reader.readAsDataURL(file);
+  // Object URL, not FileReader→dataURL: the data-URL path held the whole file
+  // AND a ~1.4× base64 copy of it in memory just to hand p5 a source. On a
+  // phone photo that's tens of MB of avoidable peak, right when Safari's tab
+  // watchdog is most likely to answer a memory spike by reloading the page.
+  const url = URL.createObjectURL(file);
+  App.p.loadImage(
+    url,
+    (img) => {
+      URL.revokeObjectURL(url);
+      setSource(img);
+    },
+    () => {
+      URL.revokeObjectURL(url);
+      note("Could not read that image file.");
+    },
+  );
 }
 
 // Retained-source long-edge cap. The pipeline never samples the source above
@@ -289,9 +348,12 @@ function loadFromFile(file) {
 // downscale once on load. Kept ≥ SAMPLING_CAP so it never bottlenecks sampling.
 const SRC_CAP = 2560;
 
-// Downscale an over-cap image into a detached buffer and hand back a p5.Image at
-// the capped size; smaller images pass through untouched. Aspect is preserved,
-// so the proof/meta stay correct.
+// Downscale an over-cap image into a capped-size graphics; smaller images pass
+// through untouched. Aspect is preserved, so the proof/meta stay correct. The
+// graphics itself is the new source (setSource owns and removes it later) —
+// the old g.get() detour copied the downscale into ANOTHER full-size canvas
+// just to throw the first away, doubling peak memory on the load path. The
+// full-res decode is collectable either way once `img` goes out of scope.
 function fitSource(img) {
   const long = Math.max(img.width, img.height);
   if (long <= SRC_CAP) return img;
@@ -301,14 +363,17 @@ function fitSource(img) {
   const g = App.p.createGraphics(w, h);
   g.pixelDensity(1);
   g.image(img, 0, 0, w, h);
-  const out = g.get(); // detached copy — the full-res decode is now collectable
-  g.remove();
-  return out;
+  return g;
 }
 
 function setSource(img) {
   App.srcDims = { w: img.width, h: img.height }; // report the true upload size
-  App.srcImage = fitSource(img);
+  const fitted = fitSource(img);
+  // fitSource may hand us a graphics we created; keep exactly one alive so
+  // repeated loads don't stack dead source canvases (Safari frees them lazily).
+  if (App._srcOwned && App._srcOwned !== fitted) App._srcOwned.remove();
+  App._srcOwned = fitted === img ? null : fitted;
+  App.srcImage = fitted;
   $("#empty").setAttribute("hidden", "");
   $("#canvas-holder").removeAttribute("hidden");
   const { w, h } = computeCanvasSize();
@@ -836,6 +901,7 @@ function activeSeparations() {
     p: App.p,
     w: App.canvasW,
     h: App.canvasH,
+    slot: "sep", // scratch-pool namespace (see util/scratch.js)
   });
   return list && list.length ? list : null;
 }
@@ -1033,23 +1099,25 @@ function wireEvents() {
     else if (e.key === "Escape") closeExportPanel();
   });
 
-  // Recover a wedged render pipeline. A frame is scheduled via
-  // requestAnimationFrame, which browsers PAUSE while the page is hidden or the
-  // window is unfocused — notably while the native file picker is open (clicking
-  // "Load image"), on a tab switch, or when a mobile app is backgrounded. If a
-  // frame was in flight at that moment its callback gets dropped, leaving
-  // `_pending` stuck true, and every later scheduleFrame() then early-returns —
-  // the canvas freezes and never repaints again. Clearing the flag and redrawing
-  // when the page comes back un-wedges it (and refreshes a possibly stale proof).
-  const recoverRender = () => {
-    if (!App._pending) return;
-    App._pending = false;
-    if (App.srcImage) requestRender();
+  // Wake handlers — the other half of the render scheduler. rAF is suspended
+  // while the page is hidden or the window unfocused (native file picker open,
+  // tab switch, app backgrounded), so a change made just before that leaves
+  // `_dirty` set and possibly a dead armed frame (back/forward-cache restores
+  // drop queued rAF callbacks). On every "page is usable again" signal: apply
+  // a resize that arrived while hidden, then re-arm the paint. Everything
+  // no-ops when there's nothing to do, so over-listening is harmless — the
+  // pointerdown listener is pure insurance that the first touch un-wedges the
+  // proof even on some future browser's unforeseen suspend behaviour.
+  const wake = () => {
+    if (App._resizePending && !document.hidden) applyResize();
+    rearmPaint();
   };
   document.addEventListener("visibilitychange", () => {
-    if (!document.hidden) recoverRender();
+    if (!document.hidden) wake();
   });
-  window.addEventListener("focus", recoverRender);
+  window.addEventListener("focus", wake);
+  window.addEventListener("pageshow", wake);
+  window.addEventListener("pointerdown", wake, true);
 
   // Re-render once webfonts are ready (ASCII metrics depend on them)
   if (document.fonts && document.fonts.ready) {

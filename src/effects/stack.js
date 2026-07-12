@@ -58,11 +58,11 @@ export function createEffectStack(p) {
   function prepare(src, bundle, w, h) {
     const b = bundle || emptyBundle();
 
-    // 1. working buffer (image fitted + pre-adjust baked in, at sampling res)
+    // 1. working buffer (image fitted + pre-adjust baked in, at sampling res).
+    // The old buffer is passed in for reuse — same dims means no reallocation.
     const wsig = `${imgId(src)}|${w}x${h}|${j(b.pre)}`;
     if (wsig !== wSig || !working) {
-      if (working) working.remove();
-      working = buildWorking(p, src, w, h, 'contain', b.pre || {});
+      working = buildWorking(p, src, w, h, 'contain', b.pre || {}, working);
       wSig = wsig; sSig = null; bSig = null;
     }
 
@@ -74,7 +74,7 @@ export function createEffectStack(p) {
       const sig = `${wSig}|${b.preStage}|${j(b.preStageParams)}`;
       if (sig !== sSig) {
         staged.blendMode(p.BLEND);
-        mod.render(staged, working, b.preStageParams || {}, { p, w: staged.width, h: staged.height });
+        mod.render(staged, working, b.preStageParams || {}, { p, w: staged.width, h: staged.height, slot: 'pre' });
         staged.loadPixels();
         sSig = sig; bSig = null;
       }
@@ -96,7 +96,7 @@ export function createEffectStack(p) {
         const sig = `${b.baseLayer}|${sSig || wSig}|${j(b.baseParams)}`;
         if (sig !== bSig) {
           basePG.blendMode(p.BLEND);
-          be.render(basePG, stagedBuf, b.baseParams || {}, { p, w: basePG.width, h: basePG.height });
+          be.render(basePG, stagedBuf, b.baseParams || {}, { p, w: basePG.width, h: basePG.height, slot: 'base' });
           basePG.loadPixels();
           bSig = sig;
         }
@@ -118,23 +118,25 @@ export function createEffectStack(p) {
     if (!eff2) {
       target.blendMode(p.BLEND);
       if (target.noTint) target.noTint();
-      eff.render(target, activeSrc, b.effectParams || {}, { p, w, h });
+      eff.render(target, activeSrc, b.effectParams || {}, { p, w, h, slot: 'a' });
       return eff;
     }
 
     // Chained: draw the first effect into an intermediate buffer at display
     // resolution (pixels loaded so any second effect — sampler or pixel-reader
     // — can read it), then render the second effect from that into the target.
+    // Distinct scratch slots ('a' vs 'b') keep the same effect in both passes
+    // from resizing one pooled buffer back and forth every frame.
     chainPG = sizeBuffer(chainPG, w, h);
     chainPG.blendMode(p.BLEND);
     if (chainPG.noTint) chainPG.noTint();
     chainPG.clear();
-    eff.render(chainPG, activeSrc, b.effectParams || {}, { p, w, h });
+    eff.render(chainPG, activeSrc, b.effectParams || {}, { p, w, h, slot: 'a' });
     chainPG.loadPixels();
 
     target.blendMode(p.BLEND);
     if (target.noTint) target.noTint();
-    eff2.render(target, chainPG, b.effect2Params || {}, { p, w, h });
+    eff2.render(target, chainPG, b.effect2Params || {}, { p, w, h, slot: 'b' });
     return eff2;
   }
 

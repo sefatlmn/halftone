@@ -1,6 +1,7 @@
 // pixel-sort.js — sort contiguous runs of pixels along rows or columns.
 // Static. Vertical mode walks columns via stride (no rotated copy).
 import { makeRng } from '../util/prng.js';
+import { getScratch } from '../util/scratch.js';
 
 function rgb2hue(r, g, b) {
   r /= 255; g /= 255; b /= 255;
@@ -41,8 +42,7 @@ export default {
     const { p, w, h } = ctx;
     const sw = src.width, sh = src.height;
     const sp = src.pixels;
-    const out = p.createGraphics(sw, sh);
-    out.pixelDensity(1);
+    const out = getScratch(p, `${ctx.slot || 'fx'}:pixel-sort`, sw, sh); // pooled
     out.loadPixels();
     const op = out.pixels;
     op.set(sp); // pixels outside any sorted interval keep their place
@@ -118,6 +118,5 @@ export default {
     g.drawingContext.imageSmoothingEnabled = false;
     g.image(out, 0, 0, w, h);
     g.drawingContext.imageSmoothingEnabled = true;
-    out.remove();
   },
 };

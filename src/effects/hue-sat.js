@@ -1,4 +1,6 @@
 // hue-sat.js — HSL hue shift / saturation / lightness. RGB→HSL→RGB per pixel.
+import { getScratch } from '../util/scratch.js';
+
 function rgb2hsl(r, g, b) {
   r /= 255; g /= 255; b /= 255;
   const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
@@ -49,8 +51,7 @@ export default {
     const { p, w, h } = ctx;
     const sw = src.width, sh = src.height;
     const sp = src.pixels;
-    const out = p.createGraphics(sw, sh);
-    out.pixelDensity(1);
+    const out = getScratch(p, `${ctx.slot || 'fx'}:hue-sat`, sw, sh); // pooled
     out.loadPixels();
     const op = out.pixels;
 
@@ -69,6 +70,5 @@ export default {
 
     out.updatePixels();
     g.image(out, 0, 0, w, h);
-    out.remove();
   },
 };

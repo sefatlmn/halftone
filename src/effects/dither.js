@@ -3,6 +3,9 @@
 // resolution then upscaled with smoothing OFF for crisp chunky pixels.
 import { lumaAt } from '../input.js';
 import { hex2rgb, mix, clamp, n, svgDoc } from './_shared.js';
+import { getScratch } from '../util/scratch.js';
+
+const GRID_CAP = 1000; // max dither grid edge — bounds error diffusion AND the pooled buffer
 
 const BAYER = {
   2: [[0, 2], [3, 1]],
@@ -68,9 +71,8 @@ function computeDither(src, params, w, h, p) {
   const ps = Math.max(1, pixelScale);
   let cols = Math.max(1, Math.round(w / ps));
   let rows = Math.max(1, Math.round(h / ps));
-  const MAXC = 1000; // keep error diffusion bounded
-  if (cols > MAXC) { rows = Math.max(1, Math.round(rows * MAXC / cols)); cols = MAXC; }
-  if (rows > MAXC) { cols = Math.max(1, Math.round(cols * MAXC / rows)); rows = MAXC; }
+  if (cols > GRID_CAP) { rows = Math.max(1, Math.round(rows * GRID_CAP / cols)); cols = GRID_CAP; }
+  if (rows > GRID_CAP) { cols = Math.max(1, Math.round(cols * GRID_CAP / rows)); rows = GRID_CAP; }
 
   // sample luminance grid
   const lum = new Float32Array(cols * rows);
@@ -129,23 +131,26 @@ export default {
     const { p, w, h } = ctx;
     const { cols, rows, idx, pal } = computeDither(src, params, w, h, p);
 
-    // paint indices into a small buffer, then upscale crisply
-    const tmp = p.createGraphics(cols, rows);
-    tmp.pixelDensity(1);
-    tmp.loadPixels();
-    const px = tmp.pixels;
+    // Paint indices into a pooled buffer, then upscale crisply. The buffer is
+    // fixed at GRID_CAP² because the grid size follows the pixel-size slider —
+    // a size-keyed pool entry would reallocate a canvas on every drag tick.
+    // Only the cols×rows corner is written and blitted.
+    const tmp = getScratch(p, `${ctx.slot || 'fx'}:dither`, GRID_CAP, GRID_CAP);
+    const tctx = tmp.drawingContext;
+    const id = tctx.createImageData(cols, rows);
+    const px = id.data;
     for (let i = 0; i < idx.length; i++) {
       const c = pal[idx[i]];
       const j = i << 2;
       px[j] = c[0]; px[j + 1] = c[1]; px[j + 2] = c[2]; px[j + 3] = 255;
     }
-    tmp.updatePixels();
+    tctx.putImageData(id, 0, 0);
 
     g.background(params.paper);
-    g.drawingContext.imageSmoothingEnabled = false;
-    g.image(tmp, 0, 0, w, h);
-    g.drawingContext.imageSmoothingEnabled = true;
-    tmp.remove(); // free the offscreen buffer (avoid leaking canvases)
+    const gctx = g.drawingContext;
+    gctx.imageSmoothingEnabled = false;
+    gctx.drawImage(tmp.canvas, 0, 0, cols, rows, 0, 0, w, h); // respects g's transform (export scale)
+    gctx.imageSmoothingEnabled = true;
   },
 
   // Vector export — the chunky pixels become <rect>s, in colour. Equal-colour
