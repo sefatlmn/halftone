@@ -42,7 +42,7 @@ export default {
     const { p, w, h } = ctx;
     const sw = src.width, sh = src.height;
     const sp = src.pixels;
-    const out = getScratch(p, `${ctx.slot || 'fx'}:pixel-sort`, sw, sh); // pooled
+    const out = getScratch(p, ctx.slot || 'fx', sw, sh); // pooled per slot
     out.loadPixels();
     const op = out.pixels;
     op.set(sp); // pixels outside any sorted interval keep their place

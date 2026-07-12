@@ -121,7 +121,7 @@ export default {
     const { p, w, h } = ctx;
     const sw = src.width, sh = src.height;
     const sp = src.pixels;
-    const out = getScratch(p, `${ctx.slot || 'fx'}:glitch`, sw, sh); // pooled — never removed per frame
+    const out = getScratch(p, ctx.slot || 'fx', sw, sh); // pooled per slot — never removed per frame
     out.loadPixels();
     const op = out.pixels;
     op.set(sp); // baseline = source (fully overwrites the reused buffer)

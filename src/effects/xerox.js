@@ -25,7 +25,7 @@ export default {
 
     // Pooled scratch: reusing it also reuses p5's cached blur-filter layer
     // instead of standing up (and leaking) a fresh one per render.
-    const tmp = getScratch(p, `${ctx.slot || 'fx'}:xerox`, sw, sh);
+    const tmp = getScratch(p, ctx.slot || 'fx', sw, sh);
     tmp.image(src, 0, 0); // opaque source covers the full buffer — old frame gone
     tmp.filter(p.BLUR, 0.4 + (1 - params.tonerDensity) * 0.7); // photocopier softness
     tmp.loadPixels();

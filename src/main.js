@@ -869,12 +869,21 @@ function doSwap() {
   if (!isEffect2On()) return;
   const oldAId = App.activeId;
   const oldBId = App.effect2Id;
-  const aState = App.states[oldAId];
-  const bState = App.states2[oldBId];
   App.activeId = oldBId;
   App.effect2Id = oldAId;
-  App.states[oldBId] = bState;
-  App.states2[oldAId] = aState;
+  // Params follow their effect across slots — EXCHANGE each id's A-side and
+  // B-side entries rather than copying references. Copying left states[id]
+  // and states2[id] pointing at the same object after a swap, silently
+  // coupling the two slots' params for that effect from then on.
+  [App.states[oldAId], App.states2[oldAId]] = [
+    App.states2[oldAId],
+    App.states[oldAId],
+  ];
+  if (oldBId !== oldAId)
+    [App.states[oldBId], App.states2[oldBId]] = [
+      App.states2[oldBId],
+      App.states[oldBId],
+    ];
   buildEffectChips();
   buildParamPanel();
   buildEffect2Panel();

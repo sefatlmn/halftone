@@ -22,7 +22,7 @@ export default {
     const paper = hex2rgb(params.paper);
     const sw = src.width, sh = src.height;
 
-    const tmp = getScratch(p, `${ctx.slot || 'fx'}:stamp`, sw, sh); // pooled
+    const tmp = getScratch(p, ctx.slot || 'fx', sw, sh); // pooled per slot
     tmp.image(src, 0, 0); // opaque source covers the full buffer — old frame gone
     tmp.loadPixels();
     const px = tmp.pixels;

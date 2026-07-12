@@ -7,20 +7,28 @@
 // a second, each allocating a sampling- or display-resolution canvas — blows
 // through Safari's per-tab canvas-memory budget, and its watchdog answers by
 // killing and reloading the page (the "infinite loading loop"). Reusing one
-// buffer per (slot, effect) caps that at a small constant instead.
+// buffer per pipeline slot caps that at a small constant instead.
 //
-// Callers key their buffer as `${ctx.slot}:${effectId}` so the same effect
-// running twice in one frame (e.g. as pass A and pass B, at different sizes)
-// gets two stable buffers rather than re-sizing one back and forth.
+// Callers key their buffer by pipeline SLOT (ctx.slot: 'pre' | 'base' | 'a' |
+// 'b' | 'exp' | 'exp2' | 'sep'), not by effect: only one effect renders per
+// slot per frame, and every effect in a slot works at that slot's buffer size
+// (its source's dimensions), so all of them can share one buffer. That keeps
+// the whole pool at a handful of stable entries — switching effects reuses the
+// same canvas instead of allocating a new one per effect. The one exception is
+// dither, which keys as `dither:${slot}`: its buffer is a fixed grid-cap
+// canvas (a deliberately different size), and sharing a slot key would resize
+// the buffer back and forth every time the user alternated effects.
 //
 // A buffer is private to its key and carries last frame's contents: the caller
 // must fully overwrite it every render. Every current user does — they either
 // .set() the whole pixels array or draw an opaque source over the full area.
 
-// Must exceed the largest concurrent working set — a stacked export with a
-// pre-stage and base layer touches six keys (pre, base, a, b, exp, exp2) —
-// while staying small: worst case is MAX_BUFFERS sampling-res buffers pinned
-// (~8 MB each), which has to stay well inside an iOS tab's canvas budget.
+// Above the realistic concurrent working set (pre, base, a, b + export keys +
+// a dither variant or two) while staying small: worst case is MAX_BUFFERS
+// sampling-res buffers pinned (~8 MB each), which has to stay well inside an
+// iOS tab's canvas budget. Eviction is safe at any cap — a scratch buffer only
+// matters during its own render call — so overflow costs a reallocation, never
+// correctness.
 const MAX_BUFFERS = 8;
 
 const pool = new Map(); // key → p5.Graphics, in LRU order (oldest first)

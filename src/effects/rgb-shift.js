@@ -38,7 +38,7 @@ export default {
     const { p, w, h } = ctx;
     const sw = src.width, sh = src.height;
     const sp = src.pixels;
-    const out = getScratch(p, `${ctx.slot || 'fx'}:rgb-shift`, sw, sh); // pooled
+    const out = getScratch(p, ctx.slot || 'fx', sw, sh); // pooled per slot
     out.loadPixels();
     const op = out.pixels;
 
@@ -139,7 +139,7 @@ export default {
     const plate = (name, i) => ({
       name,
       draw: (g) => {
-        const out = getScratch(p, `${ctx.slot || 'fx'}:rgb-shift`, sw, sh); // pooled
+        const out = getScratch(p, ctx.slot || 'fx', sw, sh); // pooled per slot
         out.loadPixels();
         out.pixels.set(build()[i]);
         out.updatePixels();

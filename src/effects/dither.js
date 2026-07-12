@@ -134,8 +134,11 @@ export default {
     // Paint indices into a pooled buffer, then upscale crisply. The buffer is
     // fixed at GRID_CAP² because the grid size follows the pixel-size slider —
     // a size-keyed pool entry would reallocate a canvas on every drag tick.
-    // Only the cols×rows corner is written and blitted.
-    const tmp = getScratch(p, `${ctx.slot || 'fx'}:dither`, GRID_CAP, GRID_CAP);
+    // Namespaced key (not the bare slot): this buffer's size differs from the
+    // slot's shared source-sized buffer, so sharing the key would resize the
+    // pooled canvas back and forth whenever dither alternates with another
+    // effect. Only the cols×rows corner is written and blitted.
+    const tmp = getScratch(p, `dither:${ctx.slot || 'fx'}`, GRID_CAP, GRID_CAP);
     const tctx = tmp.drawingContext;
     const id = tctx.createImageData(cols, rows);
     const px = id.data;
