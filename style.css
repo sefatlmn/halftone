@@ -6,16 +6,39 @@
    ============================================================ */
 
 :root {
+  /* Native form controls (select popups, colour picker, scrollbars, focus
+     rings) follow the OS light/dark preference, in step with the dark theme
+     defined at the bottom of this file. */
+  color-scheme: light dark;
+
   /* ============================================================
      PALETTE — the only five colours in the system. Everything
      else is one of these or an opacity/blend of ink & paper via
      color-mix(); change a value here and it propagates everywhere.
+
+     DARK MODE (see @media prefers-color-scheme: dark, end of file)
+     simply SWAPS the two poles — ink becomes light, paper becomes a
+     warm near-black — and every color-mix() derivation below inverts
+     with them for free. The two accents are kept (only nudged for
+     contrast on the dark ground).
      ============================================================ */
   --paper: #eeebe3; /* warm off-white — base ground          */
   --paper-2: #ddd8ca; /* stage ground (recessed surface)       */
   --ink: #15120d; /* near-black                            */
   --accent: #f54129; /* signal red (primary)                  */
   --accent-2: #f5882a; /* press mustard (secondary)             */
+
+  /* FIXED POLES — deliberately do NOT flip with the theme. Two kinds of
+     surface must stay put when the palette swaps: (a) the artboard — the proof
+     sheet, its selectable ASCII overlay, and the filmstrip print-sample
+     thumbnails read as paper in both themes (a light sheet on a dark desk);
+     (b) text/knobs sitting on the accent colours, which don't flip, so their
+     foreground can't be allowed to invert. In light mode these equal the
+     palette values, so nothing changes; the dark block leaves them untouched. */
+  --sheet: #eeebe3; /* artboard paper — pinned light */
+  --sheet-ink: #15120d; /* marks / selectable text on the sheet + modal scrim — pinned dark */
+  --on-accent: #eeebe3; /* text & knobs on the red accent — pinned light */
+  --on-accent-2: #15120d; /* text on the mustard accent — pinned dark */
 
   /* derived — same two hues only, never a new colour */
   --ink-soft: color-mix(
@@ -498,7 +521,7 @@ input[type="text"]:focus-visible {
 }
 .toggle input:checked + .toggle__track::after {
   transform: translateX(20px);
-  background: var(--paper);
+  background: var(--on-accent); /* knob rides onto the accent track — stays light */
 }
 .toggle input:focus-visible + .toggle__track {
   outline: 1px solid var(--accent);
@@ -659,7 +682,7 @@ input[type="color"]::-moz-color-swatch {
 }
 .btn--primary {
   background: var(--accent);
-  color: var(--paper);
+  color: var(--on-accent);
   border-color: var(--accent);
 }
 .btn--primary:hover {
@@ -696,7 +719,7 @@ input[type="color"]::-moz-color-swatch {
   border: none;
   cursor: pointer;
   background: var(--accent);
-  color: var(--paper);
+  color: var(--on-accent);
 }
 .exp button:hover {
   background: var(--ink);
@@ -739,7 +762,9 @@ input[type="color"]::-moz-color-swatch {
 .xpanel__backdrop {
   position: absolute;
   inset: 0;
-  background: color-mix(in srgb, var(--ink) 72%, transparent);
+  /* scrim dims the app behind the modal — pinned dark so it stays a shade, not
+     a bright veil, when the palette flips */
+  background: color-mix(in srgb, var(--sheet-ink) 72%, transparent);
   cursor: pointer;
 }
 
@@ -837,7 +862,7 @@ input[type="color"]::-moz-color-swatch {
   border: var(--hair);
   cursor: pointer;
   background: var(--accent);
-  color: var(--paper);
+  color: var(--on-accent);
 }
 .xtier__btn:not([disabled]):hover { background: var(--ink); border-color: var(--ink); }
 
@@ -865,7 +890,7 @@ input[type="color"]::-moz-color-swatch {
   border: var(--hair);
   cursor: pointer;
   background: var(--accent-2);
-  color: var(--ink);
+  color: var(--on-accent-2);
   text-decoration: none;
   text-align: center;
 }
@@ -945,9 +970,11 @@ input[type="color"]::-moz-color-swatch {
   right: 10px;
 }
 
-/* the proof — white sheet hugging the canvas */
+/* the proof — white sheet hugging the canvas. Pinned to the artboard paper so
+   it stays a light sheet on the dark desk in dark mode (the canvas paints its
+   own paper anyway; this just guarantees no dark rim at the letterbox edge). */
 .proof {
-  background: var(--paper);
+  background: var(--sheet);
   border: var(--hair);
   line-height: 0;
 }
@@ -960,8 +987,10 @@ input[type="color"]::-moz-color-swatch {
   inset: 0;
   margin: 0;
   overflow: auto;
-  background: var(--paper);
-  color: var(--ink);
+  /* mirrors the ASCII canvas (dark ink on paper) so copy/paste matches what's
+     rendered — pinned to the artboard, independent of the UI theme */
+  background: var(--sheet);
+  color: var(--sheet-ink);
   font-family: var(--mono);
   white-space: pre;
   z-index: 4;
@@ -1012,7 +1041,7 @@ input[type="color"]::-moz-color-swatch {
 .empty.is-hover {
   background: var(--accent);
   border-style: solid;
-  color: var(--paper);
+  color: var(--on-accent);
 }
 .empty[hidden] {
   display: none;
@@ -1028,7 +1057,7 @@ input[type="color"]::-moz-color-swatch {
   color: var(--accent);
 }
 .empty.is-hover .empty-glyph {
-  color: var(--paper);
+  color: var(--on-accent);
 }
 .empty h2 {
   font-family: var(--exp);
@@ -1119,11 +1148,11 @@ input[type="color"]::-moz-color-swatch {
 }
 .abtog__btn[data-slot="A"].is-active {
   background: var(--accent);
-  color: var(--paper);
+  color: var(--on-accent);
 }
 .abtog__btn[data-slot="B"].is-active {
   background: var(--accent-2);
-  color: var(--ink);
+  color: var(--on-accent-2);
 }
 .films {
   display: flex;
@@ -1146,7 +1175,9 @@ input[type="color"]::-moz-color-swatch {
   width: 118px;
   height: 88px;
   border: var(--hair);
-  background: var(--paper);
+  /* the motif SVG paints its own opaque paper ground (hardcoded in
+     effectMotif); this fixed sheet colour just backs it so no dark edge shows */
+  background: var(--sheet);
   line-height: 0;
   overflow: hidden;
 }
@@ -1327,5 +1358,40 @@ input[type="color"]::-moz-color-swatch {
   /* let the last control clear the pinned Export bar */
   .rail-scroll {
     padding-bottom: 8px;
+  }
+}
+
+/* ============================================================
+   DARK MODE — auto, follows the OS (prefers-color-scheme: dark).
+   The five-colour system is symmetric, so the entire UI inverts by
+   swapping the two poles (ink ⇄ paper); every color-mix() derivation
+   (labels, hairlines, hovers, scrollbars) inverts with them for free.
+   The fixed-pole tokens (--sheet*, --on-accent*) are intentionally NOT
+   redefined here, so the proof sheet, ASCII overlay, filmstrip
+   thumbnails and accent-anchored text stay put — a light artboard on a
+   dark desk. The two accents are kept, only nudged for the dark ground.
+   ============================================================ */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #1b1712;    /* base chrome surface — warm near-black, lifted just
+                            above --ink so light hairlines still separate       */
+    --paper-2: #100d0a;  /* recessed desk / block headers — darker, so the light
+                            proof sheet sits forward on the desk                */
+    --ink: #eae7df;      /* text & hairlines — warm off-white, a shade dimmer
+                            than the sheet to cut glare                         */
+    --accent: #fb5c47;   /* signal red, lifted + softened so it doesn't vibrate
+                            against near-black                                  */
+    --accent-2: #f7963a; /* press mustard, nudged lighter for legibility        */
+  }
+
+  /* Accent buttons darken on hover by receding to the opposite pole. In light
+     mode that pole is --ink (dark); after the swap it's --paper (dark), so the
+     pinned-light label keeps its contrast. Without this the hover background
+     would flip light underneath light text. Light mode is untouched. */
+  .btn--primary:hover,
+  .exp button:hover,
+  .xtier__btn:not([disabled]):hover {
+    background: var(--paper);
+    border-color: var(--paper);
   }
 }
