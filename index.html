@@ -83,17 +83,26 @@
             <div class="block-head">
               <span class="ix">01</span>
               <h3>Source</h3>
+              <button
+                class="fold"
+                type="button"
+                aria-expanded="true"
+                aria-controls="fold-source"
+                aria-label="Collapse Source"
+              ></button>
             </div>
-            <div class="block-body">
-              <div class="row row--buttons">
-                <button class="btn btn--block" id="btn-upload-2" type="button">
-                  Load image
-                </button>
-                <button class="btn" id="btn-demo-2" type="button">Demo</button>
+            <div class="block-fold" id="fold-source">
+              <div class="block-body">
+                <div class="row row--buttons">
+                  <button class="btn btn--block" id="btn-upload-2" type="button">
+                    Load image
+                  </button>
+                  <button class="btn" id="btn-demo-2" type="button">Demo</button>
+                </div>
+                <p class="note" id="drop-note">
+                  Everything runs locally in your browser, images are not stored.
+                </p>
               </div>
-              <p class="note" id="drop-note">
-                Everything runs locally in your browser, images are not stored.
-              </p>
             </div>
           </section>
 
@@ -101,11 +110,20 @@
             <div class="block-head">
               <span class="ix">02</span>
               <h3>Pre-adjust</h3>
+              <button
+                class="fold"
+                type="button"
+                aria-expanded="true"
+                aria-controls="fold-pre"
+                aria-label="Collapse Pre-adjust"
+              ></button>
             </div>
-            <div class="block-body" id="preadjust-controls"></div>
-            <div class="block-body block-body--sub">
-              <div id="prestage-select"></div>
-              <div id="prestage-controls"></div>
+            <div class="block-fold" id="fold-pre">
+              <div class="block-body" id="preadjust-controls"></div>
+              <div class="block-body block-body--sub">
+                <div id="prestage-select"></div>
+                <div id="prestage-controls"></div>
+              </div>
             </div>
           </section>
 
@@ -126,8 +144,17 @@
                   Reset
                 </button>
               </div>
+              <button
+                class="fold"
+                type="button"
+                aria-expanded="true"
+                aria-controls="fold-a"
+                aria-label="Collapse effect A parameters"
+              ></button>
             </div>
-            <div class="block-body" id="param-controls"></div>
+            <div class="block-fold" id="fold-a">
+              <div class="block-body" id="param-controls"></div>
+            </div>
           </section>
 
           <section class="block block--stack" id="block-effect2">
@@ -135,8 +162,17 @@
               <span class="ix">B</span>
               <h3 id="param2-title">Stack effect</h3>
               <div class="block-tools" id="effect2-tools"></div>
+              <button
+                class="fold"
+                type="button"
+                aria-expanded="true"
+                aria-controls="fold-b"
+                aria-label="Collapse effect B parameters"
+              ></button>
             </div>
-            <div class="block-body" id="param2-controls"></div>
+            <div class="block-fold" id="fold-b">
+              <div class="block-body" id="param2-controls"></div>
+            </div>
           </section>
         </div>
 

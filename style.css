@@ -204,6 +204,51 @@ kbd {
 .block {
   border-bottom: var(--hair);
 }
+
+/* Collapsible sections — the affordance only exists on phones (see the
+   max-width: 720px block, where .block becomes a grid that animates its body
+   row open/closed). On desktop the toggle is hidden and .block-fold is an inert
+   wrapper, so the rail behaves exactly as before. */
+.fold {
+  display: none; /* desktop: sections are always open */
+  flex: 0 0 auto;
+  align-self: center;
+  margin-left: 10px;
+  width: 40px;
+  height: 40px;
+  margin-block: -10px; /* reclaim the tall touch target inside the header row */
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: var(--ink-soft);
+  position: relative;
+}
+.fold::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 8px;
+  height: 8px;
+  margin: auto;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: translateY(-2px) rotate(45deg); /* chevron down = expanded */
+  transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.fold:hover {
+  color: var(--ink);
+}
+.block.is-collapsed .fold::after {
+  transform: translateY(2px) rotate(-135deg); /* chevron up = collapsed */
+}
+@media (prefers-reduced-motion: reduce) {
+  .block,
+  .fold::after {
+    transition: none; /* collapse and chevron snap instantly */
+  }
+}
+
 .block-head {
   display: flex;
   background: var(--paper-2);
@@ -1303,10 +1348,11 @@ input[type="color"]::-moz-color-swatch {
     gap: 12px;
   }
 
-  /* shorter, tighter filmstrip on phones — keep the 96px width (captions fit it),
-     cut height via shorter thumbs + trimmed padding to reclaim vertical space. */
+  /* Shorter, tighter filmstrip on phones. The EFFECT / A·B row sits ~11px below
+     the top border and ~12px above the boxes — enough to un-cramp it (both were
+     ~1px) without the top gap ballooning past the rest of the strip's rhythm. */
   .strip-head {
-    padding: 6px 16px 6px;
+    padding: 8px 16px 12px;
   }
   .films {
     gap: 10px;
@@ -1314,11 +1360,11 @@ input[type="color"]::-moz-color-swatch {
   }
   .film,
   .film .thumb {
-    width: 78px;
+    width: 68px;
   }
-  /* keep the desktop thumb aspect ratio (78×58 ≈ 118×88) at the shortened height */
+  /* keep the desktop thumb aspect ratio (68×51 ≈ 118×88) at the shortened height */
   .film .thumb {
-    height: 58px;
+    height: 51px;
   }
   /* at the narrower film the index won't fit beside the longest name, so drop it
      on phones and centre the name (which still reads fine on one line) */
@@ -1330,6 +1376,26 @@ input[type="color"]::-moz-color-swatch {
   }
   .film .cap b {
     display: none;
+  }
+
+  /* Collapsible rail sections. Each .block becomes a two-row grid (header +
+     body); collapsing animates the body row from 1fr to 0fr. An fr track
+     animates smoothly and needs no brittle max-height guess. The header row
+     stays auto so it's always tappable. */
+  .block {
+    display: grid;
+    grid-template-rows: auto 1fr;
+    transition: grid-template-rows 0.26s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .block.is-collapsed {
+    grid-template-rows: auto 0fr;
+  }
+  .block-fold {
+    min-height: 0; /* let the body row shrink below content height */
+    overflow: hidden;
+  }
+  .fold {
+    display: block; /* reveal the toggle only where sections can collapse */
   }
 
   /* tighter rail body + export bar for thumb reach */
@@ -1382,6 +1448,26 @@ input[type="color"]::-moz-color-swatch {
     --accent: #fb5c47;   /* signal red, lifted + softened so it doesn't vibrate
                             against near-black                                  */
     --accent-2: #f7963a; /* press mustard, nudged lighter for legibility        */
+
+    /* Hairlines go grey, not white. A full-ink (near-white) border on every box
+       is harsh on a dark ground; a ~30% ink line keeps the Swiss structure
+       legible without the glare. This one override greys every hairline at once
+       — rail, dividers, selects, toggles, the proof frame, thumbnails, modal. */
+    --hair: 1px solid color-mix(in srgb, var(--ink) 30%, transparent);
+  }
+
+  /* Action boxes fill instead of outlining. On a dark UI a white-outlined
+     button reads as a harsh box; a light fill with dark ink reads as the
+     pressable thing. Scoped off --btn--primary so the red Export/Choose-image
+     button keeps its accent fill. */
+  .btn:not(.btn--primary) {
+    background: var(--ink);
+    color: var(--paper);
+    border-color: var(--ink);
+  }
+  .btn:not(.btn--primary):hover {
+    background: color-mix(in srgb, var(--ink) 86%, var(--paper));
+    border-color: transparent;
   }
 
   /* Accent buttons darken on hover by receding to the opposite pole. In light

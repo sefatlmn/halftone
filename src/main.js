@@ -1135,6 +1135,35 @@ function wireEvents() {
 }
 
 /* ----------------------------------------------------------------
+   Collapsible rail sections (phones). Each block's header folds its body.
+   Purely presentational: the fold only animates under the max-width:720px
+   CSS, so toggling on wider screens is a harmless no-op and the chevron is
+   hidden there. The header itself is a tap target, but the real controls it
+   holds (Randomize / Reset, the effect-B tools) must not trigger a fold.
+   ---------------------------------------------------------------- */
+function wireFolds() {
+  const mobile = window.matchMedia("(max-width: 720px)");
+  document.querySelectorAll(".block").forEach((block) => {
+    const head = block.querySelector(".block-head");
+    const btn = block.querySelector(".fold");
+    if (!head || !btn) return;
+    const toggle = () => {
+      const collapsed = block.classList.toggle("is-collapsed");
+      btn.setAttribute("aria-expanded", String(!collapsed));
+    };
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      toggle();
+    });
+    head.addEventListener("click", (e) => {
+      if (!mobile.matches) return; // desktop: header isn't a fold target
+      if (e.target.closest("button, a, input, select, .block-tools")) return;
+      toggle();
+    });
+  });
+}
+
+/* ----------------------------------------------------------------
    Init
    ---------------------------------------------------------------- */
 function init() {
@@ -1148,6 +1177,7 @@ function init() {
   updateSwapBtn();
   updateMeta();
   wireEvents();
+  wireFolds();
 }
 
 init();
