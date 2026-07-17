@@ -1474,10 +1474,30 @@ input[type="color"]::-moz-color-swatch {
      mode that pole is --ink (dark); after the swap it's --paper (dark), so the
      pinned-light label keeps its contrast. Without this the hover background
      would flip light underneath light text. Light mode is untouched. */
-  .btn--primary:hover,
   .exp button:hover,
   .xtier__btn:not([disabled]):hover {
     background: var(--paper);
     border-color: var(--paper);
+  }
+
+  /* Choose-image sits right next to the plain white "Use demo plate" chip, so
+     receding to dark on hover (the pattern above) reads as a step backward
+     next to it. Inverting fully — white fill, black text — matches that
+     sibling's look instead. */
+  .btn--primary:hover {
+    background: var(--ink);
+    color: var(--paper);
+    border-color: var(--ink);
+  }
+
+  /* Invert Source is the one toggle whose ON track isn't accent-colored — it
+     uses --ink (.block--b override, above the dark-mode split) so it stays
+     neutral rather than glowing red. That track already flips light in dark
+     mode automatically; the knob doesn't (still pinned --on-accent, light),
+     so ON became a near-invisible light knob on a light track. Only this
+     knob needs fixing — the A/B slot toggles keep their accent tracks and
+     pinned-light knobs untouched, exactly as before. */
+  .block--b .toggle input:checked + .toggle__track::after {
+    background: var(--paper);
   }
 }
