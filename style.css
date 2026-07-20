@@ -1470,21 +1470,13 @@ input[type="color"]::-moz-color-swatch {
     border-color: transparent;
   }
 
-  /* Accent buttons darken on hover by receding to the opposite pole. In light
-     mode that pole is --ink (dark); after the swap it's --paper (dark), so the
-     pinned-light label keeps its contrast. Without this the hover background
-     would flip light underneath light text. Light mode is untouched. */
+  /* Every accent-filled action button — Choose image, Export, and the three
+     overlay download buttons — inverts fully on hover: white fill, black
+     text, rather than receding into the dark ground. Light mode is untouched
+     (there hover still recedes to --ink, i.e. dark). */
+  .btn--primary:hover,
   .exp button:hover,
   .xtier__btn:not([disabled]):hover {
-    background: var(--paper);
-    border-color: var(--paper);
-  }
-
-  /* Choose-image sits right next to the plain white "Use demo plate" chip, so
-     receding to dark on hover (the pattern above) reads as a step backward
-     next to it. Inverting fully — white fill, black text — matches that
-     sibling's look instead. */
-  .btn--primary:hover {
     background: var(--ink);
     color: var(--paper);
     border-color: var(--ink);
