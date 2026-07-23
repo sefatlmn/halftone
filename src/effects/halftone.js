@@ -4,6 +4,22 @@ import { clamp, n, svgDoc } from './_shared.js';
 
 const D2R = Math.PI / 180;
 
+// Vertices of an n-pointed star centred at the origin: outer/inner radii
+// alternate, first point straight up before `rotRad` is applied. Returns
+// [[dx,dy],…] offsets — shared by the raster (p5 vertex) and SVG (polygon)
+// paths so both outputs match. Local to this module by design.
+function starVertices(radius, rotRad, points = 5, innerRatio = 0.5) {
+  const verts = [];
+  const step = Math.PI / points;
+  const a0 = -Math.PI / 2 + rotRad;
+  for (let i = 0; i < points * 2; i++) {
+    const r = (i & 1) ? radius * innerRatio : radius;
+    const a = a0 + i * step;
+    verts.push([Math.cos(a) * r, Math.sin(a) * r]);
+  }
+  return verts;
+}
+
 // Walk a grid rotated by `angleDeg` over a w×h field, calling cb for every cell
 // centre that lands on (or near) the canvas. Used by render + renderSVG so the
 // raster and vector outputs stay identical.
@@ -55,6 +71,11 @@ function renderMono(g, src, params, ctx) {
     } else if (shape === 'square') {
       g.push(); g.translate(wx, wy); g.rotate(angle * D2R);
       g.rectMode(p.CENTER); g.rect(0, 0, 2 * r, 2 * r); g.pop();
+    } else if (shape === 'star') {
+      g.push(); g.translate(wx, wy);
+      g.beginShape();
+      for (const [vx, vy] of starVertices(r, angle * D2R)) g.vertex(vx, vy);
+      g.endShape(p.CLOSE); g.pop();
     } else { // line — variable thickness
       g.push(); g.translate(wx, wy); g.rotate(angle * D2R);
       g.strokeWeight(Math.max(0.4, 2 * r));
@@ -78,18 +99,31 @@ function drawCmykChannel(g, src, params, ctx, ch) {
   const { p, w, h } = ctx;
   const cellSize = Math.max(2, params.cell);
   const half = cellSize / 2;
-  g.fill(ch.col[0], ch.col[1], ch.col[2]);
+  const shape = params.shape;
+  // Match the mono screen: line → variable-weight stroke, everything else fills.
+  // Each channel screens at its fixed print angle (ch.ang) — moiré-free.
+  if (shape === 'line') { g.noFill(); g.stroke(ch.col[0], ch.col[1], ch.col[2]); g.strokeCap(p.SQUARE); }
+  else { g.noStroke(); g.fill(ch.col[0], ch.col[1], ch.col[2]); }
   forEachCell(w, h, cellSize, ch.ang, (wx, wy, nx, ny, hwN, hhN) => {
     let [r, gg, b] = avgRGB(src, nx, ny, hwN, hhN);
     if (params.invert) { r = 255 - r; gg = 255 - gg; b = 255 - b; }
     const amt = ch.pick(rgb2cmyk(r, gg, b));
     const rad = half * Math.sqrt(clamp(amt, 0, 1));
     if (rad < 0.35) return;
-    if (params.shape === 'square') {
+    if (shape === 'square') {
       g.push(); g.translate(wx, wy); g.rotate(ch.ang * D2R);
       g.rectMode(p.CENTER); g.rect(0, 0, 2 * rad, 2 * rad); g.pop();
+    } else if (shape === 'star') {
+      g.push(); g.translate(wx, wy);
+      g.beginShape();
+      for (const [vx, vy] of starVertices(rad, ch.ang * D2R)) g.vertex(vx, vy);
+      g.endShape(p.CLOSE); g.pop();
+    } else if (shape === 'line') {
+      g.push(); g.translate(wx, wy); g.rotate(ch.ang * D2R);
+      g.strokeWeight(Math.max(0.4, 2 * rad));
+      g.line(-half, 0, half, 0); g.pop();
     } else {
-      g.circle(wx, wy, 2 * rad); // circle/line → dots in CMYK
+      g.circle(wx, wy, 2 * rad);
     }
   });
 }
@@ -108,10 +142,13 @@ export default {
   no: '01',
   params: [
     { key: 'cell',   label: 'Cell size',    type: 'range', min: 3, max: 40, step: 1, value: 8 },
-    { key: 'shape',  label: 'Dot shape',    type: 'select', options: ['circle', 'square', 'line'], value: 'circle' },
-    { key: 'angle',  label: 'Screen angle', type: 'range', min: 0, max: 90, step: 1, value: 45 },
-    { key: 'cmyk',   label: 'CMYK split',   type: 'toggle', value: true },
-    { key: 'ink',    label: 'Ink',          type: 'color', value: '#FF3B22' },
+    { key: 'shape',  label: 'Dot shape',    type: 'select', options: ['circle', 'square', 'line', 'star'], value: 'circle' },
+    // CMYK screens at fixed per-channel print angles (moiré-free), so the screen
+    // angle only applies to the mono screen; ink is likewise mono-only (CMYK
+    // uses process inks). Hide both when CMYK is on.
+    { key: 'angle',  label: 'Screen angle', type: 'range', min: 0, max: 90, step: 1, value: 45, showIf: s => !s.cmyk },
+    { key: 'cmyk',   label: 'CMYK split',   type: 'toggle', value: true, rebuildOnChange: true },
+    { key: 'ink',    label: 'Ink',          type: 'color', value: '#FF3B22', showIf: s => !s.cmyk },
     { key: 'paper',  label: 'Paper',        type: 'color', value: '#ffffff', lockRandom: true },
     { key: 'invert', label: 'Invert',       type: 'toggle', value: false },
   ],
@@ -150,7 +187,7 @@ export default {
 
     if (params.cmyk) {
       for (const ch of CMYK_CHANNELS) {
-        const fill = `rgb(${ch.col[0]},${ch.col[1]},${ch.col[2]})`;
+        const col = `rgb(${ch.col[0]},${ch.col[1]},${ch.col[2]})`;
         const dots = [];
         forEachCell(w, h, cellSize, ch.ang, (wx, wy, nx, ny, hwN, hhN) => {
           let [r, gg, b] = avgRGB(src, nx, ny, hwN, hhN);
@@ -159,11 +196,20 @@ export default {
           if (rad < 0.35) return;
           if (shape === 'square') {
             dots.push(`<rect x="${n(-rad)}" y="${n(-rad)}" width="${n(2 * rad)}" height="${n(2 * rad)}" transform="translate(${n(wx)} ${n(wy)}) rotate(${ch.ang})"/>`);
+          } else if (shape === 'star') {
+            const pts = starVertices(rad, ch.ang * D2R).map(([vx, vy]) => `${n(vx)},${n(vy)}`).join(' ');
+            dots.push(`<polygon points="${pts}" transform="translate(${n(wx)} ${n(wy)})"/>`);
+          } else if (shape === 'line') {
+            dots.push(`<line x1="${n(-half)}" y1="0" x2="${n(half)}" y2="0" stroke-width="${n(Math.max(0.4, 2 * rad))}" transform="translate(${n(wx)} ${n(wy)}) rotate(${ch.ang})"/>`);
           } else {
             dots.push(`<circle cx="${n(wx)}" cy="${n(wy)}" r="${n(rad)}"/>`);
           }
         });
-        if (dots.length) parts.push(`<g fill="${fill}" style="mix-blend-mode:multiply">${dots.join('')}</g>`);
+        if (dots.length) {
+          // line → stroke group; every other shape → fill group. Both overprint.
+          const attrs = shape === 'line' ? `fill="none" stroke="${col}" stroke-linecap="butt"` : `fill="${col}"`;
+          parts.push(`<g ${attrs} style="mix-blend-mode:multiply">${dots.join('')}</g>`);
+        }
       }
       return svgDoc(w, h, parts.join('\n'));
     }
@@ -177,6 +223,9 @@ export default {
         parts.push(`<circle cx="${n(wx)}" cy="${n(wy)}" r="${n(r)}" fill="${ink}"/>`);
       } else if (shape === 'square') {
         parts.push(`<rect x="${n(-r)}" y="${n(-r)}" width="${n(2 * r)}" height="${n(2 * r)}" fill="${ink}" transform="translate(${n(wx)} ${n(wy)}) rotate(${angle})"/>`);
+      } else if (shape === 'star') {
+        const pts = starVertices(r, angle * D2R).map(([vx, vy]) => `${n(vx)},${n(vy)}`).join(' ');
+        parts.push(`<polygon points="${pts}" fill="${ink}" transform="translate(${n(wx)} ${n(wy)})"/>`);
       } else {
         parts.push(`<line x1="${n(-half)}" y1="0" x2="${n(half)}" y2="0" stroke="${ink}" stroke-width="${n(Math.max(0.4, 2 * r))}" stroke-linecap="butt" transform="translate(${n(wx)} ${n(wy)}) rotate(${angle})"/>`);
       }

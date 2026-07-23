@@ -117,14 +117,17 @@ export default {
   no: '02',
   heavy: true,
   params: [
-    { key: 'mode',       label: 'Algorithm',   type: 'select', options: ['ordered', 'floyd-steinberg'], value: 'floyd-steinberg' },
-    { key: 'matrixSize', label: 'Bayer matrix', type: 'select', options: ['2', '4', '8'], value: '4' },
-    { key: 'palette',    label: 'Palette',     type: 'select', options: ['bw', 'duotone', '3-tone', '4-tone', 'cmy'], value: 'cmy' },
+    { key: 'mode',       label: 'Algorithm',   type: 'select', options: ['ordered', 'floyd-steinberg'], value: 'floyd-steinberg', rebuildOnChange: true },
+    // Bayer matrix only drives the ordered path; serpentine only the Floyd–
+    // Steinberg path — hide whichever the current algorithm ignores.
+    { key: 'matrixSize', label: 'Bayer matrix', type: 'select', options: ['2', '4', '8'], value: '4', showIf: s => s.mode === 'ordered' },
+    { key: 'palette',    label: 'Palette',     type: 'select', options: ['bw', 'duotone', '3-tone', '4-tone', 'cmy'], value: 'cmy', rebuildOnChange: true },
     { key: 'pixelScale', label: 'Pixel size',  type: 'range', min: 1, max: 14, step: 1, value: 3 },
-    { key: 'serpentine', label: 'Serpentine',  type: 'toggle', value: true },
+    { key: 'serpentine', label: 'Serpentine',  type: 'toggle', value: true, showIf: s => s.mode === 'floyd-steinberg' },
     { key: 'modulation', label: 'Modulation',  type: 'range', min: 0, max: 1, step: 0.01, value: 0 },
-    { key: 'ink',        label: 'Ink',         type: 'color', value: '#15120D' },
-    { key: 'paper',      label: 'Paper',       type: 'color', value: '#ffffff', lockRandom: true },
+    // bw and cmy use hardcoded palettes, so ink/paper do nothing there.
+    { key: 'ink',        label: 'Ink',         type: 'color', value: '#15120D', showIf: s => ['duotone', '3-tone', '4-tone'].includes(s.palette) },
+    { key: 'paper',      label: 'Paper',       type: 'color', value: '#ffffff', lockRandom: true, showIf: s => ['duotone', '3-tone', '4-tone'].includes(s.palette) },
   ],
 
   render(g, src, params, ctx) {

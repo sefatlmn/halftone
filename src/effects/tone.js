@@ -37,8 +37,9 @@ export default {
     { key: 'brightness',   label: 'Brightness',   type: 'range', min: -100, max: 100, step: 1, value: 0 },
     { key: 'contrast',     label: 'Contrast',     type: 'range', min: -100, max: 100, step: 1, value: 0 },
     { key: 'advanced',     label: 'Colour matrix', type: 'toggle', value: false, rebuildOnChange: true },
-    { key: 'matrixPreset', label: 'Matrix',       type: 'select', options: ['identity', 'sepia', 'swap-rb', 'saturate', 'desaturate', 'grayscale'], value: 'identity', showIf: s => s.advanced },
-    { key: 'matrixAmount', label: 'Matrix amount', type: 'range', min: 0, max: 1, step: 0.01, value: 1, showIf: s => s.advanced },
+    { key: 'matrixPreset', label: 'Matrix',       type: 'select', options: ['identity', 'sepia', 'swap-rb', 'saturate', 'desaturate', 'grayscale'], value: 'identity', showIf: s => s.advanced, rebuildOnChange: true },
+    // The identity preset leaves the matrix null, so its amount slider is inert.
+    { key: 'matrixAmount', label: 'Matrix amount', type: 'range', min: 0, max: 1, step: 0.01, value: 1, showIf: s => s.advanced && s.matrixPreset !== 'identity' },
   ],
 
   render(g, src, params, ctx) {

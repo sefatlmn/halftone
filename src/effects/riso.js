@@ -80,7 +80,7 @@ export default {
   no: '04',
   heavy: true,
   params: [
-    { key: 'layers', label: 'Layers',          type: 'select', options: ['2', '3'], value: '3' },
+    { key: 'layers', label: 'Layers',          type: 'select', options: ['2', '3'], value: '3', rebuildOnChange: true },
     { key: 'split',  label: 'Separation',       type: 'select', options: ['luminance', 'rgb'], value: 'luminance' },
     { key: 'screen', label: 'Screen',           type: 'select', options: ['dots', 'grain'], value: 'dots' },
     { key: 'cell',   label: 'Screen cell',      type: 'range', min: 3, max: 18, step: 1, value: 6 },
@@ -88,7 +88,7 @@ export default {
     { key: 'grain',  label: 'Paper grain',      type: 'range', min: 0, max: 1, step: 0.01, value: 0.25 },
     { key: 'color1', label: 'Layer 1',          type: 'color', value: '#ff48b0' },
     { key: 'color2', label: 'Layer 2',          type: 'color', value: '#0078bf' },
-    { key: 'color3', label: 'Layer 3',          type: 'color', value: '#ffe800' },
+    { key: 'color3', label: 'Layer 3',          type: 'color', value: '#ffe800', showIf: s => s.layers === '3' },
     { key: 'paper',  label: 'Paper',            type: 'color', value: '#ffffff', lockRandom: true },
   ],
 

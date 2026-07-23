@@ -19,11 +19,12 @@ const mod = {
   params: [
     { key: 'cell',      label: 'Cell size',  type: 'range', min: 5, max: 26, step: 1, value: 11 },
     { key: 'ramp',      label: 'Glyph ramp', type: 'text', value: DEFAULT_RAMP },
-    { key: 'colorMode', label: 'Colour',     type: 'select', options: ['mono', 'source'], value: 'source' },
+    { key: 'colorMode', label: 'Colour',     type: 'select', options: ['mono', 'source'], value: 'source', rebuildOnChange: true },
     { key: 'font',      label: 'Font',       type: 'select', options: ['Space Mono', 'Courier New', 'monospace'], value: 'Space Mono' },
     { key: 'invert',    label: 'Invert',     type: 'toggle', value: false },
     { key: 'showText',  label: 'Selectable text', type: 'toggle', value: false, lockRandom: true },
-    { key: 'ink',       label: 'Ink',        type: 'color', value: '#15120D' },
+    // In 'source' mode the glyph colour comes from the image, so Ink is unused.
+    { key: 'ink',       label: 'Ink',        type: 'color', value: '#15120D', showIf: s => s.colorMode === 'mono' },
     { key: 'paper',     label: 'Paper',      type: 'color', value: '#ffffff', lockRandom: true },
   ],
 
