@@ -37,6 +37,8 @@ const App = {
   _debounce: null,
   _resize: null,
   _resizePending: false, // a resize arrived while hidden; applied on wake
+  _paintHold: 0, // performance.now() deadline before which painting is suspended
+  _holdTimer: null, // re-arms the paint when _paintHold lapses
   _srcOwned: null, // fitSource()'s downscaled graphics — removed when replaced
 };
 
@@ -273,6 +275,7 @@ function markDirty() {
 
 function armPaint() {
   if (!App.p || !App._dirty || App._raf) return;
+  if (performance.now() < App._paintHold) return; // see holdPaint()
   App._raf = requestAnimationFrame(() => {
     App._raf = 0;
     if (!App._dirty) return;
@@ -292,6 +295,40 @@ function rearmPaint() {
     App._raf = 0;
   }
   armPaint();
+}
+
+// Suspend painting for a moment and drop any armed frame.
+//
+// A repaint runs the whole pipeline SYNCHRONOUSLY — on a large proof with a heavy
+// or stacked chain that's over a second, measured up to ~5.5s at EDGE_CAP. The
+// wake handlers in wireEvents() arm exactly such a repaint from a capture-phase
+// pointerdown, i.e. on the earliest event of a gesture, and a mouse press lasts
+// long enough (~60-150ms) for the browser to service that frame before it
+// dispatches the click. On a "Load image" press that put a multi-second render
+// between the press and the `#file-input` click that has to reach the native file
+// picker: the app froze and the picker didn't open. Holding across the gesture is
+// what fixes that.
+//
+// This can't wedge the proof — the exact failure this scheduler has been bitten by
+// before. The hold is a DEADLINE, not a flag: it lapses on its own, it re-arms
+// itself when it does, and it never touches `_dirty`, so a held paint is deferred
+// rather than lost. Worst case a repaint lands `ms` late.
+function holdPaint(ms) {
+  App._paintHold = performance.now() + ms;
+  if (App._raf) {
+    cancelAnimationFrame(App._raf);
+    App._raf = 0;
+  }
+  clearTimeout(App._holdTimer);
+  App._holdTimer = setTimeout(() => {
+    App._paintHold = 0;
+    armPaint(); // no-ops unless something is still owed
+  }, ms + 10);
+}
+
+function releasePaint() {
+  clearTimeout(App._holdTimer);
+  App._paintHold = 0;
 }
 
 function renderActive() {
@@ -314,6 +351,14 @@ function renderActive() {
    ---------------------------------------------------------------- */
 function loadFromFile(file) {
   if (!file) return;
+  // init() runs at module scope, but p5 defers setup() (and so `App.p`) to
+  // window.load — which waits on the webfont CSS and the analytics script. A
+  // press inside that window used to open the picker and then throw on
+  // App.p.loadImage, silently loading nothing.
+  if (!App.p) {
+    note("Still starting up — try that again in a moment.");
+    return;
+  }
   // Don't reject on an empty MIME type — mobile pickers (esp. iOS) often report
   // "" for photos (HEIC, camera captures). The accept="image/*" picker already
   // filters to images; only block files that *declare* a non-image type, and let
@@ -387,6 +432,10 @@ function setSource(img) {
 // A generated demo "plate" so the tool works without an upload — smooth tones
 // for halftone/dither plus shapes and a wordmark for ASCII/stamp texture.
 function useDemo() {
+  if (!App.p) {
+    note("Still starting up — try that again in a moment.");
+    return;
+  }
   const p = App.p;
   const W = 1000,
     H = 1250;
@@ -1057,13 +1106,36 @@ function note(msg) {
    Events
    ---------------------------------------------------------------- */
 function wireEvents() {
-  $("#file-input").addEventListener("change", (e) => {
+  // How long painting stays suspended once a "Load image" press starts. Only has
+  // to outlast the press → picker hand-off; the change/cancel handlers below end
+  // it as soon as the picker resolves.
+  const PICKER_HOLD = 1200;
+
+  const fileInput = $("#file-input");
+  fileInput.addEventListener("change", (e) => {
+    releasePaint(); // picker resolved — setSource()'s repaint must not be held
     loadFromFile(e.target.files[0]);
     e.target.value = "";
   });
-  ["#btn-upload", "#btn-upload-2"].forEach((s) =>
-    $(s).addEventListener("click", () => $("#file-input").click()),
-  );
+  // Picker dismissed with nothing chosen: resume, and pay off any paint the press
+  // deferred. (Not every browser fires `cancel`; the hold lapses regardless.)
+  fileInput.addEventListener("cancel", () => {
+    releasePaint();
+    rearmPaint();
+  });
+  ["#btn-upload", "#btn-upload-2"].forEach((s) => {
+    const btn = $(s);
+    // The window-capture pointerdown wake handler below has ALREADY armed a
+    // repaint by the time this runs — holdPaint() drops it before the browser can
+    // service that frame. Listeners on the button run in the same synchronous
+    // pointerdown dispatch as the window one, so no frame can slip in between:
+    // that's what makes this a fix and not a narrower race. See holdPaint().
+    btn.addEventListener("pointerdown", () => holdPaint(PICKER_HOLD));
+    btn.addEventListener("click", () => {
+      holdPaint(PICKER_HOLD); // also covers keyboard activation (no pointerdown)
+      fileInput.click();
+    });
+  });
   ["#btn-demo", "#btn-demo-2"].forEach((s) =>
     $(s).addEventListener("click", () => useDemo()),
   );
@@ -1121,11 +1193,24 @@ function wireEvents() {
     if (App._resizePending && !document.hidden) applyResize();
     rearmPaint();
   };
+  // Becoming visible/focused again is the one wake that arrives WITH a gesture
+  // attached: the click that refocused the window is already in flight, and
+  // `focus` lands just before its pointerdown. Repainting right there means a
+  // synchronous multi-second pipeline run between that press and its click — and
+  // when the press is "Load image", the native picker is what gets starved. So
+  // defer this wake instead of painting into the gesture; holdPaint() re-arms
+  // itself, so the proof still refreshes, just a beat later. The pointerdown wake
+  // below stays immediate — holding there would lag the start of every drag.
+  const WAKE_HOLD = 250;
+  const wakeDeferred = () => {
+    if (App._resizePending && !document.hidden) applyResize();
+    holdPaint(WAKE_HOLD);
+  };
   document.addEventListener("visibilitychange", () => {
-    if (!document.hidden) wake();
+    if (!document.hidden) wakeDeferred();
   });
-  window.addEventListener("focus", wake);
-  window.addEventListener("pageshow", wake);
+  window.addEventListener("focus", wakeDeferred);
+  window.addEventListener("pageshow", wakeDeferred);
   window.addEventListener("pointerdown", wake, true);
 
   // Re-render once webfonts are ready (ASCII metrics depend on them)
