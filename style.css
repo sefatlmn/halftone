@@ -817,7 +817,7 @@ input[type="color"]::-moz-color-swatch {
   position: relative;
   background: var(--paper);
   border: var(--hair);
-  width: 680px;
+  width: 860px;
   max-width: calc(100vw - 40px);
 }
 
@@ -850,7 +850,7 @@ input[type="color"]::-moz-color-swatch {
 
 .xpanel__tiers {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
 }
 @media (max-width: 620px) {
   .xpanel__tiers { grid-template-columns: repeat(2, 1fr); }
@@ -917,6 +917,45 @@ input[type="color"]::-moz-color-swatch {
   color: var(--ink-soft);
   border-color: color-mix(in srgb, var(--ink) 22%, transparent);
   cursor: not-allowed;
+}
+
+.export-progress {
+  border-top: var(--hair);
+  padding: 14px 20px 16px;
+}
+.export-progress[hidden] {
+  display: none;
+}
+.export-progress__meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 9px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.export-progress progress {
+  display: block;
+  width: 100%;
+  height: 8px;
+  margin-bottom: 8px;
+  border: var(--hair);
+  border-radius: 0;
+  background: transparent;
+}
+.export-progress progress::-webkit-progress-bar {
+  background: transparent;
+}
+.export-progress progress::-webkit-progress-value {
+  background: var(--accent);
+}
+.export-progress progress::-moz-progress-bar {
+  background: var(--accent);
+}
+.export-progress .tool {
+  padding: 4px 0;
 }
 
 /* Buy-me-a-coffee tip jar — lives in the first export-panel column. Matches a
@@ -1059,6 +1098,54 @@ input[type="color"]::-moz-color-swatch {
 .stage-meta b {
   color: var(--ink);
   font-weight: 700;
+}
+
+.media-controls {
+  display: grid;
+  grid-template-columns: auto minmax(120px, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  border: var(--hair);
+  padding: 8px 10px;
+}
+.media-controls[hidden] {
+  display: none;
+}
+.media-controls__play {
+  min-width: 64px;
+  padding: 6px 10px;
+  border: none;
+  background: var(--ink);
+  color: var(--paper);
+  font-family: var(--font);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.media-controls__seek {
+  height: 18px;
+}
+.media-controls__time {
+  min-width: 76px;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.media-controls__loop {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.media-controls__loop input {
+  accent-color: var(--accent);
 }
 .dot-live {
   display: inline-flex;
@@ -1346,6 +1433,26 @@ input[type="color"]::-moz-color-swatch {
   }
   .stage-meta .grp {
     gap: 12px;
+  }
+  .stage-meta span:last-child {
+    display: none;
+  }
+  .media-controls {
+    grid-template-columns: auto minmax(80px, 1fr) auto;
+    gap: 8px;
+    padding: 5px 7px;
+  }
+  .media-controls__loop {
+    display: none;
+  }
+  .media-controls__play {
+    min-width: 52px;
+    padding: 5px 7px;
+    font-size: 9px;
+  }
+  .media-controls__time {
+    min-width: 64px;
+    font-size: 9px;
   }
 
   /* Shorter, tighter filmstrip on phones. The EFFECT / A·B row sits ~11px below

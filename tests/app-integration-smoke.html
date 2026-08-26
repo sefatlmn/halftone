@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>App integration smoke test</title>
+    <style>
+      body { margin: 0; background: #181410; color: #f2eee4; font: 13px/1.4 system-ui, sans-serif; }
+      header { display: flex; gap: 18px; align-items: center; padding: 10px 16px; }
+      h1 { margin: 0; font-size: 15px; text-transform: uppercase; letter-spacing: .08em; }
+      #status { font-weight: 800; }
+      iframe { display: block; width: 100%; height: calc(100vh - 46px); border: 0; background: #f2eee4; }
+      .pass { color: #67d79a; }
+      .fail { color: #ff8176; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Real app animated-media integration</h1>
+      <span id="status">Running…</span>
+    </header>
+    <iframe id="app" src="../index.html"></iframe>
+    <script type="module">
+      import { encodeGif, recordCanvasWebM } from "../src/animated-export.js";
+
+      const status = document.querySelector("#status");
+      const iframe = document.querySelector("#app");
+      const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      const until = async (test, message, timeout = 15000) => {
+        const started = performance.now();
+        while (!test()) {
+          if (performance.now() - started > timeout) throw new Error(message);
+          await wait(30);
+        }
+      };
+      const assert = (value, message) => {
+        if (!value) throw new Error(message);
+      };
+      const solid = (r, g, b) => {
+        const bytes = new Uint8Array(24 * 24 * 4);
+        for (let i = 0; i < bytes.length; i += 4) {
+          bytes[i] = r; bytes[i + 1] = g; bytes[i + 2] = b; bytes[i + 3] = 255;
+        }
+        return bytes;
+      };
+
+      async function makeGif() {
+        async function* frames() {
+          yield { rgba: solid(238, 55, 40), delay: 80, progress: 0.5 };
+          yield { rgba: solid(20, 85, 225), delay: 80, progress: 1 };
+        }
+        return encodeGif({ width: 24, height: 24, frames: frames() });
+      }
+
+      async function makeVideo() {
+        const canvas = document.createElement("canvas");
+        canvas.width = 120; canvas.height = 90;
+        const ctx = canvas.getContext("2d");
+        let timer;
+        return recordCanvasWebM({
+          canvas,
+          duration: 0.3,
+          fps: 12,
+          play: () => new Promise((resolve) => {
+            const started = performance.now();
+            timer = setInterval(() => {
+              const elapsed = performance.now() - started;
+              ctx.fillStyle = elapsed % 120 < 60 ? "#ef4434" : "#155bd6";
+              ctx.fillRect(0, 0, canvas.width, canvas.height);
+              if (elapsed >= 300) resolve();
+            }, 25);
+          }),
+          stop: () => clearInterval(timer),
+        });
+      }
+
+      function selectFile(win, file) {
+        const transfer = new win.DataTransfer();
+        transfer.items.add(new win.File([file], file.name, { type: file.type }));
+        const input = win.document.querySelector("#file-input");
+        input.files = transfer.files;
+        input.dispatchEvent(new win.Event("change", { bubbles: true }));
+      }
+
+      try {
+        await new Promise((resolve) => iframe.addEventListener("load", resolve, { once: true }));
+        const win = iframe.contentWindow;
+        const doc = win.document;
+        await until(() => win.__hp?.p, "p5 did not initialize.");
+        const downloads = [];
+        win.HTMLAnchorElement.prototype.click = function () {
+          if (this.download) downloads.push(this.download);
+        };
+
+        const gifBlob = await makeGif();
+        gifBlob.name = "integration.gif";
+        selectFile(win, gifBlob);
+        await until(() => win.__hp.mediaKind === "gif" && win.__hp.mediaPlaying, "GIF did not load and play.");
+        assert(!doc.querySelector("#media-controls").hidden, "Playback controls stayed hidden.");
+        const firstVersion = win.__hp.mediaVersion;
+        await wait(180);
+        assert(win.__hp.mediaVersion > firstVersion, "Processed GIF frames did not advance.");
+        doc.querySelector("#media-play").click();
+        assert(!win.__hp.mediaPlaying, "Pause control did not pause.");
+        doc.querySelector("#btn-export").click();
+        assert(doc.querySelector("#xbtn-animated").textContent.includes("GIF"), "GIF export option is missing.");
+        doc.querySelector("#xbtn-animated").click();
+        await until(() => !win.__hp.exportBusy && downloads.some((name) => name.endsWith(".gif")), "GIF export did not finish.");
+
+        const oldGif = win.__hp.mediaSource;
+        const videoBlob = await makeVideo();
+        videoBlob.name = "integration.webm";
+        selectFile(win, videoBlob);
+        await until(() => win.__hp.mediaKind === "video" && win.__hp.mediaPlaying, "Video did not load and play.");
+        assert(oldGif.canvas.width === 1, "Replaced GIF resources were not released.");
+        doc.querySelector("#media-loop").checked = false;
+        doc.querySelector("#media-loop").dispatchEvent(new win.Event("change", { bubbles: true }));
+        assert(!win.__hp.mediaSource.loop, "Loop control did not update the video.");
+        doc.querySelector("#btn-export").click();
+        assert(doc.querySelector("#xbtn-animated").textContent.includes("WebM"), "WebM export option is missing.");
+        doc.querySelector("#xbtn-animated").click();
+        await until(() => !win.__hp.exportBusy && downloads.some((name) => name.endsWith(".webm")), "WebM export did not finish.");
+
+        status.textContent = "PASS — load, playback, controls, cleanup, GIF and WebM exports";
+        status.className = "pass";
+        document.title = "PASS — app integration smoke";
+      } catch (error) {
+        status.textContent = `FAIL — ${error.message}`;
+        status.className = "fail";
+        document.title = "FAIL — app integration smoke";
+        console.error(error);
+      }
+    </script>
+  </body>
+</html>

@@ -60,7 +60,7 @@ export function createEffectStack(p) {
 
     // 1. working buffer (image fitted + pre-adjust baked in, at sampling res).
     // The old buffer is passed in for reuse — same dims means no reallocation.
-    const wsig = `${imgId(src)}|${w}x${h}|${j(b.pre)}`;
+    const wsig = `${imgId(src)}:${b.sourceVersion || 0}|${w}x${h}|${j(b.pre)}`;
     if (wsig !== wSig || !working) {
       working = buildWorking(p, src, w, h, 'contain', b.pre || {}, working);
       wSig = wsig; sSig = null; bSig = null;

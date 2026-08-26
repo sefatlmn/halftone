@@ -2,9 +2,9 @@
 
 A free, browser-based **print-effects workshop** built with [p5.js](https://p5js.org/).
 
-Load an image, run it through halftone screens, dithering, risograph separations, ASCII, glitch effects and more, all with live controls. You can stack two effects on top of each other and export to PNG, SVG, or colour-separated plates.
+Load an image, animated GIF, or short video and run it through halftone screens, dithering, risograph separations, ASCII, glitch effects and more, all with live controls. You can stack two effects and export stills, separations, vectors, processed GIFs, or silent WebM video.
 
-There's no backend, no framework, no build step. Just static files. Everything runs in your browser and your images never leave your machine.
+There's no backend, no framework, no build step. Just static files. Everything runs in your browser and your media never leaves your machine.
 
 ![p5.js 1.11.x](https://img.shields.io/badge/p5.js-1.11.x-ff3d8b) ![No build step](https://img.shields.io/badge/build-none-181410)
 
@@ -48,7 +48,10 @@ Tested on current Chrome, Firefox, and Safari.
 
 ## How to use it
 
-1. **Load an image** (or try the **Demo plate**). You can also drag and drop onto the stage.
+1. **Load an image, animated GIF, or short video** (or try the **Demo plate**). You can also drag and drop onto the stage.
+   - GIF: up to 12 MB, 1600 px per side, 240 frames, 30 seconds, and a 48 MB decoded-patch budget.
+   - Video: MP4, WebM, MOV, or OGV up to 60 MB, 1920 px per side, and 60 seconds.
+   - Animated playback is intentionally capped at 12 processed frames per second (6 for expensive effect combinations) to keep the browser responsive.
 2. **Pre-adjust** brightness, contrast, gamma, and invert. Optionally pick a **Colour pre-stage** (Gradient Map, Tone, or Hue/Sat) that gets applied to the working buffer before the effect runs.
 3. Pick **Effect A** from the filmstrip at the bottom and tweak its parameters. The preview updates live.
 4. Want to **stack a second effect**? Click **B** in the filmstrip toggle, then pick any effect. B runs on A's rendered output. Picking **00 None** in slot B clears the stack.
@@ -56,6 +59,10 @@ Tested on current Chrome, Firefox, and Safari.
    - **PNG** at 2x device resolution
    - **Colour separation ZIP** with one plate per ink (for Halftone CMYK, RGB Shift, and Risograph)
    - **SVG** with true vectors (for Halftone, ASCII, Dither, and Risograph). Not available for raster effects or while two effects are stacked.
+    - **Animated GIF** for GIF sources, encoded in a worker and capped at 720 px.
+    - **Silent WebM** for video sources, recorded from the processed canvas at 12 fps. Source audio is never captured.
+
+PNG, SVG, and separation exports capture the animated source's current frame when that export is compatible with the selected effect.
 
 **Keyboard shortcuts:** `R` randomize the active effect, `E` open Export, `Esc` close it.
 
@@ -67,8 +74,11 @@ style.css           five-colour token system, no rounded corners, Swiss styling
 src/
   main.js           p5 instance mode, app state, all wiring
   input.js          image loading, fitting, pre-adjust, working buffer + sampling helpers
+  media.js          bounded GIF/video loading, playback, seeking, and disposal
   controls.js       auto-generates UI controls from each effect's param schema
   export.js         PNG (2x) + SVG + colour-separation ZIP export
+  animated-export.js WebM recording + worker-backed GIF export orchestration
+  gif-worker.js     per-frame GIF palette and encoding work
   zip.js            minimal STORE-only ZIP writer for separation plates
   effects/
     index.js        effect registry (array of modules, in UI order)
@@ -88,7 +98,7 @@ Every effect is a self-describing module with an `id`, `name`, `params` array (w
 
 ## Privacy
 
-Your images never leave your machine. There is no backend, no upload. The site loads [GoatCounter](https://www.goatcounter.com/), a lightweight, cookieless analytics script that only records anonymous page-view counts. No personal data, no cross-site tracking, no fingerprinting.
+Your images, GIFs, and videos never leave your machine. There is no backend and no upload. GIF decoding and encoding dependencies are loaded on demand from jsDelivr; processing remains local. The site loads [GoatCounter](https://www.goatcounter.com/), a lightweight, cookieless analytics script that only records anonymous page-view counts. No personal data, no cross-site tracking, no fingerprinting.
 
 ## Support
 

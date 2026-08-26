@@ -10,6 +10,21 @@ import {
   randomizeInto,
 } from "./controls.js";
 import { exportPNG, exportSeparations, exportSVG } from "./export.js";
+import {
+  MEDIA_LIMITS,
+  detectMediaKind,
+  fitWithin,
+  formatMediaTime,
+  loadGifSource,
+  loadVideoSource,
+  validateMediaFile,
+} from "./media.js";
+import {
+  downloadBlob,
+  encodeGif,
+  preferredWebMMime,
+  recordCanvasWebM,
+} from "./animated-export.js";
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -40,6 +55,17 @@ const App = {
   _paintHold: 0, // performance.now() deadline before which painting is suspended
   _holdTimer: null, // re-arms the paint when _paintHold lapses
   _srcOwned: null, // fitSource()'s downscaled graphics — removed when replaced
+  mediaSource: null, // animated GIF/video controller; null for still images
+  mediaKind: "image",
+  mediaVersion: 0, // increments whenever an animated frame replaces srcImage pixels
+  mediaPlaying: false,
+  mediaPump: 0,
+  mediaPumpLast: 0,
+  mediaLoadAbort: null,
+  sourceLoadVersion: 0,
+  exportAbort: null,
+  exportBusy: false,
+  _resumeOnVisible: false,
 };
 
 const PRE_SCHEMA = [
@@ -233,6 +259,7 @@ function singleBundle() {
   const base = eff.acceptsBase ? App.baseLayers[eff.id] || "none" : "none";
   return {
     pre: App.pre,
+    sourceVersion: App.mediaVersion,
     preStage: App.preStage,
     preStageParams: App.preStageParams[App.preStage] || {},
     effect: App.activeId,
@@ -349,8 +376,147 @@ function renderActive() {
 /* ----------------------------------------------------------------
    Source loading
    ---------------------------------------------------------------- */
-function loadFromFile(file) {
+const ANIMATED_FRAME_CAP = 1280;
+
+function friendlyMediaError(error) {
+  if (error?.name === "AbortError") return "";
+  if (error instanceof RangeError || error instanceof TypeError) return error.message;
+  return "Could not read that media file in this browser.";
+}
+
+function stopMediaPump() {
+  if (App.mediaPump) cancelAnimationFrame(App.mediaPump);
+  App.mediaPump = 0;
+  App.mediaPumpLast = 0;
+}
+
+function disposeAnimatedSource() {
+  stopMediaPump();
+  App.mediaPlaying = false;
+  App._resumeOnVisible = false;
+  if (App.mediaSource) {
+    try { App.mediaSource.dispose(); } catch {}
+  }
+  App.mediaSource = null;
+  if (App._srcOwned) App._srcOwned.remove();
+  App._srcOwned = null;
+  App.mediaKind = "image";
+  App.mediaVersion = 0;
+  updateMediaControls();
+}
+
+function drawAnimatedFrame({ paint = true } = {}) {
+  const source = App.mediaSource;
+  const frame = App._srcOwned;
+  if (!source || !frame) return false;
+  if (source.kind === "video" && source.element.readyState < 2) return false;
+  const ctx = frame.drawingContext;
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, frame.width, frame.height);
+  ctx.drawImage(source.element, 0, 0, frame.width, frame.height);
+  ctx.restore();
+  App.mediaVersion += 1;
+  if (paint) markDirty();
+  updateMediaControls();
+  return true;
+}
+
+function animatedTargetFps() {
+  return isHeavyBundle() ? 6 : 12;
+}
+
+function startMediaPump() {
+  stopMediaPump();
+  if (!App.mediaPlaying || !App.mediaSource) return;
+  const tick = (now) => {
+    App.mediaPump = 0;
+    if (!App.mediaPlaying || !App.mediaSource || document.hidden) return;
+    const interval = 1000 / animatedTargetFps();
+    if (!App.mediaPumpLast || now - App.mediaPumpLast >= interval) {
+      App.mediaPumpLast = now;
+      drawAnimatedFrame();
+    }
+    if (!App.mediaSource.playing && !App.mediaSource.loop) {
+      App.mediaPlaying = false;
+      updateMediaControls();
+      return;
+    }
+    App.mediaPump = requestAnimationFrame(tick);
+  };
+  App.mediaPump = requestAnimationFrame(tick);
+}
+
+async function setMediaPlaying(playing) {
+  const source = App.mediaSource;
+  if (!source || App.exportBusy) return;
+  if (!playing) {
+    source.pause();
+    App.mediaPlaying = false;
+    stopMediaPump();
+    drawAnimatedFrame();
+    updateMediaControls();
+    return;
+  }
+  if (source.currentTime >= source.duration - 0.01) await source.seek(0);
+  try {
+    await source.play();
+    App.mediaPlaying = true;
+    startMediaPump();
+  } catch (error) {
+    App.mediaPlaying = false;
+    note(error?.name === "NotAllowedError"
+      ? "Playback was blocked — press Play again."
+      : "Could not start media playback.");
+  }
+  updateMediaControls();
+}
+
+async function seekMedia(time) {
+  const source = App.mediaSource;
+  if (!source || App.exportBusy) return;
+  const resume = App.mediaPlaying;
+  if (source.kind === "video") source.pause();
+  await source.seek(time);
+  drawAnimatedFrame();
+  if (resume && source.kind === "video") await source.play();
+  updateMediaControls();
+}
+
+async function setAnimatedSource(source) {
+  disposeAnimatedSource();
+  App.mediaSource = source;
+  App.mediaKind = source.kind;
+  const fitted = fitWithin(source.width, source.height, ANIMATED_FRAME_CAP);
+  const frame = App.p.createGraphics(fitted.width, fitted.height);
+  frame.pixelDensity(1);
+  App._srcOwned = frame;
+  App.srcImage = frame;
+  App.srcDims = { w: source.width, h: source.height };
+  source.loop = true;
+  drawAnimatedFrame({ paint: false });
+  $("#empty").setAttribute("hidden", "");
+  $("#canvas-holder").removeAttribute("hidden");
+  const { w, h } = computeCanvasSize();
+  App.canvasW = w;
+  App.canvasH = h;
+  App.p.resizeCanvas(w, h, true);
+  markDirty();
+  updateMeta();
+  updateMediaControls();
+  note(`${source.kind === "gif" ? "GIF" : "Video"} loaded · capped playback at ${ANIMATED_FRAME_CAP}px / 12 fps.`);
+  await setMediaPlaying(true);
+}
+
+async function loadFromFile(file) {
   if (!file) return;
+  if (App.exportBusy) {
+    note("Finish or cancel the current export before loading new media.");
+    return;
+  }
+  const request = ++App.sourceLoadVersion;
+  App.mediaLoadAbort?.abort();
+  App.mediaLoadAbort = null;
   // init() runs at module scope, but p5 defers setup() (and so `App.p`) to
   // window.load — which waits on the webfont CSS and the analytics script. A
   // press inside that window used to open the picker and then throw on
@@ -359,14 +525,34 @@ function loadFromFile(file) {
     note("Still starting up — try that again in a moment.");
     return;
   }
-  // Don't reject on an empty MIME type — mobile pickers (esp. iOS) often report
-  // "" for photos (HEIC, camera captures). The accept="image/*" picker already
-  // filters to images; only block files that *declare* a non-image type, and let
-  // loadImage's error callback catch anything that genuinely can't decode.
-  if (file.type && !file.type.startsWith("image/")) {
-    note("Please choose an image file.");
+  const kind = detectMediaKind(file);
+  if (!kind) {
+    note("Choose an image, animated GIF, MP4, WebM, MOV or OGV file.");
     return;
   }
+  if (kind !== "image") {
+    try {
+      validateMediaFile(file, kind);
+      const controller = new AbortController();
+      App.mediaLoadAbort = controller;
+      note(`Loading ${kind === "gif" ? "GIF" : "video"}…`);
+      const source = kind === "gif"
+        ? await loadGifSource(file, { signal: controller.signal })
+        : await loadVideoSource(file, { signal: controller.signal });
+      if (controller.signal.aborted || request !== App.sourceLoadVersion) {
+        source.dispose();
+        return;
+      }
+      App.mediaLoadAbort = null;
+      await setAnimatedSource(source);
+    } catch (error) {
+      App.mediaLoadAbort = null;
+      const message = friendlyMediaError(error);
+      if (message) note(message);
+    }
+    return;
+  }
+
   // Object URL, not FileReader→dataURL: the data-URL path held the whole file
   // AND a ~1.4× base64 copy of it in memory just to hand p5 a source. On a
   // phone photo that's tens of MB of avoidable peak, right when Safari's tab
@@ -376,10 +562,15 @@ function loadFromFile(file) {
     url,
     (img) => {
       URL.revokeObjectURL(url);
+      if (request !== App.sourceLoadVersion) {
+        img.remove?.();
+        return;
+      }
       setSource(img);
     },
     () => {
       URL.revokeObjectURL(url);
+      if (request !== App.sourceLoadVersion) return;
       note("Could not read that image file.");
     },
   );
@@ -412,6 +603,7 @@ function fitSource(img) {
 }
 
 function setSource(img) {
+  disposeAnimatedSource();
   App.srcDims = { w: img.width, h: img.height }; // report the true upload size
   const fitted = fitSource(img);
   // fitSource may hand us a graphics we created; keep exactly one alive so
@@ -419,6 +611,8 @@ function setSource(img) {
   if (App._srcOwned && App._srcOwned !== fitted) App._srcOwned.remove();
   App._srcOwned = fitted === img ? null : fitted;
   App.srcImage = fitted;
+  App.mediaKind = "image";
+  App.mediaVersion = 0;
   $("#empty").setAttribute("hidden", "");
   $("#canvas-holder").removeAttribute("hidden");
   const { w, h } = computeCanvasSize();
@@ -427,6 +621,7 @@ function setSource(img) {
   App.p.resizeCanvas(w, h, true);
   recompute();
   updateMeta();
+  updateMediaControls();
 }
 
 // A generated demo "plate" so the tool works without an upload — smooth tones
@@ -436,6 +631,9 @@ function useDemo() {
     note("Still starting up — try that again in a moment.");
     return;
   }
+  App.sourceLoadVersion += 1;
+  App.mediaLoadAbort?.abort();
+  App.mediaLoadAbort = null;
   const p = App.p;
   const W = 1000,
     H = 1250;
@@ -881,6 +1079,186 @@ function doReset() {
 /* ----------------------------------------------------------------
    Export
    ---------------------------------------------------------------- */
+function setExportProgress(value, label) {
+  const progress = Math.max(0, Math.min(1, Number(value) || 0));
+  $("#export-progress").hidden = false;
+  $("#export-progress-bar").value = progress;
+  $("#export-progress-value").textContent = `${Math.round(progress * 100)}%`;
+  if (label) $("#export-progress-label").textContent = label;
+}
+
+function setExportBusy(busy) {
+  App.exportBusy = busy;
+  $("#export-progress").hidden = !busy;
+  $("#export-cancel").disabled = !busy;
+  $("#file-input").disabled = busy;
+  ["#xbtn-print", "#xbtn-sep", "#xbtn-svg", "#xbtn-animated"].forEach((id) => {
+    $(id).disabled = busy;
+  });
+  updateMediaControls();
+}
+
+function waitForVideoEnd(video, signal) {
+  return new Promise((resolve, reject) => {
+    const clean = () => {
+      video.removeEventListener("ended", done);
+      video.removeEventListener("error", failed);
+      signal?.removeEventListener("abort", aborted);
+    };
+    const done = () => { clean(); resolve(); };
+    const failed = () => { clean(); reject(video.error || new Error("Video playback failed.")); };
+    const aborted = () => {
+      clean();
+      reject(signal.reason || new DOMException("Aborted", "AbortError"));
+    };
+    video.addEventListener("ended", done, { once: true });
+    video.addEventListener("error", failed, { once: true });
+    signal?.addEventListener("abort", aborted, { once: true });
+  });
+}
+
+function paintNow() {
+  if (App._raf) {
+    cancelAnimationFrame(App._raf);
+    App._raf = 0;
+  }
+  App._dirty = false;
+  App.p.redraw();
+}
+
+async function exportAnimatedVideo(signal) {
+  const source = App.mediaSource;
+  const previous = {
+    time: source.currentTime,
+    playing: App.mediaPlaying,
+    loop: source.loop,
+  };
+  source.pause();
+  App.mediaPlaying = false;
+  stopMediaPump();
+  source.loop = false;
+  await source.seek(0);
+  drawAnimatedFrame({ paint: false });
+  paintNow();
+
+  try {
+    const blob = await recordCanvasWebM({
+      canvas: App.p.canvas,
+      duration: source.duration,
+      fps: 12,
+      signal,
+      onProgress: (value) => setExportProgress(value, "Recording processed WebM…"),
+      play: async () => {
+        const ended = waitForVideoEnd(source.element, signal);
+        await source.play();
+        App.mediaPlaying = true;
+        startMediaPump();
+        await ended;
+      },
+      stop: () => {
+        source.pause();
+        App.mediaPlaying = false;
+        stopMediaPump();
+      },
+    });
+    if (signal.aborted) throw signal.reason || new DOMException("Aborted", "AbortError");
+    downloadBlob(blob, `halftone-press_${App.activeId}.webm`);
+  } finally {
+    source.loop = previous.loop;
+    await source.seek(previous.time);
+    drawAnimatedFrame({ paint: false });
+    paintNow();
+    if (previous.playing && !signal.aborted) {
+      await source.play();
+      App.mediaPlaying = true;
+      startMediaPump();
+    }
+  }
+}
+
+async function exportAnimatedGif(signal) {
+  const source = App.mediaSource;
+  const previous = {
+    time: source.currentTime,
+    playing: App.mediaPlaying,
+  };
+  source.pause();
+  App.mediaPlaying = false;
+  stopMediaPump();
+
+  const outputSize = fitWithin(App.canvasW, App.canvasH, 720);
+  const canvas = document.createElement("canvas");
+  canvas.width = outputSize.width;
+  canvas.height = outputSize.height;
+  const ctx = canvas.getContext("2d", { alpha: false, willReadFrequently: true });
+  const frameCount = source.frameCount;
+  const delays = source.frameDelays;
+
+  async function* frames() {
+    for (let index = 0; index < frameCount; index++) {
+      if (signal.aborted) throw signal.reason || new DOMException("Aborted", "AbortError");
+      source.renderFrame(index);
+      drawAnimatedFrame({ paint: false });
+      paintNow();
+      ctx.drawImage(App.p.canvas, 0, 0, canvas.width, canvas.height);
+      const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+      yield {
+        rgba: new Uint8Array(pixels),
+        delay: delays[index],
+        progress: (index + 1) / frameCount,
+      };
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+  }
+
+  try {
+    const blob = await encodeGif({
+      width: canvas.width,
+      height: canvas.height,
+      frames: frames(),
+      signal,
+      onProgress: (value) => setExportProgress(value, "Encoding processed GIF…"),
+    });
+    if (signal.aborted) throw signal.reason || new DOMException("Aborted", "AbortError");
+    downloadBlob(blob, `halftone-press_${App.activeId}.gif`);
+  } finally {
+    canvas.width = canvas.height = 1;
+    await source.seek(previous.time);
+    drawAnimatedFrame({ paint: false });
+    paintNow();
+    if (previous.playing && !signal.aborted) {
+      await source.play();
+      App.mediaPlaying = true;
+      startMediaPump();
+    }
+  }
+}
+
+async function doExportAnimated() {
+  if (!App.mediaSource || App.exportBusy) return;
+  const controller = new AbortController();
+  App.exportAbort = controller;
+  setExportBusy(true);
+  setExportProgress(0, App.mediaKind === "video"
+    ? "Preparing processed WebM…"
+    : "Preparing processed GIF…");
+  try {
+    if (App.mediaKind === "video") await exportAnimatedVideo(controller.signal);
+    else await exportAnimatedGif(controller.signal);
+    note(`Exported processed ${App.mediaKind === "video" ? "WebM" : "GIF"}.`);
+  } catch (error) {
+    if (error?.name === "AbortError") note("Animated export cancelled.");
+    else {
+      console.error(error);
+      note(error?.message || "Could not export animated media.");
+    }
+  } finally {
+    App.exportAbort = null;
+    setExportBusy(false);
+    openExportPanel();
+  }
+}
+
 // scale 1 = free Screen PNG; scale 2 = Print PNG (tier ≥ 1). The composition is
 // identical — exportPNG just renders the effect at scale× device resolution.
 function doExportPNG(scale) {
@@ -1058,10 +1436,26 @@ function openExportPanel() {
       ? "Not available when effects are stacked."
       : "Not available for this effect.";
 
+  const animated = !!App.mediaSource;
+  const animatedSupported = App.mediaKind === "video"
+    ? !!preferredWebMMime() && !!App.p.canvas.captureStream
+    : App.mediaKind === "gif" && typeof Worker !== "undefined";
+  $("#xanimated-label").textContent = App.mediaKind === "video" ? "Video" : "Animated GIF";
+  $("#xbtn-animated").textContent = App.mediaKind === "video" ? "Download WebM" : "Download GIF";
+  $("#xbtn-animated").disabled = App.exportBusy || !animated || !animatedSupported;
+  $("#xanimated-desc").textContent = !animated
+    ? "Load a GIF or video to export motion."
+    : animatedSupported
+      ? App.mediaKind === "video"
+        ? "Silent processed WebM, recorded at 12 fps."
+        : "Processed GIF, capped at 720px for reliable encoding."
+      : "Animated export is not supported in this browser.";
+
   $("#xpanel").removeAttribute("hidden");
 }
 
 function closeExportPanel() {
+  if (App.exportBusy) return;
   $("#xpanel").setAttribute("hidden", "");
 }
 
@@ -1076,6 +1470,28 @@ function updateMeta() {
   $("#meta-dims").textContent = App.srcImage
     ? `${dims.w ?? dims.width}×${dims.h ?? dims.height}`
     : "— × —";
+  $("#meta-media").textContent = App.mediaSource
+    ? `${App.mediaKind} · ${formatMediaTime(App.mediaSource.duration)}`
+    : "still";
+}
+
+function updateMediaControls() {
+  const source = App.mediaSource;
+  const root = $("#media-controls");
+  if (!root) return;
+  root.hidden = !source;
+  if (!source) return;
+  const time = Math.max(0, Math.min(source.currentTime || 0, source.duration || 0));
+  $("#media-play").textContent = App.mediaPlaying ? "Pause" : "Play";
+  $("#media-play").disabled = App.exportBusy;
+  $("#media-seek").disabled = App.exportBusy;
+  $("#media-seek").max = String(source.duration || 0);
+  $("#media-seek").value = String(time);
+  $("#media-time").textContent =
+    `${formatMediaTime(time)} / ${formatMediaTime(source.duration)}`;
+  $("#media-loop").checked = source.loop;
+  $("#media-loop").disabled = App.exportBusy;
+  updateMeta();
 }
 
 function updateAsciiOverlay(eff, state) {
@@ -1096,7 +1512,7 @@ function note(msg) {
   el.style.fontWeight = "700";
   clearTimeout(noteTimer);
   noteTimer = setTimeout(() => {
-    el.textContent = "Tip: drag & drop an image anywhere onto the proof.";
+    el.textContent = "Tip: drag & drop an image, GIF or short video anywhere.";
     el.style.color = "";
     el.style.fontWeight = "";
   }, 2600);
@@ -1149,6 +1565,24 @@ function wireEvents() {
   $("#xbtn-print").addEventListener("click", () => doExportPNG(2));
   $("#xbtn-svg").addEventListener("click", doExportSVG);
   $("#xbtn-sep").addEventListener("click", doExportSeparations);
+  $("#xbtn-animated").addEventListener("click", doExportAnimated);
+  $("#export-cancel").addEventListener("click", () => App.exportAbort?.abort());
+
+  $("#media-play").addEventListener("click", () => {
+    setMediaPlaying(!App.mediaPlaying);
+  });
+  let seekTimer = null;
+  $("#media-seek").addEventListener("input", (event) => {
+    const value = Number(event.target.value);
+    $("#media-time").textContent =
+      `${formatMediaTime(value)} / ${formatMediaTime(App.mediaSource?.duration)}`;
+    clearTimeout(seekTimer);
+    seekTimer = setTimeout(() => seekMedia(value), 70);
+  });
+  $("#media-loop").addEventListener("change", (event) => {
+    if (App.mediaSource) App.mediaSource.loop = event.target.checked;
+    updateMediaControls();
+  });
 
   // Drag & drop anywhere
   const empty = $("#empty");
@@ -1207,7 +1641,21 @@ function wireEvents() {
     holdPaint(WAKE_HOLD);
   };
   document.addEventListener("visibilitychange", () => {
-    if (!document.hidden) wakeDeferred();
+    if (document.hidden) {
+      if (App.mediaPlaying && App.mediaSource && !App.exportBusy) {
+        App._resumeOnVisible = true;
+        App.mediaSource.pause();
+        App.mediaPlaying = false;
+        stopMediaPump();
+        updateMediaControls();
+      }
+      return;
+    }
+    wakeDeferred();
+    if (App._resumeOnVisible && App.mediaSource && !App.exportBusy) {
+      App._resumeOnVisible = false;
+      setMediaPlaying(true);
+    }
   });
   window.addEventListener("focus", wakeDeferred);
   window.addEventListener("pageshow", wakeDeferred);
@@ -1261,8 +1709,14 @@ function init() {
   buildEffect2Panel();
   updateSwapBtn();
   updateMeta();
+  updateMediaControls();
   wireEvents();
   wireFolds();
+  window.addEventListener("beforeunload", () => {
+    App.mediaLoadAbort?.abort();
+    App.exportAbort?.abort();
+    disposeAnimatedSource();
+  });
 }
 
 init();

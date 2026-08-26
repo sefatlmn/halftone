@@ -95,12 +95,12 @@
               <div class="block-body">
                 <div class="row row--buttons">
                   <button class="btn btn--block" id="btn-upload-2" type="button">
-                    Load image
+                    Load media
                   </button>
                   <button class="btn" id="btn-demo-2" type="button">Demo</button>
                 </div>
                 <p class="note" id="drop-note">
-                  Everything runs locally in your browser, images are not stored.
+                  Images, GIFs and videos stay in your browser and are not stored.
                 </p>
               </div>
             </div>
@@ -198,15 +198,15 @@
             <div class="empty" id="empty">
               <div class="empty-inner">
                 <div class="empty-glyph">⊕</div>
-                <h2>Drop an image here</h2>
-                <p>or load one from your disk.</p>
+                <h2>Drop media here</h2>
+                <p>Load an image, animated GIF or short video.</p>
                 <div class="empty-actions">
                   <button
                     class="btn btn--primary"
                     id="btn-upload"
                     type="button"
                   >
-                    Choose image
+                    Choose media
                   </button>
                   <button class="btn" id="btn-demo" type="button">
                     Use demo plate
@@ -219,6 +219,25 @@
           <div class="stage-meta">
             <span>SIZE <b id="meta-dims">— × —</b></span>
             <span>EFFECT <b id="meta-fx">no plate</b></span>
+            <span>MEDIA <b id="meta-media">still</b></span>
+          </div>
+          <div class="media-controls" id="media-controls" hidden>
+            <button class="media-controls__play" id="media-play" type="button">Play</button>
+            <input
+              class="media-controls__seek"
+              id="media-seek"
+              type="range"
+              min="0"
+              max="1"
+              step="0.01"
+              value="0"
+              aria-label="Media position"
+            />
+            <span class="media-controls__time" id="media-time">0:00 / 0:00</span>
+            <label class="media-controls__loop">
+              <input id="media-loop" type="checkbox" checked />
+              <span>Loop</span>
+            </label>
           </div>
         </div>
 
@@ -246,14 +265,26 @@
       </section>
     </div>
 
-    <input type="file" id="file-input" accept="image/*" hidden />
+    <input
+      type="file"
+      id="file-input"
+      accept="image/*,video/mp4,video/webm,video/quicktime,video/ogg"
+      hidden
+    />
 
     <!-- Export overlay panel -->
-    <div class="xpanel" id="xpanel" hidden>
+    <div
+      class="xpanel"
+      id="xpanel"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="xpanel-title"
+      hidden
+    >
       <div class="xpanel__backdrop" id="xpanel-backdrop"></div>
       <div class="xpanel__body">
         <div class="xpanel__head">
-          <span class="xpanel__title">Export</span>
+          <span class="xpanel__title" id="xpanel-title">Export</span>
           <button class="xpanel__close" id="xpanel-close" type="button" aria-label="Close">✕</button>
         </div>
         <div class="xpanel__tiers">
@@ -281,6 +312,20 @@
             <span class="xtier__desc" id="xsvg-desc">Color separated vector, scalable to any size</span>
             <button class="xtier__btn" id="xbtn-svg" type="button">Download SVG</button>
           </div>
+          <div class="xtier">
+            <span class="xtier__badge">Animated</span>
+            <span class="xtier__label" id="xanimated-label">Motion</span>
+            <span class="xtier__desc" id="xanimated-desc">Load a GIF or video to export motion.</span>
+            <button class="xtier__btn" id="xbtn-animated" type="button" disabled>Download</button>
+          </div>
+        </div>
+        <div class="export-progress" id="export-progress" hidden>
+          <div class="export-progress__meta">
+            <span id="export-progress-label">Preparing export…</span>
+            <b id="export-progress-value">0%</b>
+          </div>
+          <progress id="export-progress-bar" max="1" value="0"></progress>
+          <button class="tool" id="export-cancel" type="button">Cancel export</button>
         </div>
       </div>
     </div>

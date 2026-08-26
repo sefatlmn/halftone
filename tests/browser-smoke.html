@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Animated media smoke test</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 32px;
+        background: #f2eee4;
+        color: #181410;
+        font: 15px/1.5 system-ui, sans-serif;
+      }
+      main { max-width: 780px; margin: auto; }
+      h1 { text-transform: uppercase; letter-spacing: 0.04em; }
+      #status { font-weight: 800; }
+      li { margin: 8px 0; padding: 8px 10px; border-left: 5px solid; }
+      .pass { border-color: #16814b; background: #dff4e7; }
+      .fail { border-color: #d13b2f; background: #f9ded8; }
+      pre { white-space: pre-wrap; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Animated media smoke test</h1>
+      <p id="status">Running browser checks…</p>
+      <ol id="results"></ol>
+      <pre id="details"></pre>
+    </main>
+    <script type="module">
+      import {
+        encodeGif,
+        preferredWebMMime,
+        recordCanvasWebM,
+      } from "../src/animated-export.js";
+      import {
+        loadGifSource,
+        loadVideoSource,
+      } from "../src/media.js";
+
+      const results = document.querySelector("#results");
+      const details = document.querySelector("#details");
+      let failures = 0;
+
+      async function check(label, task) {
+        const item = document.createElement("li");
+        item.textContent = label;
+        results.appendChild(item);
+        try {
+          await task();
+          item.className = "pass";
+          item.textContent += " — PASS";
+        } catch (error) {
+          failures += 1;
+          item.className = "fail";
+          item.textContent += " — FAIL";
+          details.textContent += `${label}: ${error.stack || error}\n\n`;
+        }
+      }
+
+      function assert(value, message) {
+        if (!value) throw new Error(message);
+      }
+
+      function rgbaFrame(r, g, b) {
+        const bytes = new Uint8Array(32 * 32 * 4);
+        for (let i = 0; i < bytes.length; i += 4) {
+          bytes[i] = r;
+          bytes[i + 1] = g;
+          bytes[i + 2] = b;
+          bytes[i + 3] = 255;
+        }
+        return bytes;
+      }
+
+      let gifBlob;
+      await check("Worker-backed GIF encoding", async () => {
+        async function* frames() {
+          yield { rgba: rgbaFrame(230, 40, 30), delay: 100, progress: 0.5 };
+          yield { rgba: rgbaFrame(20, 80, 230), delay: 100, progress: 1 };
+        }
+        gifBlob = await encodeGif({
+          width: 32,
+          height: 32,
+          frames: frames(),
+        });
+        assert(gifBlob.type === "image/gif", "Unexpected GIF MIME type.");
+        assert(gifBlob.size > 40, "Encoded GIF is empty.");
+      });
+
+      await check("GIF decode, seek, playback, and disposal", async () => {
+        const source = await loadGifSource(
+          new File([gifBlob], "smoke.gif", { type: "image/gif" }),
+        );
+        assert(source.frameCount === 2, "Decoded frame count is not two.");
+        const first = source.canvas.getContext("2d").getImageData(16, 16, 1, 1).data;
+        await source.seek(0.11);
+        const second = source.canvas.getContext("2d").getImageData(16, 16, 1, 1).data;
+        assert(first[0] > first[2], "First GIF frame is not red.");
+        assert(second[2] > second[0], "Second GIF frame is not blue.");
+        await source.seek(0);
+        await source.play();
+        await new Promise((resolve) => setTimeout(resolve, 140));
+        assert(source.currentTime > 0, "GIF playhead did not advance.");
+        source.dispose();
+        assert(source.canvas.width === 1, "GIF canvas was not released.");
+      });
+
+      let videoBlob;
+      await check("Silent canvas WebM recording", async () => {
+        assert(preferredWebMMime(), "This browser exposes no WebM recorder.");
+        const canvas = document.createElement("canvas");
+        canvas.width = 160;
+        canvas.height = 120;
+        const ctx = canvas.getContext("2d");
+        let timer;
+        videoBlob = await recordCanvasWebM({
+          canvas,
+          duration: 0.28,
+          fps: 12,
+          play: async () => {
+            const started = performance.now();
+            await new Promise((resolve) => {
+              timer = setInterval(() => {
+                const elapsed = performance.now() - started;
+                ctx.fillStyle = elapsed % 200 < 100 ? "#ef4434" : "#155bd6";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                if (elapsed >= 280) resolve();
+              }, 30);
+            });
+          },
+          stop: () => clearInterval(timer),
+        });
+        assert(videoBlob.type.startsWith("video/webm"), "Unexpected WebM MIME type.");
+        assert(videoBlob.size > 100, "Recorded WebM is empty.");
+      });
+
+      await check("Video decode, seek, playback, and disposal", async () => {
+        const source = await loadVideoSource(
+          new File([videoBlob], "smoke.webm", { type: "video/webm" }),
+        );
+        assert(source.width === 160 && source.height === 120, "Unexpected video size.");
+        assert(source.duration > 0 && source.duration <= 2, "Unexpected video duration.");
+        await source.seek(Math.min(0.05, source.duration / 3));
+        assert(source.currentTime > 0, "Video seek did not move the playhead.");
+        await source.play();
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        assert(source.playing, "Video did not enter the playing state.");
+        source.dispose();
+        assert(!source.element.getAttribute("src"), "Video URL was not released.");
+      });
+
+      const status = document.querySelector("#status");
+      status.textContent = failures
+        ? `${failures} browser check${failures === 1 ? "" : "s"} failed.`
+        : "All animated media browser checks passed.";
+      status.className = failures ? "fail" : "pass";
+      document.title = failures ? "FAIL — animated media smoke" : "PASS — animated media smoke";
+      window.__smokeDone = true;
+      window.__smokeFailures = failures;
+    </script>
+  </body>
+</html>
