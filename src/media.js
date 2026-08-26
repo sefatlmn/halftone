@@ -314,6 +314,13 @@ export async function loadGifSource(file, { signal } = {}) {
     play() { ensure(); if (!playing) { playing = true; last = performance.now(); raf = requestAnimationFrame(tick); } return Promise.resolve(); },
     pause() { ensure(); playing = false; if (raf) cancelAnimationFrame(raf); raf = 0; },
     seek(value) { ensure(); time = Math.max(0, Math.min(Number(value) || 0, duration)); return Promise.resolve(renderFrame(frameAt(time))); },
-    dispose() { if (!disposed) { disposed = true; playing = false; if (raf) cancelAnimationFrame(raf); canvas.width = canvas.height = 1; } },
+    dispose() {
+      if (disposed) return;
+      disposed = true;
+      playing = false;
+      if (raf) cancelAnimationFrame(raf);
+      canvas.width = canvas.height = 1;
+      patch.width = patch.height = 1;
+    },
   };
 }

@@ -38,6 +38,11 @@
         loadGifSource,
         loadVideoSource,
       } from "../src/media.js";
+      import {
+        disposalFixtureSize,
+        makeDisposal2Gif,
+        makeDisposal3Gif,
+      } from "./gif-fixtures.js";
 
       const results = document.querySelector("#results");
       const details = document.querySelector("#details");
@@ -61,6 +66,18 @@
 
       function assert(value, message) {
         if (!value) throw new Error(message);
+      }
+
+      function pixel(source, x, y) {
+        return source.canvas.getContext("2d").getImageData(x, y, 1, 1).data;
+      }
+
+      function assertPixel(source, x, y, expected, message) {
+        const actual = pixel(source, x, y);
+        assert(
+          expected.every((value, index) => actual[index] === value),
+          `${message}: expected ${expected.join(",")}, got ${Array.from(actual).join(",")}`,
+        );
       }
 
       function rgbaFrame(r, g, b) {
@@ -105,6 +122,44 @@
         assert(source.currentTime > 0, "GIF playhead did not advance.");
         source.dispose();
         assert(source.canvas.width === 1, "GIF canvas was not released.");
+      });
+
+      await check("GIF transparency and disposal 3 seeking", async () => {
+        const source = await loadGifSource(new File([makeDisposal3Gif()], "disposal-3.gif", {
+          type: "image/gif",
+        }));
+        assert(source.width === disposalFixtureSize.width, "Unexpected disposal 3 GIF width.");
+        assert(source.height === disposalFixtureSize.height, "Unexpected disposal 3 GIF height.");
+        assert(source.frameCount === 3, "Disposal 3 fixture did not decode three frames.");
+        assertPixel(source, 1, 1, [235, 40, 35, 255], "Initial disposal 3 frame");
+
+        await source.seek(0.11);
+        assertPixel(source, 1, 1, [30, 85, 225, 255], "Disposal 3 overlay frame");
+        await source.seek(0.21);
+        assertPixel(source, 1, 1, [235, 40, 35, 255], "Transparent pixel after restore");
+        assertPixel(source, 2, 1, [40, 175, 90, 255], "Opaque pixel after restore");
+        await source.seek(0.11);
+        assertPixel(source, 1, 1, [30, 85, 225, 255], "Backward disposal 3 seek");
+        source.dispose();
+        assert(source.canvas.width === 1, "Disposal 3 compositor canvas was not released.");
+      });
+
+      await check("GIF transparency and disposal 2 seeking", async () => {
+        const source = await loadGifSource(new File([makeDisposal2Gif()], "disposal-2.gif", {
+          type: "image/gif",
+        }));
+        assert(source.frameCount === 3, "Disposal 2 fixture did not decode three frames.");
+        await source.seek(0.11);
+        assertPixel(source, 1, 1, [30, 85, 225, 255], "Disposal 2 overlay frame");
+        await source.seek(0.21);
+        assertPixel(source, 1, 1, [0, 0, 0, 0], "Disposal 2 cleared region");
+        assertPixel(source, 3, 0, [235, 40, 35, 255], "Transparent patch over prior content");
+        assertPixel(source, 4, 0, [40, 175, 90, 255], "Disposal 2 opaque patch");
+        assertPixel(source, 4, 1, [235, 40, 35, 255], "Prior content outside patch");
+        await source.seek(0.11);
+        assertPixel(source, 1, 1, [30, 85, 225, 255], "Backward disposal 2 seek");
+        source.dispose();
+        assert(source.canvas.width === 1, "Disposal 2 compositor canvas was not released.");
       });
 
       let videoBlob;

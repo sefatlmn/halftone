@@ -22,6 +22,7 @@
     <iframe id="app" src="../index.html"></iframe>
     <script type="module">
       import { encodeGif, recordCanvasWebM } from "../src/animated-export.js";
+      import { makeDisposal2Gif, makeDisposal3Gif } from "./gif-fixtures.js";
 
       const status = document.querySelector("#status");
       const iframe = document.querySelector("#app");
@@ -35,6 +36,14 @@
       };
       const assert = (value, message) => {
         if (!value) throw new Error(message);
+      };
+      const pixel = (source, x, y) => source.canvas.getContext("2d").getImageData(x, y, 1, 1).data;
+      const assertPixel = (source, x, y, expected, message) => {
+        const actual = pixel(source, x, y);
+        assert(
+          expected.every((value, index) => actual[index] === value),
+          `${message}: expected ${expected.join(",")}, got ${Array.from(actual).join(",")}`,
+        );
       };
       const solid = (r, g, b) => {
         const bytes = new Uint8Array(24 * 24 * 4);
@@ -108,11 +117,40 @@
         await until(() => !win.__hp.exportBusy && downloads.some((name) => name.endsWith(".gif")), "GIF export did not finish.");
 
         const oldGif = win.__hp.mediaSource;
+        const disposal3Blob = makeDisposal3Gif();
+        disposal3Blob.name = "integration-disposal-3.gif";
+        selectFile(win, disposal3Blob);
+        await until(
+          () => win.__hp.mediaSource !== oldGif && win.__hp.mediaKind === "gif" && win.__hp.mediaPlaying,
+          "Disposal 3 GIF did not load and play.",
+        );
+        assert(oldGif.canvas.width === 1, "Initial GIF resources were not released.");
+        const disposal3Source = win.__hp.mediaSource;
+        await disposal3Source.seek(0.21);
+        assertPixel(disposal3Source, 1, 1, [235, 40, 35, 255], "Disposal 3 transparent restore");
+        assertPixel(disposal3Source, 2, 1, [40, 175, 90, 255], "Disposal 3 opaque patch");
+
+        const disposal2Blob = makeDisposal2Gif();
+        disposal2Blob.name = "integration-disposal-2.gif";
+        selectFile(win, disposal2Blob);
+        await until(
+          () => win.__hp.mediaSource !== disposal3Source && win.__hp.mediaKind === "gif" && win.__hp.mediaPlaying,
+          "Disposal 2 GIF did not load and play.",
+        );
+        assert(disposal3Source.canvas.width === 1, "Replaced disposal 3 resources were not released.");
+        const disposal2Source = win.__hp.mediaSource;
+        await disposal2Source.seek(0.21);
+        assertPixel(disposal2Source, 1, 1, [0, 0, 0, 0], "Disposal 2 cleared region");
+        assertPixel(disposal2Source, 3, 0, [235, 40, 35, 255], "Transparent patch over prior content");
+
         const videoBlob = await makeVideo();
         videoBlob.name = "integration.webm";
         selectFile(win, videoBlob);
-        await until(() => win.__hp.mediaKind === "video" && win.__hp.mediaPlaying, "Video did not load and play.");
-        assert(oldGif.canvas.width === 1, "Replaced GIF resources were not released.");
+        await until(
+          () => win.__hp.mediaSource !== disposal2Source && win.__hp.mediaKind === "video" && win.__hp.mediaPlaying,
+          "Video did not load and play.",
+        );
+        assert(disposal2Source.canvas.width === 1, "Replaced disposal 2 resources were not released.");
         doc.querySelector("#media-loop").checked = false;
         doc.querySelector("#media-loop").dispatchEvent(new win.Event("change", { bubbles: true }));
         assert(!win.__hp.mediaSource.loop, "Loop control did not update the video.");
