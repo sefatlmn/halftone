@@ -46,6 +46,25 @@ Then open the URL it prints (usually `http://localhost:8000`). Opening `index.ht
 
 Tested on current Chrome, Firefox, and Safari.
 
+### Browser smoke tests
+
+The deterministic animated-media smoke pages can be run against all supported
+browser engines:
+
+```bash
+npm ci
+npx playwright install --with-deps chromium firefox webkit
+npm run test:browser
+```
+
+The command runs both `tests/browser-smoke.html` and
+`tests/app-integration-smoke.html` in Chromium (Chrome), Firefox, and WebKit.
+WebKit is the Safari-equivalent target used by Linux CI, where Apple Safari
+cannot run. Each target checks disposal 2 and disposal 3 forward and backward
+seeks, transparent-pixel compositing, and canvas cleanup. Engine-specific
+assertion or page errors identify the browser and smoke page in the failure
+output. The same matrix runs automatically in GitHub Actions.
+
 ## How to use it
 
 1. **Load an image, animated GIF, or short video** (or try the **Demo plate**). You can also drag and drop onto the stage.

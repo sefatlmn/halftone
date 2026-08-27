@@ -1,0 +1,13 @@
+{
+  "name": "halftone-tools",
+  "version": "1.0.0",
+  "description": "A free, browser-based **print-effects workshop** built with [p5.js](https://p5js.org/).",
+  "private": true,
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "test:browser": "node tests/run-browser-smoke.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.55.1"
+  }
+}

@@ -129,6 +129,8 @@
         await disposal3Source.seek(0.21);
         assertPixel(disposal3Source, 1, 1, [235, 40, 35, 255], "Disposal 3 transparent restore");
         assertPixel(disposal3Source, 2, 1, [40, 175, 90, 255], "Disposal 3 opaque patch");
+         await disposal3Source.seek(0.11);
+         assertPixel(disposal3Source, 1, 1, [30, 85, 225, 255], "Backward disposal 3 seek");
 
         const disposal2Blob = makeDisposal2Gif();
         disposal2Blob.name = "integration-disposal-2.gif";
@@ -142,6 +144,10 @@
         await disposal2Source.seek(0.21);
         assertPixel(disposal2Source, 1, 1, [0, 0, 0, 0], "Disposal 2 cleared region");
         assertPixel(disposal2Source, 3, 0, [235, 40, 35, 255], "Transparent patch over prior content");
+         assertPixel(disposal2Source, 4, 0, [40, 175, 90, 255], "Disposal 2 opaque patch");
+         assertPixel(disposal2Source, 4, 1, [235, 40, 35, 255], "Disposal 2 prior content");
+         await disposal2Source.seek(0.11);
+         assertPixel(disposal2Source, 1, 1, [30, 85, 225, 255], "Backward disposal 2 seek");
 
         const videoBlob = await makeVideo();
         videoBlob.name = "integration.webm";
@@ -162,11 +168,16 @@
         status.textContent = "PASS — load, playback, controls, cleanup, GIF and WebM exports";
         status.className = "pass";
         document.title = "PASS — app integration smoke";
+         window.__smokeFailures = 0;
+         window.__smokeDone = true;
       } catch (error) {
         status.textContent = `FAIL — ${error.message}`;
         status.className = "fail";
         document.title = "FAIL — app integration smoke";
         console.error(error);
+         window.__smokeFailures = 1;
+         window.__smokeDetails = error.stack || String(error);
+         window.__smokeDone = true;
       }
     </script>
   </body>
