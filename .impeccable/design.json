@@ -1,0 +1,218 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-28T00:00:00.000Z",
+  "title": "Design System: Halftone Tools",
+  "extensions": {
+    "colorMeta": {
+      "paper": {
+        "role": "neutral",
+        "displayName": "Warm Paper",
+        "purpose": "Primary application ground."
+      },
+      "paper-2": {
+        "role": "neutral",
+        "displayName": "Recessed Paper",
+        "purpose": "Stage desk and section headers."
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "purpose": "Primary text and structural hairlines."
+      },
+      "accent": {
+        "role": "primary",
+        "displayName": "Signal Red",
+        "purpose": "Primary action, active slot A, selection, and progress."
+      },
+      "accent-2": {
+        "role": "secondary",
+        "displayName": "Press Mustard",
+        "purpose": "Secondary action and active slot B."
+      },
+      "sheet": {
+        "role": "neutral",
+        "displayName": "Proof Sheet",
+        "purpose": "Fixed light artboard and filmstrip ground."
+      },
+      "sheet-ink": {
+        "role": "neutral",
+        "displayName": "Proof Ink",
+        "purpose": "Fixed dark artboard marks and selectable ASCII text."
+      },
+      "on-accent": {
+        "role": "neutral",
+        "displayName": "Light on Red",
+        "purpose": "Fixed readable foreground on signal red."
+      },
+      "on-accent-2": {
+        "role": "neutral",
+        "displayName": "Dark on Mustard",
+        "purpose": "Fixed readable foreground on press mustard."
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Expanded Workshop Display",
+        "purpose": "Empty-state instruction and strongest hierarchy."
+      },
+      "title": {
+        "displayName": "Expanded Section Title",
+        "purpose": "Section and effect headings."
+      },
+      "body": {
+        "displayName": "Neutral Interface Text",
+        "purpose": "Notes, descriptions, and explanatory copy."
+      },
+      "label": {
+        "displayName": "Tracked Utility Label",
+        "purpose": "Uppercase control labels and metadata."
+      },
+      "mono": {
+        "displayName": "Measurement Mono",
+        "purpose": "Timecodes, values, ASCII, and aligned text."
+      }
+    },
+    "breakpoints": [
+      {
+        "name": "tablet",
+        "value": "1024px",
+        "purpose": "Tighten the desktop two-column shell."
+      },
+      {
+        "name": "phone",
+        "value": "720px",
+        "purpose": "Stack work area and collapsible control drawer."
+      },
+      {
+        "name": "export-mobile",
+        "value": "620px",
+        "purpose": "Switch export tiers from five columns to two."
+      }
+    ],
+    "motion": [
+      {
+        "name": "fold",
+        "value": "0.26s cubic-bezier(0.22, 1, 0.36, 1)",
+        "purpose": "Open and close phone control sections."
+      },
+      {
+        "name": "control-feedback",
+        "value": "0.1s",
+        "purpose": "Button hover color transitions."
+      },
+      {
+        "name": "reduced-motion",
+        "value": "none",
+        "purpose": "Remove collapse and chevron transitions when requested."
+      }
+    ],
+    "elevation": {
+      "strategy": "flat",
+      "shadows": [],
+      "description": "Depth comes from paper tones, a modal scrim, and 1px hairlines; no box shadows."
+    },
+    "narrative": {
+      "northStar": "The Print Bench",
+      "overview": "Halftone Tools is a compact print-effects workshop: a warm paper desk, a proof sheet, registration marks, ink accents, and a filmstrip of process samples. The interface is intentionally flat and utilitarian. It should feel like a well-organized studio tool rather than a generic dashboard.\n\nThe visual language is neo-grotesque Swiss typography over a restrained paper-and-ink palette. Structure comes from hairlines, tonal surfaces, uppercase labels, and deliberate asymmetry between the control rail and the large proof area. The UI is dense enough for editing but leaves the proof sheet visually dominant.",
+      "keyCharacteristics": [
+        "Warm paper surfaces with a dark ink structure.",
+        "Signal red for primary action and slot A; press mustard for secondary action and slot B.",
+        "Flat construction with hairline dividers instead of shadows or rounded cards.",
+        "Archivo for interface voice, Archivo Expanded for headings, and Space Mono for measurements and code-like values.",
+        "A persistent desktop control rail that becomes a collapsible touch-friendly drawer on phones."
+      ],
+      "rules": [
+        {
+          "name": "The Five-Color Chrome Rule",
+          "body": "Application chrome uses the named palette and its opacity/color-mix derivatives. Effect artwork may use its own user-selected inks, ramps, and separations.",
+          "section": "colors"
+        },
+        {
+          "name": "The Author-Blue Exception",
+          "body": "The author link is intentionally browser blue rather than an application token. It is the one approved chrome exception because the contrast draws attention to authorship and makes the credit read as a conventional external link.",
+          "section": "colors"
+        },
+        {
+          "name": "The Two-Voice Rule",
+          "body": "Use Archivo Expanded for hierarchy, Archivo for interaction, and Space Mono only when alignment or data semantics justify it.",
+          "section": "typography"
+        },
+        {
+          "name": "The Uppercase Utility Rule",
+          "body": "Labels, controls, metadata, and action text are uppercase with tracking. Do not apply this treatment to explanatory sentences or user-entered content.",
+          "section": "typography"
+        },
+        {
+          "name": "The Flat Proof Rule",
+          "body": "Use tonal surfaces and hairlines to separate regions; do not simulate depth with shadows.",
+          "section": "elevation"
+        },
+        {
+          "name": "The Hairline Rule",
+          "body": "Structural borders and icon strokes use 1px. A 2px outline is reserved for selected filmstrip items, and a 3px marker is reserved for an active stacked pass.",
+          "section": "elevation"
+        }
+      ],
+      "dos": [
+        "Do use the five named palette roles for application chrome.",
+        "Do preserve the warm paper / recessed paper / ink hierarchy in both themes.",
+        "Do use 1px hairlines for structure and 2px only for selected filmstrip emphasis.",
+        "Do use Archivo Expanded for display hierarchy and Archivo for interface controls.",
+        "Do use Space Mono for time, measurement, ASCII, and other aligned data.",
+        "Do keep the proof sheet visually dominant and preserve the complete media aspect ratio.",
+        "Do provide 44px minimum touch targets on coarse-pointer and narrow layouts.",
+        "Do keep the author link browser blue as the approved exception."
+      ],
+      "donts": [
+        "Don't add shadows, rounded cards, decorative blur, or glass effects.",
+        "Don't introduce arbitrary chrome colors or replace the author-link exception with an app token.",
+        "Don't use Unicode glyphs or emoji as interface icons; draw simple SVG geometry instead.",
+        "Don't use monospace as a generic technical costume.",
+        "Don't crop loaded media in the proof stage or allow the stage to overflow the viewport.",
+        "Don't create a new border weight without first updating this system."
+      ]
+    }
+  },
+  "components": [
+    {
+      "name": "Primary Action",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Use for Export and the main Choose media action.",
+      "html": "<button class=\"ds-primary\">EXPORT</button>",
+      "css": ".ds-primary { background: var(--accent); color: var(--on-accent); border: 0; border-radius: 0; padding: 16px; font: 700 12px Archivo, sans-serif; letter-spacing: .08em; text-transform: uppercase; cursor: pointer; } .ds-primary:hover { background: var(--ink); } .ds-primary:focus-visible { outline: 1px solid var(--accent); outline-offset: 2px; }"
+    },
+    {
+      "name": "Secondary Action",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Use for neutral actions such as Load media and Demo.",
+      "html": "<button class=\"ds-secondary\">LOAD MEDIA</button>",
+      "css": ".ds-secondary { background: transparent; color: var(--ink); border: 1px solid var(--ink); border-radius: 0; padding: 9px 14px; font: 700 11px Archivo, sans-serif; letter-spacing: .08em; text-transform: uppercase; cursor: pointer; } .ds-secondary:hover { background: var(--ink); color: var(--paper); } .ds-secondary:focus-visible { outline: 1px solid var(--accent); outline-offset: 2px; }"
+    },
+    {
+      "name": "Field",
+      "kind": "input",
+      "refersTo": "input-field",
+      "description": "Use for text and select controls inside the rail.",
+      "html": "<input class=\"ds-field\" aria-label=\"Label\" value=\"VALUE\">",
+      "css": ".ds-field { width: 100%; background: transparent; color: var(--ink); border: 1px solid var(--ink); border-radius: 0; padding: 8px 10px; font: 400 12px 'Space Mono', monospace; } .ds-field:focus-visible { outline: 1px solid var(--accent); outline-offset: 2px; }"
+    },
+    {
+      "name": "Proof Frame",
+      "kind": "custom",
+      "refersTo": "stage-frame",
+      "description": "The recessed desk that holds the proof sheet and registration marks.",
+      "html": "<div class=\"ds-proof-frame\"><div class=\"ds-proof-sheet\"></div></div>",
+      "css": ".ds-proof-frame { background: var(--paper-2); color: var(--ink); border: 1px solid var(--ink); border-radius: 0; min-height: 220px; display: grid; place-items: center; } .ds-proof-sheet { background: var(--sheet); width: 70%; aspect-ratio: 4 / 3; border: 1px solid var(--ink); }"
+    },
+    {
+      "name": "Effect Film",
+      "kind": "chip",
+      "refersTo": "effect-film",
+      "description": "A print-sample thumbnail used to select an effect.",
+      "html": "<button class=\"ds-film\"><span class=\"ds-film-thumb\"></span><span class=\"ds-film-cap\">HALFTONE</span></button>",
+      "css": ".ds-film { background: transparent; color: var(--ink); border: 0; border-radius: 0; padding: 0; text-align: left; cursor: pointer; } .ds-film-thumb { display: block; width: 118px; height: 88px; background: var(--sheet); border: 1px solid var(--ink); } .ds-film:hover .ds-film-thumb, .ds-film:focus-visible .ds-film-thumb { outline: 1px solid var(--ink); outline-offset: -1px; } .ds-film.is-selected .ds-film-thumb { outline: 2px solid var(--accent); outline-offset: -2px; } .ds-film-cap { display: block; margin-top: 7px; font: 400 9.5px Archivo, sans-serif; letter-spacing: .1em; text-transform: uppercase; }"
+    }
+  ]
+}

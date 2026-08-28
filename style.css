@@ -99,6 +99,14 @@ a:hover {
   color: var(--accent);
 }
 
+/* Approved palette exception: authorship should read as a conventional external
+   link and deliberately stand out from the tool chrome. */
+.mh-meta a,
+.mh-meta a:hover {
+  color: #0000ee;
+  text-decoration-color: currentColor;
+}
+
 kbd {
   font-family: var(--mono);
   font-size: 10px;
