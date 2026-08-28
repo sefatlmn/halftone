@@ -55,6 +55,7 @@ function buildRow(param, state, onChange) {
     top.appendChild(badge);
     const input = document.createElement('input');
     input.type = 'range';
+    input.setAttribute('aria-label', param.label);
     input.min = param.min; input.max = param.max; input.step = param.step;
     input.value = cur;
     input.addEventListener('input', () => {
@@ -69,6 +70,7 @@ function buildRow(param, state, onChange) {
   if (param.type === 'select') {
     const { row } = fieldShell(param.label);
     const sel = document.createElement('select');
+    sel.setAttribute('aria-label', param.label);
     for (const o of param.options) {
       const opt = document.createElement('option');
       opt.value = o; opt.textContent = prettify(o);
@@ -86,6 +88,7 @@ function buildRow(param, state, onChange) {
     lab.className = 'toggle';
     const input = document.createElement('input');
     input.type = 'checkbox';
+    input.setAttribute('aria-label', param.label);
     input.checked = !!cur;
     const track = document.createElement('span');
     track.className = 'toggle__track';
@@ -101,6 +104,7 @@ function buildRow(param, state, onChange) {
     wrap.className = 'color-field';
     const input = document.createElement('input');
     input.type = 'color';
+    input.setAttribute('aria-label', param.label);
     input.value = cur;
     const hex = document.createElement('span');
     hex.className = 'color-field__hex';
@@ -115,6 +119,7 @@ function buildRow(param, state, onChange) {
     const { row } = fieldShell(param.label);
     const input = document.createElement('input');
     input.type = 'text';
+    input.setAttribute('aria-label', param.label);
     input.value = cur;
     input.spellcheck = false;
     input.addEventListener('input', () => set(input.value));
@@ -145,15 +150,21 @@ export function buildPanel(root, schema, state, onChange) {
 export function buildSegmented(options, current, onPick) {
   const seg = document.createElement('div');
   seg.className = 'seg';
+  seg.setAttribute('role', 'group');
   const btns = [];
   for (const o of options) {
     const b = document.createElement('button');
     b.type = 'button';
     b.textContent = o.label;
+    b.setAttribute('aria-pressed', String(o.value === current));
     if (o.value === current) b.classList.add('is-active');
     b.addEventListener('click', () => {
-      btns.forEach(x => x.classList.remove('is-active'));
+      btns.forEach(x => {
+        x.classList.remove('is-active');
+        x.setAttribute('aria-pressed', 'false');
+      });
       b.classList.add('is-active');
+      b.setAttribute('aria-pressed', 'true');
       onPick(o.value);
     });
     btns.push(b);

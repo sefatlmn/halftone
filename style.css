@@ -84,6 +84,21 @@ body {
   overflow: hidden;
 }
 
+::selection {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+a {
+  color: inherit;
+  text-decoration-color: var(--accent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+a:hover {
+  color: var(--accent);
+}
+
 kbd {
   font-family: var(--mono);
   font-size: 10px;
@@ -231,8 +246,8 @@ kbd {
   width: 8px;
   height: 8px;
   margin: auto;
-  border-right: 1.5px solid currentColor;
-  border-bottom: 1.5px solid currentColor;
+  border-right: 1px solid currentColor;
+  border-bottom: 1px solid currentColor;
   transform: translateY(-2px) rotate(45deg); /* chevron down = expanded */
   transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -770,6 +785,37 @@ input[type="color"]::-moz-color-swatch {
   background: var(--ink);
 }
 
+/* Touch sizing must follow the base button rules in source order. Keeping these
+   overrides here prevents the later .btn/.tool declarations from shrinking the
+   finger-friendly targets defined for narrow and coarse-pointer layouts. */
+@media (pointer: coarse), (max-width: 720px) {
+  .btn,
+  .tool,
+  .fold,
+  .abtog__btn,
+  .swap-btn,
+  .media-controls__play,
+  .xpanel__close,
+  .xtier__btn,
+  .bmc {
+    min-height: 44px;
+  }
+  .btn {
+    padding: 13px 16px;
+  }
+  .tool {
+    padding: 8px 12px;
+  }
+  .fold {
+    width: 44px;
+    height: 44px;
+  }
+  .abtog__btn,
+  .xpanel__close {
+    min-width: 44px;
+  }
+}
+
 /* ---------------- Swap A↔B button (strip head) ---------------- */
 .swap-btn {
   font-family: var(--font);
@@ -842,11 +888,31 @@ input[type="color"]::-moz-color-swatch {
   border: none;
   cursor: pointer;
   color: var(--ink-soft);
-  font-size: 14px;
   line-height: 1;
-  padding: 4px 6px;
+  padding: 6px;
 }
 .xpanel__close:hover { color: var(--accent); }
+.xpanel__close svg {
+  display: block;
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.tool:focus-visible,
+.swap-btn:focus-visible,
+.media-controls__play:focus-visible,
+.xpanel__close:focus-visible,
+.xtier__btn:focus-visible,
+.bmc:focus-visible,
+.abtog__btn:focus-visible,
+.film:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: 2px;
+}
 
 .xpanel__tiers {
   display: grid;
@@ -856,6 +922,17 @@ input[type="color"]::-moz-color-swatch {
   .xpanel__tiers { grid-template-columns: repeat(2, 1fr); }
   /* never let the panel exceed the screen on short phones — scroll instead */
   .xpanel__body { max-height: calc(100dvh - 28px); overflow-y: auto; }
+  .xtier {
+    border-bottom: var(--hair);
+  }
+  .xtier:nth-child(2n) {
+    border-right: none;
+  }
+  .xtier:last-child {
+    grid-column: 1 / -1;
+    border-right: none;
+    border-bottom: none;
+  }
 }
 
 .xtier {
@@ -1184,9 +1261,17 @@ input[type="color"]::-moz-color-swatch {
   padding: 20px;
 }
 .empty-glyph {
-  font-size: 38px;
-  line-height: 1;
   color: var(--accent);
+}
+.empty-glyph svg {
+  display: block;
+  width: 38px;
+  height: 38px;
+  margin-inline: auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
 }
 .empty.is-hover .empty-glyph {
   color: var(--on-accent);
@@ -1205,7 +1290,7 @@ input[type="color"]::-moz-color-swatch {
 }
 .empty.is-hover h2,
 .empty.is-hover p {
-  color: var(--paper);
+  color: var(--on-accent);
 }
 .empty-actions {
   display: flex;

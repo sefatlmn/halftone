@@ -734,8 +734,10 @@ function buildFilmTargetToggle() {
   ["A", "B"].forEach((slot) => {
     const b = document.createElement("button");
     b.type = "button";
+    b.setAttribute("role", "tab");
     const active = slot === App.filmTarget;
     b.className = "abtog__btn" + (active ? " is-active" : "");
+    b.setAttribute("aria-selected", String(active));
     // Dim B when it holds no effect — unless it's the slot you're aiming at.
     if (slot === "B" && !isEffect2On() && !active) b.classList.add("is-empty");
     b.dataset.slot = slot;
@@ -763,12 +765,13 @@ function setFilmTarget(slot) {
 // (not a live render) — fast, and faithful to the design mockup. `idx` keeps
 // any internal pattern/gradient ids unique across films.
 function effectMotif(id, idx) {
-  // Motif palette mirrors the CSS tokens (SVG strings can't read CSS vars):
-  // P paper · K ink · A signal red · S press mustard — the five-colour system.
-  const P = "#EEEBE3",
-    A = "#FF3B22",
-    K = "#15120D",
-    S = "#D4920A";
+  // Resolve the live CSS tokens so thumbnails remain in the same five-colour
+  // system as the surrounding UI in both light and dark schemes.
+  const tokens = getComputedStyle(document.documentElement);
+  const P = tokens.getPropertyValue("--sheet").trim(),
+    A = tokens.getPropertyValue("--accent").trim(),
+    K = tokens.getPropertyValue("--sheet-ink").trim(),
+    S = tokens.getPropertyValue("--accent-2").trim();
   const u = (s) => `${s}${idx}`;
   const wrap = (inner) =>
     `<svg viewBox="0 0 118 88" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">` +
@@ -991,6 +994,7 @@ function doReset2() {
 function buildBaseLayerControl() {
   const effId = App.activeId;
   const sel = document.createElement("select");
+  sel.setAttribute("aria-label", "Base layer");
   const opts = [{ value: "none", label: "None (source image)" }].concat(
     EFFECTS.filter(
       (e) => e.id !== "none" && !e.acceptsBase && e.category !== "color",
@@ -1017,6 +1021,7 @@ function buildPreStageSelect() {
   const root = $("#prestage-select");
   root.innerHTML = "";
   const sel = document.createElement("select");
+  sel.setAttribute("aria-label", "Color pre-stage");
   const none = document.createElement("option");
   none.value = "none";
   none.textContent = "None";

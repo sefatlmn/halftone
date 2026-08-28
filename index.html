@@ -197,7 +197,12 @@
             <!-- Empty state / drop zone -->
             <div class="empty" id="empty">
               <div class="empty-inner">
-                <div class="empty-glyph">⊕</div>
+                <div class="empty-glyph" aria-hidden="true">
+                  <svg viewBox="0 0 32 32" focusable="false">
+                    <circle cx="16" cy="16" r="10"></circle>
+                    <path d="M16 10v12M10 16h12"></path>
+                  </svg>
+                </div>
                 <h2>Drop media here</h2>
                 <p>Load an image, animated GIF or short video.</p>
                 <div class="empty-actions">
@@ -252,7 +257,7 @@
                 role="tablist"
                 aria-label="Preset target"
               ></div>
-              <button class="swap-btn" id="btn-swap" type="button" title="Swap A ↔ B" disabled>A ⇄ B</button>
+              <button class="swap-btn" id="btn-swap" type="button" title="Swap effects A and B" disabled>Swap A/B</button>
             </div>
           </div>
           <div
@@ -285,14 +290,18 @@
       <div class="xpanel__body">
         <div class="xpanel__head">
           <span class="xpanel__title" id="xpanel-title">Export</span>
-          <button class="xpanel__close" id="xpanel-close" type="button" aria-label="Close">✕</button>
+          <button class="xpanel__close" id="xpanel-close" type="button" aria-label="Close">
+            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+              <path d="M3 3l10 10M13 3L3 13"></path>
+            </svg>
+          </button>
         </div>
         <div class="xpanel__tiers">
           <div class="xtier">
             <span class="xtier__badge">Free</span>
             <span class="xtier__label">Like it?</span>
             <span class="xtier__desc">All exports are free. A coffee helps.</span>
-            <a class="bmc" href="https://www.buymeacoffee.com/sefatolaman" target="_blank" rel="noopener">Buy me a ☕️</a>
+            <a class="bmc" href="https://www.buymeacoffee.com/sefatolaman" target="_blank" rel="noopener">Buy me a coffee</a>
           </div>
           <div class="xtier">
             <span class="xtier__badge">Lossless</span>
