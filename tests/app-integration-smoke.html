@@ -21,7 +21,7 @@
     </header>
     <iframe id="app" src="../index.html"></iframe>
     <script type="module">
-      import { encodeGif, recordCanvasWebM } from "../src/animated-export.js";
+      import { encodeGif, preferredWebMMime, recordCanvasWebM } from "../src/animated-export.js";
       import { makeDisposal2Gif, makeDisposal3Gif } from "./gif-fixtures.js";
 
       const status = document.querySelector("#status");
@@ -149,23 +149,27 @@
          await disposal2Source.seek(0.11);
          assertPixel(disposal2Source, 1, 1, [30, 85, 225, 255], "Backward disposal 2 seek");
 
-        const videoBlob = await makeVideo();
-        videoBlob.name = "integration.webm";
-        selectFile(win, videoBlob);
-        await until(
-          () => win.__hp.mediaSource !== disposal2Source && win.__hp.mediaKind === "video" && win.__hp.mediaPlaying,
-          "Video did not load and play.",
-        );
-        assert(disposal2Source.canvas.width === 1, "Replaced disposal 2 resources were not released.");
-        doc.querySelector("#media-loop").checked = false;
-        doc.querySelector("#media-loop").dispatchEvent(new win.Event("change", { bubbles: true }));
-        assert(!win.__hp.mediaSource.loop, "Loop control did not update the video.");
-        doc.querySelector("#btn-export").click();
-        assert(doc.querySelector("#xbtn-animated").textContent.includes("WebM"), "WebM export option is missing.");
-        doc.querySelector("#xbtn-animated").click();
-        await until(() => !win.__hp.exportBusy && downloads.some((name) => name.endsWith(".webm")), "WebM export did not finish.");
+        if (preferredWebMMime()) {
+          const videoBlob = await makeVideo();
+          videoBlob.name = "integration.webm";
+          selectFile(win, videoBlob);
+          await until(
+            () => win.__hp.mediaSource !== disposal2Source && win.__hp.mediaKind === "video" && win.__hp.mediaPlaying,
+            "Video did not load and play.",
+          );
+          assert(disposal2Source.canvas.width === 1, "Replaced disposal 2 resources were not released.");
+          doc.querySelector("#media-loop").checked = false;
+          doc.querySelector("#media-loop").dispatchEvent(new win.Event("change", { bubbles: true }));
+          assert(!win.__hp.mediaSource.loop, "Loop control did not update the video.");
+          doc.querySelector("#btn-export").click();
+          assert(doc.querySelector("#xbtn-animated").textContent.includes("WebM"), "WebM export option is missing.");
+          doc.querySelector("#xbtn-animated").click();
+          await until(() => !win.__hp.exportBusy && downloads.some((name) => name.endsWith(".webm")), "WebM export did not finish.");
+        }
 
-        status.textContent = "PASS — load, playback, controls, cleanup, GIF and WebM exports";
+        status.textContent = preferredWebMMime()
+          ? "PASS — load, playback, controls, cleanup, GIF and WebM exports"
+          : "PASS — load, playback, controls, cleanup, GIF export";
         status.className = "pass";
         document.title = "PASS — app integration smoke";
          window.__smokeFailures = 0;

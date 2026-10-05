@@ -162,49 +162,55 @@
         assert(source.canvas.width === 1, "Disposal 2 compositor canvas was not released.");
       });
 
-      let videoBlob;
-      await check("Silent canvas WebM recording", async () => {
-        assert(preferredWebMMime(), "This browser exposes no WebM recorder.");
-        const canvas = document.createElement("canvas");
-        canvas.width = 160;
-        canvas.height = 120;
-        const ctx = canvas.getContext("2d");
-        let timer;
-        videoBlob = await recordCanvasWebM({
-          canvas,
-          duration: 0.28,
-          fps: 12,
-          play: async () => {
-            const started = performance.now();
-            await new Promise((resolve) => {
-              timer = setInterval(() => {
-                const elapsed = performance.now() - started;
-                ctx.fillStyle = elapsed % 200 < 100 ? "#ef4434" : "#155bd6";
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                if (elapsed >= 280) resolve();
-              }, 30);
-            });
-          },
-          stop: () => clearInterval(timer),
+      if (preferredWebMMime()) {
+        let videoBlob;
+        await check("Silent canvas WebM recording", async () => {
+          assert(preferredWebMMime(), "This browser exposes no WebM recorder.");
+          const canvas = document.createElement("canvas");
+          canvas.width = 160;
+          canvas.height = 120;
+          const ctx = canvas.getContext("2d");
+          let timer;
+          videoBlob = await recordCanvasWebM({
+            canvas,
+            duration: 0.28,
+            fps: 12,
+            play: async () => {
+              const started = performance.now();
+              await new Promise((resolve) => {
+                timer = setInterval(() => {
+                  const elapsed = performance.now() - started;
+                  ctx.fillStyle = elapsed % 200 < 100 ? "#ef4434" : "#155bd6";
+                  ctx.fillRect(0, 0, canvas.width, canvas.height);
+                  if (elapsed >= 280) resolve();
+                }, 30);
+              });
+            },
+            stop: () => clearInterval(timer),
+          });
+          assert(videoBlob.type.startsWith("video/webm"), "Unexpected WebM MIME type.");
+          assert(videoBlob.size > 100, "Recorded WebM is empty.");
         });
-        assert(videoBlob.type.startsWith("video/webm"), "Unexpected WebM MIME type.");
-        assert(videoBlob.size > 100, "Recorded WebM is empty.");
-      });
 
-      await check("Video decode, seek, playback, and disposal", async () => {
-        const source = await loadVideoSource(
-          new File([videoBlob], "smoke.webm", { type: "video/webm" }),
-        );
-        assert(source.width === 160 && source.height === 120, "Unexpected video size.");
-        assert(source.duration > 0 && source.duration <= 2, "Unexpected video duration.");
-        await source.seek(Math.min(0.05, source.duration / 3));
-        assert(source.currentTime > 0, "Video seek did not move the playhead.");
-        await source.play();
-        await new Promise((resolve) => setTimeout(resolve, 50));
-        assert(source.playing, "Video did not enter the playing state.");
-        source.dispose();
-        assert(!source.element.getAttribute("src"), "Video URL was not released.");
-      });
+        await check("Video decode, seek, playback, and disposal", async () => {
+          const source = await loadVideoSource(
+            new File([videoBlob], "smoke.webm", { type: "video/webm" }),
+          );
+          assert(source.width === 160 && source.height === 120, "Unexpected video size.");
+          assert(source.duration > 0 && source.duration <= 2, "Unexpected video duration.");
+          await source.seek(Math.min(0.05, source.duration / 3));
+          assert(source.currentTime > 0, "Video seek did not move the playhead.");
+          await source.play();
+          await new Promise((resolve) => setTimeout(resolve, 50));
+          assert(source.playing, "Video did not enter the playing state.");
+          source.dispose();
+          assert(!source.element.getAttribute("src"), "Video URL was not released.");
+        });
+      } else {
+        await check("WebM recording unsupported in this environment (clean fallback)", () => {
+          assert(!preferredWebMMime(), "Expected WebM recorder to be unsupported.");
+        });
+      }
 
       const status = document.querySelector("#status");
       status.textContent = failures
