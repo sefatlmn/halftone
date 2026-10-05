@@ -1,344 +1,276 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Halftone Tools — print-effects workshop</title>
-    <meta
-      name="description"
-      content="Halftone Tools is a free, browser-based print-effects workshop designed for real-time image manipulation. Built using p5.js, it operates entirely client-side as a static site, meaning all image processing happens locally on your machine with total privacy. No accounts, no backend, and no uploads required."
-    />
 
-    <!-- Favicons -->
-    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
-    <link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png" />
-    <link rel="apple-touch-icon" href="apple-touch-icon.png" />
-    <!-- Address-bar tint matches the masthead surface in each scheme -->
-    <meta name="theme-color" content="#eeebe3" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#1b1712" media="(prefers-color-scheme: dark)" />
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Halftone Tools — print-effects workshop</title>
+  <meta name="description"
+    content="Halftone Tools is a free, browser-based print-effects workshop designed for real-time image manipulation. Built using p5.js, it operates entirely client-side as a static site, meaning all image processing happens locally on your machine with total privacy. No accounts, no backend, and no uploads required." />
 
-    <!-- Canonical + social sharing (Open Graph / Twitter) -->
-    <link rel="canonical" href="https://halftone.tools/" />
-    <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="Halftone Tools" />
-    <meta property="og:url" content="https://halftone.tools/" />
-    <meta property="og:title" content="Halftone Tools — print-effects workshop" />
-    <meta
-      property="og:description"
-      content="A free, browser-based print-effects workshop built with p5.js. Load an image and run it through halftone, dither, riso, glitch and colour screens live — all processing happens locally, nothing is uploaded."
-    />
-    <meta property="og:image" content="https://halftone.tools/og-image.png" />
-    <meta property="og:image:width" content="1200" />
-    <meta property="og:image:height" content="630" />
-    <meta
-      property="og:image:alt"
-      content="Abstract halftone composition — overprinting dot screens in signal red, mustard and ink on paper."
-    />
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Halftone Tools — print-effects workshop" />
-    <meta
-      name="twitter:description"
-      content="A free, browser-based print-effects workshop built with p5.js. Halftone, dither, riso, glitch and colour screens — live, local, nothing uploaded."
-    />
-    <meta name="twitter:image" content="https://halftone.tools/og-image.png" />
+  <!-- Favicons -->
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+  <!-- Address-bar tint matches the masthead surface in each scheme -->
+  <meta name="theme-color" content="#eeebe3" media="(prefers-color-scheme: light)" />
+  <meta name="theme-color" content="#1b1712" media="(prefers-color-scheme: dark)" />
 
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&family=Archivo+Expanded:wght@600;700;800;900&family=Space+Mono:wght@400;700&display=swap"
-      rel="stylesheet"
-    />
+  <!-- Canonical + social sharing (Open Graph / Twitter) -->
+  <link rel="canonical" href="https://halftone.tools/" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Halftone Tools" />
+  <meta property="og:url" content="https://halftone.tools/" />
+  <meta property="og:title" content="Halftone Tools — print-effects workshop" />
+  <meta property="og:description"
+    content="A free, browser-based print-effects workshop built with p5.js. Load an image and run it through halftone, dither, riso, glitch and colour screens live — all processing happens locally, nothing is uploaded." />
+  <meta property="og:image" content="https://halftone.tools/og-image.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt"
+    content="Abstract halftone composition — overprinting dot screens in signal red, mustard and ink on paper." />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Halftone Tools — print-effects workshop" />
+  <meta name="twitter:description"
+    content="A free, browser-based print-effects workshop built with p5.js. Halftone, dither, riso, glitch and colour screens — live, local, nothing uploaded." />
+  <meta name="twitter:image" content="https://halftone.tools/og-image.png" />
 
-    <link rel="stylesheet" href="style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&family=Archivo+Expanded:wght@600;700;800;900&family=Space+Mono:wght@400;700&display=swap"
+    rel="stylesheet" />
 
-    <!-- p5.js 1.x from CDN (used in INSTANCE mode; see src/main.js) -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.11.3/p5.min.js"></script>
+  <link rel="stylesheet" href="style.css" />
 
-    <!-- Privacy-friendly analytics by GoatCounter -->
-    <script data-goatcounter="https://sefatlmn.goatcounter.com/count"
-            async src="//gc.zgo.at/count.js"></script>
-  </head>
-  <body>
-    <!-- MASTHEAD -->
-    <header class="masthead">
-      <div class="mh-brand">
-        <span class="mh-mark" aria-hidden="true"><i></i><i></i><i></i></span>
-        <span class="mh-title">Halftone&nbsp;Tools</span>
-      </div>
-      <div class="mh-meta">
-        <span>
-          PRINT-EFFECTS WORKSHOP /
-          <b>
-            <a href="https://www.sefatolaman.design">By Sefa Tolaman</a></b
-          ></span
-        >
-      </div>
-    </header>
+  <!-- p5.js 1.x from CDN (used in INSTANCE mode; see src/main.js) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.11.3/p5.min.js"></script>
 
-    <div class="body">
-      <!-- LEFT CONTROL RAIL -->
-      <aside class="rail">
-        <div class="rail-scroll">
-          <section class="block">
-            <div class="block-head">
-              <span class="ix">01</span>
-              <h3>Source</h3>
-              <button
-                class="fold"
-                type="button"
-                aria-expanded="true"
-                aria-controls="fold-source"
-                aria-label="Collapse Source"
-              ></button>
-            </div>
-            <div class="block-fold" id="fold-source">
-              <div class="block-body">
-                <div class="row row--buttons">
-                  <button class="btn btn--block" id="btn-upload-2" type="button">
-                    Load media
-                  </button>
-                  <button class="btn" id="btn-demo-2" type="button">Demo</button>
-                </div>
-                <p class="note" id="drop-note">
-                  Images, GIFs and videos stay in your browser and are not stored.
-                </p>
-              </div>
-            </div>
-          </section>
+  <!-- Privacy-friendly analytics by GoatCounter -->
+  <script data-goatcounter="https://sefatlmn.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
+</head>
 
-          <section class="block block--b">
-            <div class="block-head">
-              <span class="ix">02</span>
-              <h3>Pre-adjust</h3>
-              <button
-                class="fold"
-                type="button"
-                aria-expanded="true"
-                aria-controls="fold-pre"
-                aria-label="Collapse Pre-adjust"
-              ></button>
-            </div>
-            <div class="block-fold" id="fold-pre">
-              <div class="block-body" id="preadjust-controls"></div>
-              <div class="block-body block-body--sub">
-                <div id="prestage-select"></div>
-                <div id="prestage-controls"></div>
-              </div>
-            </div>
-          </section>
-
-          <section class="block block--a">
-            <div class="block-head">
-              <span class="ix">A</span>
-              <h3 id="param-title">Parameters</h3>
-              <div class="block-tools">
-                <button
-                  class="tool"
-                  id="btn-randomize"
-                  type="button"
-                  title="Randomize (R)"
-                >
-                  Randomize
-                </button>
-                <button class="tool" id="btn-reset" type="button" title="Reset">
-                  Reset
-                </button>
-              </div>
-              <button
-                class="fold"
-                type="button"
-                aria-expanded="true"
-                aria-controls="fold-a"
-                aria-label="Collapse effect A parameters"
-              ></button>
-            </div>
-            <div class="block-fold" id="fold-a">
-              <div class="block-body" id="param-controls"></div>
-            </div>
-          </section>
-
-          <section class="block block--stack" id="block-effect2">
-            <div class="block-head">
-              <span class="ix">B</span>
-              <h3 id="param2-title">Stack effect</h3>
-              <div class="block-tools" id="effect2-tools"></div>
-              <button
-                class="fold"
-                type="button"
-                aria-expanded="true"
-                aria-controls="fold-b"
-                aria-label="Collapse effect B parameters"
-              ></button>
-            </div>
-            <div class="block-fold" id="fold-b">
-              <div class="block-body" id="param2-controls"></div>
-            </div>
-          </section>
-        </div>
-
-        <!-- Export — single button, opens the export overlay -->
-        <div class="exp">
-          <button class="primary" id="btn-export" type="button">Export</button>
-        </div>
-      </aside>
-
-      <!-- RIGHT WORK AREA -->
-      <section class="workarea">
-        <div class="stage">
-          <div class="stage-frame">
-            <span class="tick tl"></span><span class="tick tr"></span>
-            <span class="tick bl"></span><span class="tick br"></span>
-
-            <div class="proof" id="canvas-holder" hidden></div>
-
-            <!-- ASCII selectable-text overlay -->
-            <pre class="ascii-text" id="ascii-text" hidden></pre>
-
-            <!-- Empty state / drop zone -->
-            <div class="empty" id="empty">
-              <div class="empty-inner">
-                <div class="empty-glyph" aria-hidden="true">
-                  <svg viewBox="0 0 32 32" focusable="false">
-                    <circle cx="16" cy="16" r="10"></circle>
-                    <path d="M16 10v12M10 16h12"></path>
-                  </svg>
-                </div>
-                <h2>Drop media here</h2>
-                <p>Load an image, animated GIF or short video.</p>
-                <div class="empty-actions">
-                  <button
-                    class="btn btn--primary"
-                    id="btn-upload"
-                    type="button"
-                  >
-                    Choose media
-                  </button>
-                  <button class="btn" id="btn-demo" type="button">
-                    Use demo plate
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="stage-meta">
-            <span>SIZE <b id="meta-dims">— × —</b></span>
-            <span>EFFECT <b id="meta-fx">no plate</b></span>
-            <span>MEDIA <b id="meta-media">still</b></span>
-          </div>
-          <div class="media-controls" id="media-controls" hidden>
-            <button class="media-controls__play" id="media-play" type="button">Play</button>
-            <input
-              class="media-controls__seek"
-              id="media-seek"
-              type="range"
-              min="0"
-              max="1"
-              step="0.01"
-              value="0"
-              aria-label="Media position"
-            />
-            <span class="media-controls__time" id="media-time">0:00 / 0:00</span>
-            <label class="media-controls__loop">
-              <input id="media-loop" type="checkbox" checked />
-              <span>Loop</span>
-            </label>
-          </div>
-        </div>
-
-        <!-- EFFECT FILMSTRIP -->
-        <div class="strip">
-          <div class="strip-head">
-            <div class="strip-head__lead">
-              <h4>Effect</h4>
-              <div
-                class="abtog"
-                id="film-target"
-                role="tablist"
-                aria-label="Preset target"
-              ></div>
-              <button class="swap-btn" id="btn-swap" type="button" title="Swap effects A and B" disabled>Swap A/B</button>
-            </div>
-          </div>
-          <div
-            class="films"
-            id="films"
-            role="tablist"
-            aria-label="Effect"
-          ></div>
-        </div>
-      </section>
+<body>
+  <!-- MASTHEAD -->
+  <header class="masthead">
+    <div class="mh-brand">
+      <span class="mh-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+      <span class="mh-title">Halftone&nbsp;Tools</span>
     </div>
+    <div class="mh-meta">
+      <span>
+        PRINT-EFFECTS WORKSHOP /
+        <b>
+          <a href="https://www.sefatolaman.design">By Sefa Tolaman</a></b></span>
+    </div>
+  </header>
 
-    <input
-      type="file"
-      id="file-input"
-      accept="image/*,video/mp4,video/webm,video/quicktime,video/ogg"
-      hidden
-    />
+  <div class="body">
+    <!-- LEFT CONTROL RAIL -->
+    <aside class="rail">
+      <div class="rail-scroll">
+        <section class="block">
+          <div class="block-head">
+            <span class="ix">01</span>
+            <h3>Source</h3>
+            <button class="fold" type="button" aria-expanded="true" aria-controls="fold-source"
+              aria-label="Collapse Source"></button>
+          </div>
+          <div class="block-fold" id="fold-source">
+            <div class="block-body">
+              <div class="row row--buttons">
+                <button class="btn btn--block" id="btn-upload-2" type="button">
+                  Load media
+                </button>
+                <button class="btn" id="btn-demo-2" type="button">Demo</button>
+              </div>
+              <p class="note" id="drop-note">
+                Images, GIFs and videos stay in your browser and are not stored.
+              </p>
+            </div>
+          </div>
+        </section>
 
-    <!-- Export overlay panel -->
-    <div
-      class="xpanel"
-      id="xpanel"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="xpanel-title"
-      hidden
-    >
-      <div class="xpanel__backdrop" id="xpanel-backdrop"></div>
-      <div class="xpanel__body">
-        <div class="xpanel__head">
-          <span class="xpanel__title" id="xpanel-title">Export</span>
-          <button class="xpanel__close" id="xpanel-close" type="button" aria-label="Close">
-            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-              <path d="M3 3l10 10M13 3L3 13"></path>
-            </svg>
-          </button>
+        <section class="block block--b">
+          <div class="block-head">
+            <span class="ix">02</span>
+            <h3>Pre-adjust</h3>
+            <button class="fold" type="button" aria-expanded="true" aria-controls="fold-pre"
+              aria-label="Collapse Pre-adjust"></button>
+          </div>
+          <div class="block-fold" id="fold-pre">
+            <div class="block-body" id="preadjust-controls"></div>
+            <div class="block-body block-body--sub">
+              <div id="prestage-select"></div>
+              <div id="prestage-controls"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="block block--a">
+          <div class="block-head">
+            <span class="ix">A</span>
+            <h3 id="param-title">Parameters</h3>
+            <div class="block-tools">
+              <button class="tool" id="btn-randomize" type="button" title="Randomize (R)">
+                Randomize
+              </button>
+              <button class="tool" id="btn-reset" type="button" title="Reset">
+                Reset
+              </button>
+            </div>
+            <button class="fold" type="button" aria-expanded="true" aria-controls="fold-a"
+              aria-label="Collapse effect A parameters"></button>
+          </div>
+          <div class="block-fold" id="fold-a">
+            <div class="block-body" id="param-controls"></div>
+          </div>
+        </section>
+
+        <section class="block block--stack" id="block-effect2">
+          <div class="block-head">
+            <span class="ix">B</span>
+            <h3 id="param2-title">Stack effect</h3>
+            <div class="block-tools" id="effect2-tools"></div>
+            <button class="fold" type="button" aria-expanded="true" aria-controls="fold-b"
+              aria-label="Collapse effect B parameters"></button>
+          </div>
+          <div class="block-fold" id="fold-b">
+            <div class="block-body" id="param2-controls"></div>
+          </div>
+        </section>
+      </div>
+
+      <!-- Export — single button, opens the export overlay -->
+      <div class="exp">
+        <button class="primary" id="btn-export" type="button">Export</button>
+      </div>
+    </aside>
+
+    <!-- RIGHT WORK AREA -->
+    <section class="workarea">
+      <div class="stage">
+        <div class="stage-frame">
+          <span class="tick tl"></span><span class="tick tr"></span>
+          <span class="tick bl"></span><span class="tick br"></span>
+
+          <div class="proof" id="canvas-holder" hidden></div>
+
+          <!-- ASCII selectable-text overlay -->
+          <pre class="ascii-text" id="ascii-text" hidden></pre>
+
+          <!-- Empty state / drop zone -->
+          <div class="empty" id="empty">
+            <div class="empty-inner">
+              <div class="empty-glyph" aria-hidden="true">
+                <svg viewBox="0 0 32 32" focusable="false">
+                  <circle cx="16" cy="16" r="10"></circle>
+                  <path d="M16 10v12M10 16h12"></path>
+                </svg>
+              </div>
+              <h2>Drop media here</h2>
+              <p>Load an image, animated GIF or short video.</p>
+              <div class="empty-actions">
+                <button class="btn btn--primary" id="btn-upload" type="button">
+                  Choose media
+                </button>
+                <button class="btn" id="btn-demo" type="button">
+                  Use demo plate
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
-        <div class="xpanel__tiers">
-          <div class="xtier">
-            <span class="xtier__badge">Free</span>
-            <span class="xtier__label">Like it?</span>
-            <span class="xtier__desc">All exports are free. A coffee helps.</span>
-            <a class="bmc" href="https://www.buymeacoffee.com/sefatolaman" target="_blank" rel="noopener">Buy me a coffee</a>
-          </div>
-          <div class="xtier">
-            <span class="xtier__badge">Lossless</span>
-            <span class="xtier__label">Digital & Print</span>
-            <span class="xtier__desc" id="xprint-desc">Download PNG in full resolution</span>
-            <button class="xtier__btn" id="xbtn-print" type="button">Download PNG</button>
-          </div>
-          <div class="xtier">
-            <span class="xtier__badge">Lossless</span>
-            <span class="xtier__label">Color separation</span>
-            <span class="xtier__desc" id="xsep-desc">One full-res plate per ink</span>
-            <button class="xtier__btn" id="xbtn-sep" type="button">Download ZIP</button>
-          </div>
-          <div class="xtier">
-            <span class="xtier__badge">Unlimited</span>
-            <span class="xtier__label">Vector</span>
-            <span class="xtier__desc" id="xsvg-desc">Color separated vector, scalable to any size</span>
-            <button class="xtier__btn" id="xbtn-svg" type="button">Download SVG</button>
-          </div>
-          <div class="xtier">
-            <span class="xtier__badge">Animated</span>
-            <span class="xtier__label" id="xanimated-label">Motion</span>
-            <span class="xtier__desc" id="xanimated-desc">Load a GIF or video to export motion.</span>
-            <button class="xtier__btn" id="xbtn-animated" type="button" disabled>Download</button>
+
+        <div class="stage-meta">
+          <span>SIZE <b id="meta-dims">— × —</b></span>
+          <span>EFFECT <b id="meta-fx">no plate</b></span>
+          <span>MEDIA <b id="meta-media">still</b></span>
+        </div>
+        <div class="media-controls" id="media-controls" hidden>
+          <button class="media-controls__play" id="media-play" type="button">Play</button>
+          <input class="media-controls__seek" id="media-seek" type="range" min="0" max="1" step="0.01" value="0"
+            aria-label="Media position" />
+          <span class="media-controls__time" id="media-time">0:00 / 0:00</span>
+          <label class="media-controls__loop">
+            <input id="media-loop" type="checkbox" checked />
+            <span>Loop</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- EFFECT FILMSTRIP -->
+      <div class="strip">
+        <div class="strip-head">
+          <div class="strip-head__lead">
+            <h4>Effect</h4>
+            <div class="abtog" id="film-target" role="tablist" aria-label="Preset target"></div>
+            <button class="swap-btn" id="btn-swap" type="button" title="Swap effects A and B" disabled>A ↔ B</button>
           </div>
         </div>
-        <div class="export-progress" id="export-progress" hidden>
-          <div class="export-progress__meta">
-            <span id="export-progress-label">Preparing export…</span>
-            <b id="export-progress-value">0%</b>
-          </div>
-          <progress id="export-progress-bar" max="1" value="0"></progress>
-          <button class="tool" id="export-cancel" type="button">Cancel export</button>
+        <div class="films" id="films" role="tablist" aria-label="Effect"></div>
+      </div>
+    </section>
+  </div>
+
+  <input type="file" id="file-input" accept="image/*,video/mp4,video/webm,video/quicktime,video/ogg" hidden />
+
+  <!-- Export overlay panel -->
+  <div class="xpanel" id="xpanel" role="dialog" aria-modal="true" aria-labelledby="xpanel-title" hidden>
+    <div class="xpanel__backdrop" id="xpanel-backdrop"></div>
+    <div class="xpanel__body">
+      <div class="xpanel__head">
+        <span class="xpanel__title" id="xpanel-title">Export</span>
+        <button class="xpanel__close" id="xpanel-close" type="button" aria-label="Close">
+          <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+            <path d="M3 3l10 10M13 3L3 13"></path>
+          </svg>
+        </button>
+      </div>
+      <div class="xpanel__tiers">
+        <div class="xtier">
+          <span class="xtier__badge">Free</span>
+          <span class="xtier__label">Like it?</span>
+          <span class="xtier__desc">All exports are free, a coffee helps.</span>
+          <a class="bmc" href="https://www.buymeacoffee.com/sefatolaman" target="_blank" rel="noopener">Buy me a ☕️</a>
         </div>
+        <div class="xtier">
+          <span class="xtier__badge">Lossless</span>
+          <span class="xtier__label">Digital & Print</span>
+          <span class="xtier__desc" id="xprint-desc">PNG in full resolution.</span>
+          <button class="xtier__btn" id="xbtn-print" type="button">Download PNG</button>
+        </div>
+        <div class="xtier">
+          <span class="xtier__badge">Lossless</span>
+          <span class="xtier__label">Color separation</span>
+          <span class="xtier__desc" id="xsep-desc">One full-res plate per ink.</span>
+          <button class="xtier__btn" id="xbtn-sep" type="button">Download ZIP</button>
+        </div>
+        <div class="xtier">
+          <span class="xtier__badge">Unlimited</span>
+          <span class="xtier__label">Vector</span>
+          <span class="xtier__desc" id="xsvg-desc">Color separated vector, scalable to any size.</span>
+          <button class="xtier__btn" id="xbtn-svg" type="button">Download SVG</button>
+        </div>
+        <div class="xtier">
+          <span class="xtier__badge">Animated</span>
+          <span class="xtier__label" id="xanimated-label">Motion</span>
+          <span class="xtier__desc" id="xanimated-desc">Load a GIF or video to export motion.</span>
+          <button class="xtier__btn" id="xbtn-animated" type="button" disabled>Download</button>
+        </div>
+      </div>
+      <div class="export-progress" id="export-progress" hidden>
+        <div class="export-progress__meta">
+          <span id="export-progress-label">Preparing export…</span>
+          <b id="export-progress-value">0%</b>
+        </div>
+        <progress id="export-progress-bar" max="1" value="0"></progress>
+        <button class="tool" id="export-cancel" type="button">Cancel export</button>
       </div>
     </div>
+  </div>
 
-    <script type="module" src="src/main.js"></script>
-  </body>
+  <script type="module" src="src/main.js"></script>
+</body>
+
 </html>

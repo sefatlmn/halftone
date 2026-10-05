@@ -22,11 +22,16 @@
      with them for free. The two accents are kept (only nudged for
      contrast on the dark ground).
      ============================================================ */
-  --paper: #eeebe3; /* warm off-white — base ground          */
-  --paper-2: #ddd8ca; /* stage ground (recessed surface)       */
-  --ink: #15120d; /* near-black                            */
-  --accent: #f54129; /* signal red (primary)                  */
-  --accent-2: #f5882a; /* press mustard (secondary)             */
+  --paper: #eeebe3;
+  /* warm off-white — base ground          */
+  --paper-2: #ddd8ca;
+  /* stage ground (recessed surface)       */
+  --ink: #15120d;
+  /* near-black                            */
+  --accent: #f54129;
+  /* signal red (primary)                  */
+  --accent-2: #f5882a;
+  /* press mustard (secondary)             */
 
   /* FIXED POLES — deliberately do NOT flip with the theme. Two kinds of
      surface must stay put when the palette swaps: (a) the artboard — the proof
@@ -35,17 +40,20 @@
      (b) text/knobs sitting on the accent colours, which don't flip, so their
      foreground can't be allowed to invert. In light mode these equal the
      palette values, so nothing changes; the dark block leaves them untouched. */
-  --sheet: #eeebe3; /* artboard paper — pinned light */
-  --sheet-ink: #15120d; /* marks / selectable text on the sheet + modal scrim — pinned dark */
-  --on-accent: #eeebe3; /* text & knobs on the red accent — pinned light */
-  --on-accent-2: #15120d; /* text on the mustard accent — pinned dark */
+  --sheet: #eeebe3;
+  /* artboard paper — pinned light */
+  --sheet-ink: #15120d;
+  /* marks / selectable text on the sheet + modal scrim — pinned dark */
+  --on-accent: #eeebe3;
+  /* text & knobs on the red accent — pinned light */
+  --on-accent-2: #15120d;
+  /* text on the mustard accent — pinned dark */
 
   /* derived — same two hues only, never a new colour */
-  --ink-soft: color-mix(
-    in srgb,
-    var(--ink) 60%,
-    var(--paper)
-  ); /* muted label / meta */
+  --ink-soft: color-mix(in srgb,
+      var(--ink) 60%,
+      var(--paper));
+  /* muted label / meta */
 
   /* BORDER WEIGHTS — only three exist anywhere:
        1px  structure / hairlines (the tokens below)
@@ -64,6 +72,7 @@
 * {
   box-sizing: border-box;
 }
+
 html,
 body {
   margin: 0;
@@ -79,8 +88,10 @@ body {
   text-rendering: optimizeLegibility;
   display: flex;
   flex-direction: column;
-  height: 100vh; /* fallback */
-  height: 100dvh; /* fill the visible viewport on every device (mobile URL-bar safe) */
+  height: 100vh;
+  /* fallback */
+  height: 100dvh;
+  /* fill the visible viewport on every device (mobile URL-bar safe) */
   overflow: hidden;
 }
 
@@ -95,6 +106,7 @@ a {
   text-decoration-thickness: 1px;
   text-underline-offset: 2px;
 }
+
 a:hover {
   color: var(--accent);
 }
@@ -103,7 +115,7 @@ a:hover {
    link and deliberately stand out from the tool chrome. */
 .mh-meta a,
 .mh-meta a:hover {
-  color: #0000ee;
+  color: #7272F3;
   text-decoration-color: currentColor;
 }
 
@@ -121,31 +133,38 @@ kbd {
   border-bottom: var(--hair);
   flex: 0 0 auto;
 }
+
 .mh-brand {
   display: flex;
   align-items: center;
   gap: 18px;
   padding: 16px 26px;
 }
+
 .mh-mark {
   display: flex;
   gap: 5px;
 }
+
 .mh-mark i {
   width: 13px;
   height: 13px;
   border: var(--hair);
   display: block;
 }
+
 .mh-mark i:nth-child(1) {
   background: var(--accent);
 }
+
 .mh-mark i:nth-child(2) {
   background: var(--ink);
 }
+
 .mh-mark i:nth-child(3) {
   background: transparent;
 }
+
 .mh-title {
   font-family: var(--exp);
   font-weight: 800;
@@ -154,6 +173,7 @@ kbd {
   text-transform: uppercase;
   line-height: 1;
 }
+
 .mh-meta {
   flex: 1;
   display: flex;
@@ -166,10 +186,12 @@ kbd {
   text-transform: uppercase;
   color: var(--ink-soft);
 }
+
 .mh-meta b {
   color: var(--ink);
   font-weight: 700;
 }
+
 .mh-tag {
   padding: 0 22px;
   display: flex;
@@ -186,6 +208,7 @@ kbd {
   display: flex;
   border-left: var(--hair);
 }
+
 .modebar__btn {
   display: flex;
   align-items: center;
@@ -197,6 +220,7 @@ kbd {
   padding: 0 18px;
   color: var(--ink-soft);
 }
+
 .modebar__btn.is-active {
   background: var(--ink);
   color: var(--paper);
@@ -218,6 +242,7 @@ kbd {
   overflow: hidden;
   background: var(--paper);
 }
+
 .rail-scroll {
   flex: 1;
   overflow-y: auto;
@@ -233,13 +258,15 @@ kbd {
    row open/closed). On desktop the toggle is hidden and .block-fold is an inert
    wrapper, so the rail behaves exactly as before. */
 .fold {
-  display: none; /* desktop: sections are always open */
+  display: none;
+  /* desktop: sections are always open */
   flex: 0 0 auto;
   align-self: center;
   margin-left: 10px;
   width: 40px;
   height: 40px;
-  margin-block: -10px; /* reclaim the tall touch target inside the header row */
+  margin-block: -10px;
+  /* reclaim the tall touch target inside the header row */
   background: none;
   border: none;
   padding: 0;
@@ -247,6 +274,7 @@ kbd {
   color: var(--ink-soft);
   position: relative;
 }
+
 .fold::after {
   content: "";
   position: absolute;
@@ -256,19 +284,26 @@ kbd {
   margin: auto;
   border-right: 1px solid currentColor;
   border-bottom: 1px solid currentColor;
-  transform: translateY(-2px) rotate(45deg); /* chevron down = expanded */
+  transform: translateY(-2px) rotate(45deg);
+  /* chevron down = expanded */
   transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
 }
+
 .fold:hover {
   color: var(--ink);
 }
+
 .block.is-collapsed .fold::after {
-  transform: translateY(2px) rotate(-135deg); /* chevron up = collapsed */
+  transform: translateY(2px) rotate(-135deg);
+  /* chevron up = collapsed */
 }
+
 @media (prefers-reduced-motion: reduce) {
+
   .block,
   .fold::after {
-    transition: none; /* collapse and chevron snap instantly */
+    transition: none;
+    /* collapse and chevron snap instantly */
   }
 }
 
@@ -280,12 +315,14 @@ kbd {
   padding: 12px 20px 10px;
   border-bottom: var(--hair-soft);
 }
+
 .block-head .ix {
   font-size: 11px;
   color: var(--ink);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
+
 .block-head h3 {
   margin: 0;
   font-family: var(--exp);
@@ -295,23 +332,29 @@ kbd {
   text-transform: uppercase;
   flex: 1;
 }
+
 .block--b .block-head {
   background: var(--paper-2);
   border-bottom-color: transparent;
 }
+
 .block--b .block-head .ix {
   color: var(--ink);
 }
+
 .block--b .block-head h3 {
   color: var(--ink);
 }
+
 .block-tools {
   display: flex;
   gap: 14px;
 }
+
 .block-tools[hidden] {
   display: none;
 }
+
 .tool {
   font-family: var(--font);
   font-size: 10px;
@@ -323,6 +366,7 @@ kbd {
   padding: 0;
   cursor: pointer;
 }
+
 .tool:hover {
   color: var(--accent);
 }
@@ -331,56 +375,73 @@ kbd {
 .block--b .field__val {
   color: var(--ink);
 }
+
 .block--b input[type="range"]::-webkit-slider-thumb {
   background: var(--ink);
   border-color: var(--ink);
 }
+
 .block--b input[type="range"]::-moz-range-thumb {
   background: var(--ink);
   border-color: var(--ink);
 }
+
 .block--b input[type="range"]:focus-visible {
   outline-color: var(--ink);
 }
-.block--b .toggle input:checked + .toggle__track {
+
+.block--b .toggle input:checked+.toggle__track {
   background: var(--ink);
 }
-.block--b .toggle input:focus-visible + .toggle__track {
+
+.block--b .toggle input:focus-visible+.toggle__track {
   outline-color: var(--ink);
 }
 
 /* Stage B — stacked second effect. Slot ix badges read in their slot colour. */
 .block--a .block-head .ix {
   color: var(--accent);
-} /* slot A reads red */
+}
+
+/* slot A reads red */
 .block--stack .block-head .ix {
   color: var(--accent-2);
-} /* slot B reads mustard */
+}
+
+/* slot B reads mustard */
 /* Slot B active: recolour all accent-tinted controls to mustard */
 .block--stack.is-on .field__val {
   color: var(--accent-2);
 }
+
 .block--stack.is-on input[type="range"]::-webkit-slider-thumb {
   background: var(--accent-2);
 }
+
 .block--stack.is-on input[type="range"]::-moz-range-thumb {
   background: var(--accent-2);
 }
+
 .block--stack.is-on input[type="range"]:focus-visible {
   outline-color: var(--accent-2);
 }
-.block--stack.is-on .toggle input:checked + .toggle__track {
+
+.block--stack.is-on .toggle input:checked+.toggle__track {
   background: var(--accent-2);
 }
+
 .note--add {
   margin: 0;
 }
+
 .note--add b {
   color: var(--accent-2);
 }
+
 .block-body {
   padding: 15px 20px;
 }
+
 .block-body--sub {
   border-top: var(--hair-soft);
   padding-top: 12px;
@@ -397,19 +458,23 @@ kbd {
 .row {
   margin-bottom: 14px;
 }
+
 .row:last-child {
   margin-bottom: 0;
 }
+
 .row--buttons {
   display: flex;
   gap: 9px;
   margin-bottom: 14px;
 }
+
 .row--base {
   margin: 0 0 14px;
   padding: 10px;
   border: var(--hair-soft);
 }
+
 .row--base .field__label {
   color: var(--accent);
 }
@@ -421,12 +486,14 @@ kbd {
   margin-bottom: 8px;
   gap: 8px;
 }
+
 .field__label {
   font-size: 10.5px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   font-weight: 600;
 }
+
 .field__val {
   font-size: 11px;
   font-weight: 700;
@@ -444,14 +511,17 @@ input[type="range"] {
   cursor: pointer;
   margin: 0;
 }
+
 input[type="range"]::-webkit-slider-runnable-track {
   height: 1px;
   background: var(--ink);
 }
+
 input[type="range"]::-moz-range-track {
   height: 1px;
   background: var(--ink);
 }
+
 input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
@@ -462,6 +532,7 @@ input[type="range"]::-webkit-slider-thumb {
   border: var(--hair);
   margin-top: -5px;
 }
+
 input[type="range"]::-moz-range-thumb {
   width: 11px;
   height: 11px;
@@ -469,6 +540,7 @@ input[type="range"]::-moz-range-thumb {
   background: var(--accent);
   border: var(--hair);
 }
+
 input[type="range"]:focus-visible {
   outline: 1px solid var(--accent);
   outline-offset: 4px;
@@ -499,6 +571,7 @@ select {
     5px 5px;
   background-repeat: no-repeat;
 }
+
 select:focus-visible {
   outline: 1px solid var(--accent);
   outline-offset: 2px;
@@ -515,6 +588,7 @@ input[type="text"] {
   color: var(--ink);
   letter-spacing: 0.03em;
 }
+
 input[type="text"]:focus-visible {
   outline: 1px solid var(--accent);
   outline-offset: 2px;
@@ -525,6 +599,7 @@ input[type="text"]:focus-visible {
   display: flex;
   border: var(--hair);
 }
+
 .seg button {
   flex: 1;
   font-family: var(--font);
@@ -539,13 +614,16 @@ input[type="text"]:focus-visible {
   cursor: pointer;
   color: var(--ink);
 }
+
 .seg button:last-child {
   border-right: none;
 }
+
 .seg button.is-active {
   background: var(--ink);
   color: var(--paper);
 }
+
 .seg button:not(.is-active):hover {
   background: color-mix(in srgb, var(--ink) 6%, transparent);
 }
@@ -559,6 +637,7 @@ input[type="text"]:focus-visible {
      whole page (which can't be undone under body{overflow:hidden}). */
   position: relative;
 }
+
 .toggle input {
   position: absolute;
   inset: 0;
@@ -566,6 +645,7 @@ input[type="text"]:focus-visible {
   opacity: 0;
   pointer-events: none;
 }
+
 .toggle__track {
   width: 40px;
   height: 20px;
@@ -574,6 +654,7 @@ input[type="text"]:focus-visible {
   position: relative;
   transition: background 0.12s;
 }
+
 .toggle__track::after {
   content: "";
   position: absolute;
@@ -584,14 +665,18 @@ input[type="text"]:focus-visible {
   background: var(--ink);
   transition: transform 0.12s ease;
 }
-.toggle input:checked + .toggle__track {
+
+.toggle input:checked+.toggle__track {
   background: var(--accent);
 }
-.toggle input:checked + .toggle__track::after {
+
+.toggle input:checked+.toggle__track::after {
   transform: translateX(20px);
-  background: var(--on-accent); /* knob rides onto the accent track — stays light */
+  background: var(--on-accent);
+  /* knob rides onto the accent track — stays light */
 }
-.toggle input:focus-visible + .toggle__track {
+
+.toggle input:focus-visible+.toggle__track {
   outline: 1px solid var(--accent);
   outline-offset: 2px;
 }
@@ -602,6 +687,7 @@ input[type="text"]:focus-visible {
   align-items: center;
   gap: 10px;
 }
+
 input[type="color"] {
   -webkit-appearance: none;
   appearance: none;
@@ -612,15 +698,19 @@ input[type="color"] {
   background: none;
   cursor: pointer;
 }
+
 input[type="color"]::-webkit-color-swatch-wrapper {
   padding: 0;
 }
+
 input[type="color"]::-webkit-color-swatch {
   border: none;
 }
+
 input[type="color"]::-moz-color-swatch {
   border: none;
 }
+
 .color-field__hex {
   font-size: 11px;
   font-weight: 700;
@@ -633,9 +723,11 @@ input[type="color"]::-moz-color-swatch {
 #prestage-controls:not(:empty) {
   margin-top: 14px;
 }
+
 .grad-preset {
   margin-bottom: 10px;
 }
+
 .grad-bar {
   position: relative;
   height: 26px;
@@ -643,6 +735,7 @@ input[type="color"]::-moz-color-swatch {
   cursor: crosshair;
   margin-bottom: 16px;
 }
+
 .grad-stop {
   position: absolute;
   top: 100%;
@@ -653,15 +746,18 @@ input[type="color"]::-moz-color-swatch {
   cursor: grab;
   touch-action: none;
 }
+
 .grad-stop.removing {
   opacity: 0.35;
   border-style: dashed;
 }
+
 .grad-swatches {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
 }
+
 .grad-swatches input[type="color"] {
   width: 28px;
   height: 20px;
@@ -675,9 +771,11 @@ input[type="color"]::-moz-color-swatch {
   touch-action: none;
   background: var(--paper);
 }
+
 .seg--curve {
   margin-top: 0;
 }
+
 .seg--curve button {
   font-size: 9px;
   padding: 6px 4px;
@@ -686,20 +784,25 @@ input[type="color"]::-moz-color-swatch {
 /* Finger-friendly control sizing. Triggered by a coarse pointer (phones, iPad &
    other touch tablets — regardless of width, which is why iPad needs this) OR a
    narrow screen, so any likely-touch context gets large, draggable controls. */
-@media (pointer: coarse), (max-width: 720px) {
+@media (pointer: coarse),
+(max-width: 720px) {
+
   /* sliders: ~40px grab area + a larger thumb (the visible track stays a hairline) */
   input[type="range"] {
     height: 40px;
   }
+
   input[type="range"]::-webkit-slider-thumb {
     width: 20px;
     height: 20px;
     margin-top: -10px;
   }
+
   input[type="range"]::-moz-range-thumb {
     width: 20px;
     height: 20px;
   }
+
   /* taller selects + text fields (keep the select's caret padding) */
   select,
   input[type="text"] {
@@ -707,16 +810,20 @@ input[type="color"]::-moz-color-swatch {
     padding-bottom: 12px;
     font-size: 12px;
   }
+
   /* comfortable finger height for buttons */
   .btn {
     padding: 13px 16px;
   }
+
   .tool {
     padding: 8px 12px;
   }
+
   .exp button {
     padding: 16px;
   }
+
   /* enlarge the draggable gradient stops */
   .grad-stop {
     width: 18px;
@@ -740,31 +847,38 @@ input[type="color"]::-moz-color-swatch {
     background 0.1s,
     color 0.1s;
 }
+
 .btn:hover {
   background: var(--ink);
   color: var(--paper);
 }
+
 .btn:focus-visible {
   outline: 1px solid var(--accent);
   outline-offset: 2px;
 }
+
 .btn--primary {
   background: var(--accent);
   color: var(--on-accent);
   border-color: var(--accent);
 }
+
 .btn--primary:hover {
   background: var(--ink);
   border-color: var(--ink);
 }
+
 .btn--block {
   flex: 1;
   width: 100%;
 }
+
 .btn[disabled] {
   opacity: 0.4;
   cursor: not-allowed;
 }
+
 .btn[disabled]:hover {
   background: transparent;
   color: var(--ink);
@@ -775,6 +889,7 @@ input[type="color"]::-moz-color-swatch {
   border-top: var(--hair);
   flex: 0 0 auto;
 }
+
 .exp button {
   display: block;
   width: 100%;
@@ -789,6 +904,7 @@ input[type="color"]::-moz-color-swatch {
   background: var(--accent);
   color: var(--on-accent);
 }
+
 .exp button:hover {
   background: var(--ink);
 }
@@ -796,7 +912,9 @@ input[type="color"]::-moz-color-swatch {
 /* Touch sizing must follow the base button rules in source order. Keeping these
    overrides here prevents the later .btn/.tool declarations from shrinking the
    finger-friendly targets defined for narrow and coarse-pointer layouts. */
-@media (pointer: coarse), (max-width: 720px) {
+@media (pointer: coarse),
+(max-width: 720px) {
+
   .btn,
   .tool,
   .fold,
@@ -808,16 +926,20 @@ input[type="color"]::-moz-color-swatch {
   .bmc {
     min-height: 44px;
   }
+
   .btn {
     padding: 13px 16px;
   }
+
   .tool {
     padding: 8px 12px;
   }
+
   .fold {
     width: 44px;
     height: 44px;
   }
+
   .abtog__btn,
   .xpanel__close {
     min-width: 44px;
@@ -838,10 +960,12 @@ input[type="color"]::-moz-color-swatch {
   cursor: pointer;
   line-height: 1;
 }
+
 .swap-btn:not([disabled]):hover {
   color: var(--ink);
   border-color: var(--ink);
 }
+
 .swap-btn[disabled] {
   opacity: 0.3;
   cursor: not-allowed;
@@ -856,7 +980,10 @@ input[type="color"]::-moz-color-swatch {
   align-items: center;
   justify-content: center;
 }
-.xpanel[hidden] { display: none; }
+
+.xpanel[hidden] {
+  display: none;
+}
 
 .xpanel__backdrop {
   position: absolute;
@@ -899,7 +1026,11 @@ input[type="color"]::-moz-color-swatch {
   line-height: 1;
   padding: 6px;
 }
-.xpanel__close:hover { color: var(--accent); }
+
+.xpanel__close:hover {
+  color: var(--accent);
+}
+
 .xpanel__close svg {
   display: block;
   width: 14px;
@@ -926,16 +1057,26 @@ input[type="color"]::-moz-color-swatch {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
 }
+
 @media (max-width: 620px) {
-  .xpanel__tiers { grid-template-columns: repeat(2, 1fr); }
+  .xpanel__tiers {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
   /* never let the panel exceed the screen on short phones — scroll instead */
-  .xpanel__body { max-height: calc(100dvh - 28px); overflow-y: auto; }
+  .xpanel__body {
+    max-height: calc(100dvh - 28px);
+    overflow-y: auto;
+  }
+
   .xtier {
     border-bottom: var(--hair);
   }
+
   .xtier:nth-child(2n) {
     border-right: none;
   }
+
   .xtier:last-child {
     grid-column: 1 / -1;
     border-right: none;
@@ -950,9 +1091,14 @@ input[type="color"]::-moz-color-swatch {
   flex-direction: column;
   gap: 6px;
 }
-.xtier:last-child { border-right: none; }
 
-.xtier--pro { background: var(--paper-2); }
+.xtier:last-child {
+  border-right: none;
+}
+
+.xtier--pro {
+  background: var(--paper-2);
+}
 
 .xtier__badge {
   font-family: var(--exp);
@@ -962,7 +1108,10 @@ input[type="color"]::-moz-color-swatch {
   text-transform: uppercase;
   color: var(--accent);
 }
-.xtier__badge--pro { color: var(--accent-2); }
+
+.xtier__badge--pro {
+  color: var(--accent-2);
+}
 
 .xtier__label {
   font-family: var(--exp);
@@ -994,7 +1143,11 @@ input[type="color"]::-moz-color-swatch {
   background: var(--accent);
   color: var(--on-accent);
 }
-.xtier__btn:not([disabled]):hover { background: var(--ink); border-color: var(--ink); }
+
+.xtier__btn:not([disabled]):hover {
+  background: var(--ink);
+  border-color: var(--ink);
+}
 
 .xtier__btn--locked,
 .xtier__btn[disabled] {
@@ -1008,9 +1161,11 @@ input[type="color"]::-moz-color-swatch {
   border-top: var(--hair);
   padding: 14px 20px 16px;
 }
+
 .export-progress[hidden] {
   display: none;
 }
+
 .export-progress__meta {
   display: flex;
   justify-content: space-between;
@@ -1021,6 +1176,7 @@ input[type="color"]::-moz-color-swatch {
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
+
 .export-progress progress {
   display: block;
   width: 100%;
@@ -1030,15 +1186,19 @@ input[type="color"]::-moz-color-swatch {
   border-radius: 0;
   background: transparent;
 }
+
 .export-progress progress::-webkit-progress-bar {
   background: transparent;
 }
+
 .export-progress progress::-webkit-progress-value {
   background: var(--accent);
 }
+
 .export-progress progress::-moz-progress-bar {
   background: var(--accent);
 }
+
 .export-progress .tool {
   padding: 4px 0;
 }
@@ -1063,6 +1223,7 @@ input[type="color"]::-moz-color-swatch {
   text-decoration: none;
   text-align: center;
 }
+
 .bmc:hover {
   background: var(--ink);
   color: var(--paper);
@@ -1076,6 +1237,7 @@ input[type="color"]::-moz-color-swatch {
   min-height: 0;
   min-width: 0;
 }
+
 .stage {
   position: relative;
   flex: 1;
@@ -1085,6 +1247,7 @@ input[type="color"]::-moz-color-swatch {
   gap: 16px;
   min-height: 0;
 }
+
 .stage-frame {
   position: relative;
   flex: 1;
@@ -1106,34 +1269,41 @@ input[type="color"]::-moz-color-swatch {
   z-index: 3;
   pointer-events: none;
 }
+
 .tick::before,
 .tick::after {
   content: "";
   position: absolute;
   background: var(--ink);
 }
+
 .tick::before {
   width: 100%;
   height: 1px;
   top: 50%;
 }
+
 .tick::after {
   height: 100%;
   width: 1px;
   left: 50%;
 }
+
 .tick.tl {
   top: 10px;
   left: 10px;
 }
+
 .tick.tr {
   top: 10px;
   right: 10px;
 }
+
 .tick.bl {
   bottom: 10px;
   left: 10px;
 }
+
 .tick.br {
   bottom: 10px;
   right: 10px;
@@ -1147,6 +1317,7 @@ input[type="color"]::-moz-color-swatch {
   border: var(--hair);
   line-height: 0;
 }
+
 .proof canvas {
   display: block;
 }
@@ -1176,10 +1347,12 @@ input[type="color"]::-moz-color-swatch {
   text-transform: uppercase;
   color: var(--ink-soft);
 }
+
 .stage-meta .grp {
   display: flex;
   gap: 26px;
 }
+
 .stage-meta b {
   color: var(--ink);
   font-weight: 700;
@@ -1193,9 +1366,11 @@ input[type="color"]::-moz-color-swatch {
   border: var(--hair);
   padding: 8px 10px;
 }
+
 .media-controls[hidden] {
   display: none;
 }
+
 .media-controls__play {
   min-width: 64px;
   padding: 6px 10px;
@@ -1209,9 +1384,11 @@ input[type="color"]::-moz-color-swatch {
   text-transform: uppercase;
   cursor: pointer;
 }
+
 .media-controls__seek {
   height: 18px;
 }
+
 .media-controls__time {
   min-width: 76px;
   font-family: var(--mono);
@@ -1219,6 +1396,7 @@ input[type="color"]::-moz-color-swatch {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+
 .media-controls__loop {
   display: inline-flex;
   align-items: center;
@@ -1229,9 +1407,11 @@ input[type="color"]::-moz-color-swatch {
   text-transform: uppercase;
   cursor: pointer;
 }
+
 .media-controls__loop input {
   accent-color: var(--accent);
 }
+
 .dot-live {
   display: inline-flex;
   align-items: center;
@@ -1239,6 +1419,7 @@ input[type="color"]::-moz-color-swatch {
   color: var(--ink);
   font-weight: 700;
 }
+
 .dot-live::before {
   content: "";
   width: 8px;
@@ -1255,22 +1436,27 @@ input[type="color"]::-moz-color-swatch {
   justify-content: center;
   z-index: 5;
 }
+
 .empty.is-hover {
   background: var(--accent);
   border-style: solid;
   color: var(--on-accent);
 }
+
 .empty[hidden] {
   display: none;
 }
+
 .empty-inner {
   text-align: center;
   max-width: 340px;
   padding: 20px;
 }
+
 .empty-glyph {
   color: var(--accent);
 }
+
 .empty-glyph svg {
   display: block;
   width: 38px;
@@ -1281,9 +1467,11 @@ input[type="color"]::-moz-color-swatch {
   stroke-width: 2;
   vector-effect: non-scaling-stroke;
 }
+
 .empty.is-hover .empty-glyph {
   color: var(--on-accent);
 }
+
 .empty h2 {
   font-family: var(--exp);
   font-weight: 800;
@@ -1292,19 +1480,23 @@ input[type="color"]::-moz-color-swatch {
   letter-spacing: -0.01em;
   margin: 22px 0 10px;
 }
+
 .empty p {
   color: var(--ink-soft);
   margin: 0 0 28px;
 }
+
 .empty.is-hover h2,
 .empty.is-hover p {
   color: var(--on-accent);
 }
+
 .empty-actions {
   display: flex;
   gap: 10px;
   justify-content: center;
 }
+
 .empty-hint {
   font-size: 10px;
   letter-spacing: 0.22em;
@@ -1317,17 +1509,20 @@ input[type="color"]::-moz-color-swatch {
   border-top: var(--hair);
   flex: 0 0 auto;
 }
+
 .strip-head {
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 11px 34px 9px;
 }
+
 .strip-head__lead {
   display: flex;
   align-items: center;
   gap: 12px;
 }
+
 .strip-head h4 {
   margin: 0;
   font-family: var(--exp);
@@ -1336,7 +1531,8 @@ input[type="color"]::-moz-color-swatch {
   letter-spacing: 0.05em;
   text-transform: uppercase;
 }
-.strip-head > span {
+
+.strip-head>span {
   font-size: 10px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -1349,6 +1545,7 @@ input[type="color"]::-moz-color-swatch {
   display: flex;
   border: var(--hair);
 }
+
 .abtog__btn {
   font-family: var(--exp);
   font-weight: 700;
@@ -1362,29 +1559,36 @@ input[type="color"]::-moz-color-swatch {
   border-right: var(--hair);
   cursor: pointer;
 }
+
 .abtog__btn:last-child {
   border-right: none;
 }
+
 .abtog__btn:not(.is-active):hover {
   background: color-mix(in srgb, var(--ink) 6%, transparent);
 }
+
 .abtog__btn.is-empty {
   opacity: 0.4;
 }
+
 .abtog__btn[data-slot="A"].is-active {
   background: var(--accent);
   color: var(--on-accent);
 }
+
 .abtog__btn[data-slot="B"].is-active {
   background: var(--accent-2);
   color: var(--on-accent-2);
 }
+
 .films {
   display: flex;
   gap: 14px;
   padding: 0 34px 18px;
   overflow-x: auto;
 }
+
 .film {
   flex: 0 0 auto;
   width: 118px;
@@ -1395,6 +1599,7 @@ input[type="color"]::-moz-color-swatch {
   text-align: left;
   font-family: var(--font);
 }
+
 .film .thumb {
   display: block;
   width: 118px;
@@ -1406,24 +1611,29 @@ input[type="color"]::-moz-color-swatch {
   line-height: 0;
   overflow: hidden;
 }
+
 .film .thumb svg {
   display: block;
   width: 100%;
   height: 100%;
 }
+
 .film:hover .thumb {
   outline: 1px solid var(--ink);
   outline-offset: -1px;
 }
+
 .film.on .thumb,
 .film.on:hover .thumb {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
 }
+
 .films.is-b .film.on .thumb,
 .films.is-b .film.on:hover .thumb {
   outline-color: var(--accent-2);
 }
+
 .film .cap {
   display: flex;
   justify-content: space-between;
@@ -1435,13 +1645,16 @@ input[type="color"]::-moz-color-swatch {
   color: var(--ink-soft);
   white-space: nowrap;
 }
+
 .film .cap b {
   color: var(--ink);
   font-weight: 700;
 }
+
 .film.on .cap b {
   color: var(--accent);
 }
+
 .films.is-b .film.on .cap b {
   color: var(--accent-2);
 }
@@ -1452,14 +1665,17 @@ input[type="color"]::-moz-color-swatch {
   width: 8px;
   height: 8px;
 }
+
 .rail-scroll::-webkit-scrollbar-track,
 .films::-webkit-scrollbar-track {
   background: transparent;
 }
+
 .rail-scroll::-webkit-scrollbar-thumb,
 .films::-webkit-scrollbar-thumb {
   background: color-mix(in srgb, var(--ink) 28%, transparent);
 }
+
 .rail-scroll::-webkit-scrollbar-thumb:hover,
 .films::-webkit-scrollbar-thumb:hover {
   background: color-mix(in srgb, var(--ink) 50%, transparent);
@@ -1474,6 +1690,7 @@ input[type="color"]::-moz-color-swatch {
   :root {
     --rail-w: 300px;
   }
+
   .stage {
     padding: 22px 22px 16px;
   }
@@ -1494,13 +1711,16 @@ input[type="color"]::-moz-color-swatch {
     flex: 0 0 auto;
     border-bottom: var(--hair);
   }
+
   .stage {
     flex: 0 0 auto;
-    height: 35vh; /* fallback */
+    height: 35vh;
+    /* fallback */
     height: 35dvh;
     padding: 14px 16px 10px;
     gap: 8px;
   }
+
   .rail {
     order: 2;
     flex: 1 1 auto;
@@ -1512,10 +1732,12 @@ input[type="color"]::-moz-color-swatch {
   .mh-meta {
     display: none;
   }
+
   .mh-brand {
     padding: 12px 16px;
     border-right: none;
   }
+
   .mh-title {
     font-size: 17px;
   }
@@ -1524,25 +1746,31 @@ input[type="color"]::-moz-color-swatch {
   .stage-meta {
     font-size: 9px;
   }
+
   .stage-meta .grp {
     gap: 12px;
   }
+
   .stage-meta span:last-child {
     display: none;
   }
+
   .media-controls {
     grid-template-columns: auto minmax(80px, 1fr) auto;
     gap: 8px;
     padding: 5px 7px;
   }
+
   .media-controls__loop {
     display: none;
   }
+
   .media-controls__play {
     min-width: 52px;
     padding: 5px 7px;
     font-size: 9px;
   }
+
   .media-controls__time {
     min-width: 64px;
     font-size: 9px;
@@ -1554,18 +1782,22 @@ input[type="color"]::-moz-color-swatch {
   .strip-head {
     padding: 8px 16px 12px;
   }
+
   .films {
     gap: 10px;
     padding: 0 16px 9px;
   }
+
   .film,
   .film .thumb {
     width: 68px;
   }
+
   /* keep the desktop thumb aspect ratio (68×51 ≈ 118×88) at the shortened height */
   .film .thumb {
     height: 51px;
   }
+
   /* at the narrower film the index won't fit beside the longest name, so drop it
      on phones and centre the name (which still reads fine on one line) */
   .film .cap {
@@ -1574,6 +1806,7 @@ input[type="color"]::-moz-color-swatch {
     margin-top: 5px;
     justify-content: center;
   }
+
   .film .cap b {
     display: none;
   }
@@ -1587,24 +1820,31 @@ input[type="color"]::-moz-color-swatch {
     grid-template-rows: auto 1fr;
     transition: grid-template-rows 0.26s cubic-bezier(0.22, 1, 0.36, 1);
   }
+
   .block.is-collapsed {
     grid-template-rows: auto 0fr;
   }
+
   .block-fold {
-    min-height: 0; /* let the body row shrink below content height */
+    min-height: 0;
+    /* let the body row shrink below content height */
     overflow: hidden;
   }
+
   .fold {
-    display: block; /* reveal the toggle only where sections can collapse */
+    display: block;
+    /* reveal the toggle only where sections can collapse */
   }
 
   /* tighter rail body + export bar for thumb reach */
   .block-head {
     padding: 11px 16px 9px;
   }
+
   .block-body {
     padding: 13px 16px;
   }
+
   /* NB: touch-target sizing (sliders, selects, buttons, export) lives in the
      @media (pointer: coarse) block — it's an input-type concern, not a width one,
      so tablets like iPad (which are wider than this breakpoint) get it too. */
@@ -1614,6 +1854,7 @@ input[type="color"]::-moz-color-swatch {
     font-size: 9px;
     padding: 3px 9px;
   }
+
   .swap-btn {
     font-size: 9px;
     padding: 3px 9px;
@@ -1639,15 +1880,20 @@ input[type="color"]::-moz-color-swatch {
    ============================================================ */
 @media (prefers-color-scheme: dark) {
   :root {
-    --paper: #1b1712;    /* base chrome surface — warm near-black, lifted just
+    --paper: #1b1712;
+    /* base chrome surface — warm near-black, lifted just
                             above --ink so light hairlines still separate       */
-    --paper-2: #100d0a;  /* recessed desk / block headers — darker, so the light
+    --paper-2: #100d0a;
+    /* recessed desk / block headers — darker, so the light
                             proof sheet sits forward on the desk                */
-    --ink: #eae7df;      /* text & hairlines — warm off-white, a shade dimmer
+    --ink: #eae7df;
+    /* text & hairlines — warm off-white, a shade dimmer
                             than the sheet to cut glare                         */
-    --accent: #fb5c47;   /* signal red, lifted + softened so it doesn't vibrate
+    --accent: #fb5c47;
+    /* signal red, lifted + softened so it doesn't vibrate
                             against near-black                                  */
-    --accent-2: #f7963a; /* press mustard, nudged lighter for legibility        */
+    --accent-2: #f7963a;
+    /* press mustard, nudged lighter for legibility        */
 
     /* Hairlines go grey, not white. A full-ink (near-white) border on every box
        is harsh on a dark ground; a ~30% ink line keeps the Swiss structure
@@ -1665,6 +1911,7 @@ input[type="color"]::-moz-color-swatch {
     color: var(--paper);
     border-color: var(--ink);
   }
+
   .btn:not(.btn--primary):hover {
     background: color-mix(in srgb, var(--ink) 86%, var(--paper));
     border-color: transparent;
@@ -1689,7 +1936,7 @@ input[type="color"]::-moz-color-swatch {
      so ON became a near-invisible light knob on a light track. Only this
      knob needs fixing — the A/B slot toggles keep their accent tracks and
      pinned-light knobs untouched, exactly as before. */
-  .block--b .toggle input:checked + .toggle__track::after {
+  .block--b .toggle input:checked+.toggle__track::after {
     background: var(--paper);
   }
 }

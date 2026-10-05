@@ -395,7 +395,7 @@ function disposeAnimatedSource() {
   App.mediaPlaying = false;
   App._resumeOnVisible = false;
   if (App.mediaSource) {
-    try { App.mediaSource.dispose(); } catch {}
+    try { App.mediaSource.dispose(); } catch { }
   }
   App.mediaSource = null;
   if (App._srcOwned) App._srcOwned.remove();
@@ -780,117 +780,117 @@ function effectMotif(id, idx) {
     case "none":
       return wrap(
         `<rect x="24" y="20" width="70" height="48" fill="none" stroke="${K}" stroke-width="2"/>` +
-          `<line x1="24" y1="68" x2="94" y2="20" stroke="${K}" stroke-width="2"/>`,
+        `<line x1="24" y1="68" x2="94" y2="20" stroke="${K}" stroke-width="2"/>`,
       );
     case "halftone":
       return wrap(
         `<defs><pattern id="${u("hp")}" width="10" height="10" patternUnits="userSpaceOnUse">` +
-          `<circle cx="5" cy="5" r="3.6" fill="${A}"/></pattern></defs>` +
-          `<rect width="118" height="88" fill="url(#${u("hp")})" opacity=".92"/>`,
+        `<circle cx="5" cy="5" r="3.6" fill="${A}"/></pattern></defs>` +
+        `<rect width="118" height="88" fill="url(#${u("hp")})" opacity=".92"/>`,
       );
     case "dither":
       return wrap(
         `<g fill="${K}">` +
-          [
-            [6, 8],
-            [16, 8],
-            [11, 16],
-            [26, 12],
-            [36, 20],
-            [46, 10],
-            [56, 26],
-            [20, 34],
-            [70, 14],
-            [84, 30],
-            [96, 18],
-            [40, 48],
-            [64, 54],
-            [100, 60],
-            [30, 64],
-            [80, 70],
-            [52, 74],
-          ]
-            .map(([x, y]) => `<rect x="${x}" y="${y}" width="4" height="4"/>`)
-            .join("") +
-          `</g>`,
+        [
+          [6, 8],
+          [16, 8],
+          [11, 16],
+          [26, 12],
+          [36, 20],
+          [46, 10],
+          [56, 26],
+          [20, 34],
+          [70, 14],
+          [84, 30],
+          [96, 18],
+          [40, 48],
+          [64, 54],
+          [100, 60],
+          [30, 64],
+          [80, 70],
+          [52, 74],
+        ]
+          .map(([x, y]) => `<rect x="${x}" y="${y}" width="4" height="4"/>`)
+          .join("") +
+        `</g>`,
       );
     case "ascii":
       return wrap(
         `<g font-family="monospace" font-size="13" fill="${K}">` +
-          `<text x="8" y="22">@%#*+=-:.</text><text x="8" y="40">#*+=-:. @%</text>` +
-          `<text x="8" y="58">+=-:.@%#*</text><text x="8" y="76">%#*+= :.@</text></g>`,
+        `<text x="8" y="22">@%#*+=-:.</text><text x="8" y="40">#*+=-:. @%</text>` +
+        `<text x="8" y="58">+=-:.@%#*</text><text x="8" y="76">%#*+= :.@</text></g>`,
       );
     case "riso":
       return wrap(
         `<circle cx="45" cy="44" r="30" fill="${A}" opacity=".85"/>` +
-          `<circle cx="64" cy="50" r="30" fill="${K}" opacity=".5"/>`,
+        `<circle cx="64" cy="50" r="30" fill="${K}" opacity=".5"/>`,
       );
     case "xerox":
       return wrap(
         `<g fill="${K}" opacity=".82"><rect x="14" y="16" width="90" height="6"/>` +
-          `<rect x="14" y="30" width="70" height="6"/><rect x="20" y="44" width="84" height="6"/>` +
-          `<rect x="14" y="58" width="60" height="6"/></g>`,
+        `<rect x="14" y="30" width="70" height="6"/><rect x="20" y="44" width="84" height="6"/>` +
+        `<rect x="14" y="58" width="60" height="6"/></g>`,
       );
     case "stamp":
       return wrap(
         `<rect x="26" y="20" width="66" height="48" fill="none" stroke="${K}" stroke-width="5"/>` +
-          `<circle cx="40" cy="34" r="3" fill="${K}"/><circle cx="80" cy="56" r="2.5" fill="${K}"/>` +
-          `<circle cx="60" cy="44" r="5" fill="${A}"/>`,
+        `<circle cx="40" cy="34" r="3" fill="${K}"/><circle cx="80" cy="56" r="2.5" fill="${K}"/>` +
+        `<circle cx="60" cy="44" r="5" fill="${A}"/>`,
       );
     case "glitch":
       return wrap(
         `<rect x="0" y="18" width="118" height="12" fill="${A}" opacity=".8"/>` +
-          `<rect x="20" y="40" width="118" height="10" fill="${K}" opacity=".7"/>` +
-          `<rect x="-14" y="60" width="118" height="9" fill="${K}" opacity=".5"/>`,
+        `<rect x="20" y="40" width="118" height="10" fill="${K}" opacity=".7"/>` +
+        `<rect x="-14" y="60" width="118" height="9" fill="${K}" opacity=".5"/>`,
       );
     case "rgb-shift":
       return wrap(
         `<circle cx="52" cy="44" r="24" fill="none" stroke="${A}" stroke-width="3"/>` +
-          `<circle cx="64" cy="44" r="24" fill="none" stroke="${K}" stroke-width="3"/>` +
-          `<circle cx="58" cy="48" r="24" fill="none" stroke="${S}" stroke-width="1.5"/>`,
+        `<circle cx="64" cy="44" r="24" fill="none" stroke="${K}" stroke-width="3"/>` +
+        `<circle cx="58" cy="48" r="24" fill="none" stroke="${S}" stroke-width="1.5"/>`,
       );
     case "pixel-sort":
       return wrap(
         `<g>` +
-          [
-            [14, A, 30, 0.9],
-            [26, K, 55, 0.7],
-            [38, K, 20, 0.5],
-            [50, A, 44, 0.8],
-            [62, K, 60, 0.6],
-            [74, K, 34, 0.7],
-            [86, A, 50, 0.5],
-            [98, K, 24, 0.6],
-          ]
-            .map(
-              ([x, c, h, o]) =>
-                `<rect x="${x}" y="${82 - h}" width="6" height="${h}" fill="${c}" opacity="${o}"/>`,
-            )
-            .join("") +
-          `</g>`,
+        [
+          [14, A, 30, 0.9],
+          [26, K, 55, 0.7],
+          [38, K, 20, 0.5],
+          [50, A, 44, 0.8],
+          [62, K, 60, 0.6],
+          [74, K, 34, 0.7],
+          [86, A, 50, 0.5],
+          [98, K, 24, 0.6],
+        ]
+          .map(
+            ([x, c, h, o]) =>
+              `<rect x="${x}" y="${82 - h}" width="6" height="${h}" fill="${c}" opacity="${o}"/>`,
+          )
+          .join("") +
+        `</g>`,
       );
     case "gradient-map":
       return wrap(
         `<defs><linearGradient id="${u("gm")}" x1="0" y1="0" x2="1" y2="0">` +
-          `<stop offset="0" stop-color="${K}"/><stop offset=".5" stop-color="${A}"/>` +
-          `<stop offset="1" stop-color="${P}"/></linearGradient></defs>` +
-          `<rect x="10" y="22" width="98" height="44" fill="url(#${u("gm")})"/>`,
+        `<stop offset="0" stop-color="${K}"/><stop offset=".5" stop-color="${A}"/>` +
+        `<stop offset="1" stop-color="${P}"/></linearGradient></defs>` +
+        `<rect x="10" y="22" width="98" height="44" fill="url(#${u("gm")})"/>`,
       );
     case "tone":
       return wrap(
         `<polyline points="14,74 104,14" fill="none" stroke="${S}" stroke-width="1" opacity=".5"/>` +
-          `<path d="M14,74 C44,72 46,28 104,14" fill="none" stroke="${A}" stroke-width="3"/>`,
+        `<path d="M14,74 C44,72 46,28 104,14" fill="none" stroke="${A}" stroke-width="3"/>`,
       );
     case "hue-sat":
       return wrap(
         `<g>` +
-          [A, K, S, A, K, S]
-            .map(
-              (c, i) =>
-                `<rect x="${14 + i * 15}" y="22" width="13" height="44" fill="${c}" opacity="${[0.9, 0.8, 0.6, 0.7, 0.85, 0.5][i]}"/>`,
-            )
-            .join("") +
-          `</g>`,
+        [A, K, S, A, K, S]
+          .map(
+            (c, i) =>
+              `<rect x="${14 + i * 15}" y="22" width="13" height="44" fill="${c}" opacity="${[0.9, 0.8, 0.6, 0.7, 0.85, 0.5][i]}"/>`,
+          )
+          .join("") +
+        `</g>`,
       );
     default:
       return wrap(
@@ -1427,7 +1427,7 @@ function openExportPanel() {
   const plates = activeSeparations();
   $("#xbtn-sep").disabled = !plates;
   $("#xsep-desc").textContent = plates
-    ? `Download ${plates.length} ${eff.name} PNG plates in full resolution`
+    ? `Download ${plates.length} ${eff.name} PNG plates in full resolution.`
     : stacked
       ? "Not available when effects are stacked."
       : "Not available for this effect.";
@@ -1452,8 +1452,8 @@ function openExportPanel() {
     ? "Load a GIF or video to export motion."
     : animatedSupported
       ? App.mediaKind === "video"
-        ? "Silent processed WebM, recorded at 12 fps."
-        : "Processed GIF, capped at 720px for reliable encoding."
+        ? "Silent WebM at 12 fps."
+        : "Processed GIF, max 720px."
       : "Animated export is not supported in this browser.";
 
   $("#xpanel").removeAttribute("hidden");
