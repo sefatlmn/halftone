@@ -953,8 +953,7 @@ function buildEffect2Panel() {
   if (!on) {
     const hint = document.createElement("p");
     hint.className = "note note--add";
-    hint.innerHTML =
-      "No second effect. Target <b>B</b> in the strip below and pick one to run it on the output of the effect above.";
+    hint.textContent = "No second effect.";
     body.appendChild(hint);
     return;
   }

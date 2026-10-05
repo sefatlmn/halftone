@@ -142,27 +142,10 @@ kbd {
 }
 
 .mh-mark {
-  display: flex;
-  gap: 5px;
-}
-
-.mh-mark i {
-  width: 13px;
-  height: 13px;
-  border: var(--hair);
+  width: 22px;
+  height: 22px;
   display: block;
-}
-
-.mh-mark i:nth-child(1) {
-  background: var(--accent);
-}
-
-.mh-mark i:nth-child(2) {
-  background: var(--ink);
-}
-
-.mh-mark i:nth-child(3) {
-  background: transparent;
+  flex: 0 0 auto;
 }
 
 .mh-title {
