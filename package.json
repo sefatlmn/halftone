@@ -4,6 +4,7 @@
   "description": "A free, browser-based **print-effects workshop** built with [p5.js](https://p5js.org/).",
   "private": true,
   "scripts": {
+    "start": "npx --yes serve -l 8000 .",
     "test": "node --test tests/*.test.mjs",
     "test:browser": "node tests/run-browser-smoke.mjs"
   },
