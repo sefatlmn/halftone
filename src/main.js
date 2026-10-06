@@ -1512,14 +1512,14 @@ let noteTimer = null;
 function note(msg) {
   const el = $("#drop-note");
   el.textContent = msg;
-  el.style.color = "var(--ink)";
-  el.style.fontWeight = "700";
+  el.style.color = "";
+  el.style.fontWeight = "";
   clearTimeout(noteTimer);
   noteTimer = setTimeout(() => {
-    el.textContent = "Tip: drag & drop an image, GIF or short video anywhere.";
+    el.textContent = "Your files stay in your browser and are not stored.";
     el.style.color = "";
     el.style.fontWeight = "";
-  }, 2600);
+  }, 6000);
 }
 
 /* ----------------------------------------------------------------

@@ -142,8 +142,8 @@ kbd {
 }
 
 .mh-mark {
-  width: 22px;
-  height: 22px;
+  height: calc(21px * 1.02);
+  width: auto;
   display: block;
   flex: 0 0 auto;
 }
@@ -1723,6 +1723,10 @@ input[type="color"]::-moz-color-swatch {
 
   .mh-title {
     font-size: 17px;
+  }
+
+  .mh-mark {
+    height: calc(17px * 1.02);
   }
 
   /* compact stage meta so it never wraps and steals canvas height */
