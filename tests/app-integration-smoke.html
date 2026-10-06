@@ -107,8 +107,7 @@
         await until(() => win.__hp.mediaKind === "gif" && win.__hp.mediaPlaying, "GIF did not load and play.");
         assert(!doc.querySelector("#media-controls").hidden, "Playback controls stayed hidden.");
         const firstVersion = win.__hp.mediaVersion;
-        await wait(180);
-        assert(win.__hp.mediaVersion > firstVersion, "Processed GIF frames did not advance.");
+        await until(() => win.__hp.mediaVersion > firstVersion, "Processed GIF frames did not advance.");
         doc.querySelector("#media-play").click();
         assert(!win.__hp.mediaPlaying, "Pause control did not pause.");
         doc.querySelector("#btn-export").click();
