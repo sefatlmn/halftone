@@ -328,6 +328,7 @@ kbd {
   font-size: 13px;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+  white-space: nowrap;
   flex: 1;
 }
 

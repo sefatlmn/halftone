@@ -5,7 +5,7 @@ import { lumaAt } from '../input.js';
 import { hex2rgb, mix, clamp, n, svgDoc } from './_shared.js';
 import { getScratch } from '../util/scratch.js';
 
-const GRID_CAP = 1000; // max dither grid edge — bounds error diffusion AND the pooled buffer
+const GRID_CAP = 1600; // max dither grid edge — bounds error diffusion AND the pooled buffer
 
 const BAYER = {
   2: [[0, 2], [3, 1]],
@@ -68,7 +68,7 @@ function computeDither(src, params, w, h, p) {
   const pal = paletteFor(palette, hex2rgb(params.ink), hex2rgb(params.paper));
   const L = pal.length;
 
-  const ps = Math.max(1, pixelScale);
+  const ps = Math.max(0.5, pixelScale);
   let cols = Math.max(1, Math.round(w / ps));
   let rows = Math.max(1, Math.round(h / ps));
   if (cols > GRID_CAP) { rows = Math.max(1, Math.round(rows * GRID_CAP / cols)); cols = GRID_CAP; }
@@ -122,7 +122,7 @@ export default {
     // Steinberg path — hide whichever the current algorithm ignores.
     { key: 'matrixSize', label: 'Bayer matrix', type: 'select', options: ['2', '4', '8'], value: '4', showIf: s => s.mode === 'ordered' },
     { key: 'palette',    label: 'Palette',     type: 'select', options: ['bw', 'duotone', '3-tone', '4-tone', 'cmy'], value: 'cmy', rebuildOnChange: true },
-    { key: 'pixelScale', label: 'Pixel size',  type: 'range', min: 1, max: 14, step: 1, value: 3 },
+    { key: 'pixelScale', label: 'Pixel size',  type: 'range', min: 0.5, max: 14, step: 0.5, value: 3 },
     { key: 'serpentine', label: 'Serpentine',  type: 'toggle', value: true, showIf: s => s.mode === 'floyd-steinberg' },
     { key: 'modulation', label: 'Modulation',  type: 'range', min: 0, max: 1, step: 0.01, value: 0 },
     // bw and cmy use hardcoded palettes, so ink/paper do nothing there.

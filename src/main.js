@@ -130,7 +130,7 @@ new p5((p) => {
     App.canvasH = h;
     const c = p.createCanvas(w, h);
     c.parent("canvas-holder");
-    p.pixelDensity(1);
+    p.pixelDensity(Math.min(2, window.devicePixelRatio || 1));
     p.noLoop();
     p.background(255);
   };
@@ -998,7 +998,7 @@ function buildEffect2Panel() {
   }
 
   tools.appendChild(
-    makeTool("Randomize", "Randomize second effect", doRandomize2),
+    makeTool("Random", "Randomize second effect", doRandomize2),
   );
   tools.appendChild(makeTool("Reset", "Reset second effect", doReset2));
   appendParams(body, effect2().params, effect2State(), onParam2Change);

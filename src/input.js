@@ -26,10 +26,10 @@ export function buildWorking(p, srcImage, outW, outH, fit, pre, reuse = null) {
   const aspect = outW / outH;
   let w, h;
   if (outW >= outH) {
-    w = Math.min(outW, SAMPLING_CAP);
+    w = Math.min(outW * 2, SAMPLING_CAP);
     h = Math.round(w / aspect);
   } else {
-    h = Math.min(outH, SAMPLING_CAP);
+    h = Math.min(outH * 2, SAMPLING_CAP);
     w = Math.round(h * aspect);
   }
   w = Math.max(2, w);

@@ -1,8 +1,9 @@
 // halftone.js — classic halftone screen. Mono single-screen or 4-colour CMYK.
-import { avgLuma, avgRGB } from '../input.js';
+import { avgLuma, avgRGB, lumaAt, rgbAt } from '../input.js';
 import { clamp, n, svgDoc } from './_shared.js';
 
 const D2R = Math.PI / 180;
+const TAU = Math.PI * 2;
 
 // Vertices of an n-pointed star centred at the origin: outer/inner radii
 // alternate, first point straight up before `rotRad` is applied. Returns
@@ -55,8 +56,10 @@ function rgb2cmyk(r, g, b) {
 function renderMono(g, src, params, ctx) {
   const { p, w, h } = ctx;
   const { cell, shape, angle, ink, invert } = params;
-  const cellSize = Math.max(2, cell);
+  const cellSize = Math.max(1, cell);
   const half = cellSize / 2;
+  const minR = Math.min(0.35, cellSize * 0.12);
+  const fastSample = cellSize <= 2.5;
   const angRad = angle * D2R;
   const cosA = Math.cos(angRad), sinA = Math.sin(angRad);
   const dx = half * cosA, dy = half * sinA;
@@ -67,14 +70,34 @@ function renderMono(g, src, params, ctx) {
   if (shape === 'line') { g.noFill(); g.stroke(ink); g.strokeCap(p.SQUARE); }
   else { g.noStroke(); g.fill(ink); }
 
+  if (shape === 'circle') {
+    const dc = g.drawingContext;
+    dc.fillStyle = ink;
+    dc.beginPath();
+    let batch = 0;
+    forEachCell(w, h, cellSize, angle, (wx, wy, nx, ny, hwN, hhN) => {
+      let l = fastSample ? lumaAt(src, nx, ny) : avgLuma(src, nx, ny, hwN, hhN);
+      if (invert) l = 1 - l;
+      const r = half * Math.sqrt(clamp(1 - l, 0, 1));
+      if (r < minR) return;
+      dc.moveTo(wx + r, wy);
+      dc.arc(wx, wy, r, 0, TAU);
+      if (++batch >= 4096) {
+        dc.fill();
+        dc.beginPath();
+        batch = 0;
+      }
+    });
+    if (batch > 0) dc.fill();
+    return;
+  }
+
   forEachCell(w, h, cellSize, angle, (wx, wy, nx, ny, hwN, hhN) => {
-    let l = avgLuma(src, nx, ny, hwN, hhN);
+    let l = fastSample ? lumaAt(src, nx, ny) : avgLuma(src, nx, ny, hwN, hhN);
     if (invert) l = 1 - l;
     const r = half * Math.sqrt(clamp(1 - l, 0, 1)); // sqrt → even visual weight
-    if (r < 0.35) return;
-    if (shape === 'circle') {
-      g.circle(wx, wy, 2 * r);
-    } else if (shape === 'square') {
+    if (r < minR) return;
+    if (shape === 'square') {
       g.quad(
         wx - r * cMinusS, wy - r * sPlusC,
         wx + r * cPlusS,  wy + r * sMinusC,
@@ -88,7 +111,7 @@ function renderMono(g, src, params, ctx) {
       }
       g.endShape(p.CLOSE);
     } else { // line — variable thickness
-      g.strokeWeight(Math.max(0.4, 2 * r));
+      g.strokeWeight(Math.max(0.2, 2 * r));
       g.line(wx - dx, wy - dy, wx + dx, wy + dy);
     }
   });
@@ -107,8 +130,10 @@ const CMYK_CHANNELS = [
 // caller picks the blend mode — MULTIPLY to overprint, BLEND for a lone plate.
 function drawCmykChannel(g, src, params, ctx, ch) {
   const { p, w, h } = ctx;
-  const cellSize = Math.max(2, params.cell);
+  const cellSize = Math.max(1, params.cell);
   const half = cellSize / 2;
+  const minR = Math.min(0.35, cellSize * 0.12);
+  const fastSample = cellSize <= 2.5;
   const shape = params.shape;
   const angRad = ch.ang * D2R;
   const cosA = Math.cos(angRad), sinA = Math.sin(angRad);
@@ -121,12 +146,36 @@ function drawCmykChannel(g, src, params, ctx, ch) {
   // Each channel screens at its fixed print angle (ch.ang) — moiré-free.
   if (shape === 'line') { g.noFill(); g.stroke(ch.col[0], ch.col[1], ch.col[2]); g.strokeCap(p.SQUARE); }
   else { g.noStroke(); g.fill(ch.col[0], ch.col[1], ch.col[2]); }
+
+  if (shape === 'circle' || (shape !== 'square' && shape !== 'star' && shape !== 'line')) {
+    const dc = g.drawingContext;
+    dc.fillStyle = `rgb(${ch.col[0]},${ch.col[1]},${ch.col[2]})`;
+    dc.beginPath();
+    let batch = 0;
+    forEachCell(w, h, cellSize, ch.ang, (wx, wy, nx, ny, hwN, hhN) => {
+      let [r, gg, b] = fastSample ? rgbAt(src, nx, ny) : avgRGB(src, nx, ny, hwN, hhN);
+      if (params.invert) { r = 255 - r; gg = 255 - gg; b = 255 - b; }
+      const amt = ch.pick(rgb2cmyk(r, gg, b));
+      const rad = half * Math.sqrt(clamp(amt, 0, 1));
+      if (rad < minR) return;
+      dc.moveTo(wx + rad, wy);
+      dc.arc(wx, wy, rad, 0, TAU);
+      if (++batch >= 4096) {
+        dc.fill();
+        dc.beginPath();
+        batch = 0;
+      }
+    });
+    if (batch > 0) dc.fill();
+    return;
+  }
+
   forEachCell(w, h, cellSize, ch.ang, (wx, wy, nx, ny, hwN, hhN) => {
-    let [r, gg, b] = avgRGB(src, nx, ny, hwN, hhN);
+    let [r, gg, b] = fastSample ? rgbAt(src, nx, ny) : avgRGB(src, nx, ny, hwN, hhN);
     if (params.invert) { r = 255 - r; gg = 255 - gg; b = 255 - b; }
     const amt = ch.pick(rgb2cmyk(r, gg, b));
     const rad = half * Math.sqrt(clamp(amt, 0, 1));
-    if (rad < 0.35) return;
+    if (rad < minR) return;
     if (shape === 'square') {
       g.quad(
         wx - rad * cMinusS, wy - rad * sPlusC,
@@ -141,10 +190,8 @@ function drawCmykChannel(g, src, params, ctx, ch) {
       }
       g.endShape(p.CLOSE);
     } else if (shape === 'line') {
-      g.strokeWeight(Math.max(0.4, 2 * rad));
+      g.strokeWeight(Math.max(0.2, 2 * rad));
       g.line(wx - dx, wy - dy, wx + dx, wy + dy);
-    } else {
-      g.circle(wx, wy, 2 * rad);
     }
   });
 }
@@ -162,7 +209,7 @@ export default {
   name: 'Halftone',
   no: '01',
   params: [
-    { key: 'cell',   label: 'Cell size',    type: 'range', min: 3, max: 40, step: 1, value: 8 },
+    { key: 'cell',   label: 'Cell size',    type: 'range', min: 1, max: 40, step: 0.5, value: 8 },
     { key: 'shape',  label: 'Dot shape',    type: 'select', options: ['circle', 'square', 'line', 'star'], value: 'circle' },
     // CMYK screens at fixed per-channel print angles (moiré-free), so the screen
     // angle only applies to the mono screen; ink is likewise mono-only (CMYK
@@ -202,8 +249,10 @@ export default {
   renderSVG(src, params, view) {
     const { w, h } = view;
     const { cell, shape, angle, ink, paper, invert } = params;
-    const cellSize = Math.max(2, cell);
+    const cellSize = Math.max(1, cell);
     const half = cellSize / 2;
+    const minR = Math.min(0.35, cellSize * 0.12);
+    const fastSample = cellSize <= 2.5;
     const parts = [`<rect width="${w}" height="${h}" fill="${paper}"/>`];
 
     if (params.cmyk) {
@@ -211,17 +260,17 @@ export default {
         const col = `rgb(${ch.col[0]},${ch.col[1]},${ch.col[2]})`;
         const dots = [];
         forEachCell(w, h, cellSize, ch.ang, (wx, wy, nx, ny, hwN, hhN) => {
-          let [r, gg, b] = avgRGB(src, nx, ny, hwN, hhN);
+          let [r, gg, b] = fastSample ? rgbAt(src, nx, ny) : avgRGB(src, nx, ny, hwN, hhN);
           if (invert) { r = 255 - r; gg = 255 - gg; b = 255 - b; }
           const rad = half * Math.sqrt(clamp(ch.pick(rgb2cmyk(r, gg, b)), 0, 1));
-          if (rad < 0.35) return;
+          if (rad < minR) return;
           if (shape === 'square') {
             dots.push(`<rect x="${n(-rad)}" y="${n(-rad)}" width="${n(2 * rad)}" height="${n(2 * rad)}" transform="translate(${n(wx)} ${n(wy)}) rotate(${ch.ang})"/>`);
           } else if (shape === 'star') {
             const pts = starVertices(rad, ch.ang * D2R).map(([vx, vy]) => `${n(vx)},${n(vy)}`).join(' ');
             dots.push(`<polygon points="${pts}" transform="translate(${n(wx)} ${n(wy)})"/>`);
           } else if (shape === 'line') {
-            dots.push(`<line x1="${n(-half)}" y1="0" x2="${n(half)}" y2="0" stroke-width="${n(Math.max(0.4, 2 * rad))}" transform="translate(${n(wx)} ${n(wy)}) rotate(${ch.ang})"/>`);
+            dots.push(`<line x1="${n(-half)}" y1="0" x2="${n(half)}" y2="0" stroke-width="${n(Math.max(0.2, 2 * rad))}" transform="translate(${n(wx)} ${n(wy)}) rotate(${ch.ang})"/>`);
           } else {
             dots.push(`<circle cx="${n(wx)}" cy="${n(wy)}" r="${n(rad)}"/>`);
           }
@@ -236,10 +285,10 @@ export default {
     }
 
     forEachCell(w, h, cellSize, angle, (wx, wy, nx, ny, hwN, hhN) => {
-      let l = avgLuma(src, nx, ny, hwN, hhN);
+      let l = fastSample ? lumaAt(src, nx, ny) : avgLuma(src, nx, ny, hwN, hhN);
       if (invert) l = 1 - l;
       const r = half * Math.sqrt(clamp(1 - l, 0, 1));
-      if (r < 0.35) return;
+      if (r < minR) return;
       if (shape === 'circle') {
         parts.push(`<circle cx="${n(wx)}" cy="${n(wy)}" r="${n(r)}" fill="${ink}"/>`);
       } else if (shape === 'square') {
@@ -248,7 +297,7 @@ export default {
         const pts = starVertices(r, angle * D2R).map(([vx, vy]) => `${n(vx)},${n(vy)}`).join(' ');
         parts.push(`<polygon points="${pts}" fill="${ink}" transform="translate(${n(wx)} ${n(wy)})"/>`);
       } else {
-        parts.push(`<line x1="${n(-half)}" y1="0" x2="${n(half)}" y2="0" stroke="${ink}" stroke-width="${n(Math.max(0.4, 2 * r))}" stroke-linecap="butt" transform="translate(${n(wx)} ${n(wy)}) rotate(${angle})"/>`);
+        parts.push(`<line x1="${n(-half)}" y1="0" x2="${n(half)}" y2="0" stroke="${ink}" stroke-width="${n(Math.max(0.2, 2 * r))}" stroke-linecap="butt" transform="translate(${n(wx)} ${n(wy)}) rotate(${angle})"/>`);
       }
     });
     return svgDoc(w, h, parts.join('\n'));
