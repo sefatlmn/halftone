@@ -9,6 +9,8 @@ import stamp from './stamp.js';
 import glitch from './glitch.js';
 import rgbShift from './rgb-shift.js';
 import pixelSort from './pixel-sort.js';
+import emboss from './emboss.js';
+import tiles from './tiles.js';
 import gradientMap from './gradient-map.js';
 import tone from './tone.js';
 import hueSat from './hue-sat.js';
@@ -17,5 +19,6 @@ export default [
   none,
   halftone, dither, ascii, riso, xerox, stamp,
   glitch, rgbShift, pixelSort,
+  emboss, tiles,
   gradientMap, tone, hueSat,
 ];

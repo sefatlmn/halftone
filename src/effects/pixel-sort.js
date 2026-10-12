@@ -24,7 +24,6 @@ export default {
   name: 'Pixel Sort',
   no: '09',
   heavy: true,
-  acceptsBase: true,
   params: [
     { key: 'direction',     label: 'Direction',      type: 'select', options: ['horizontal', 'vertical'], value: 'horizontal' },
     { key: 'sortKey',       label: 'Sort by',        type: 'select', options: ['brightness', 'hue', 'saturation', 'r', 'g', 'b'], value: 'brightness' },
@@ -61,12 +60,27 @@ export default {
     // reusable per-line scratch (sized to the longest line)
     const R = new Uint8Array(lineLen), G = new Uint8Array(lineLen), B = new Uint8Array(lineLen), A = new Uint8Array(lineLen);
     const K = new Float32Array(lineLen), bright = new Float32Array(lineLen);
+    const order = new Int32Array(lineLen);
+    const cmp = desc ? (a, b) => K[b] - K[a] : (a, b) => K[a] - K[b];
+    let curBase = 0;
+
+    const sortInterval = (s, e) => {
+      const len = e - s;
+      if (len < 2) return;
+      const sub = order.subarray(0, len);
+      for (let k = 0; k < len; k++) sub[k] = s + k;
+      sub.sort(cmp);
+      for (let k = 0; k < len; k++) {
+        const dst = curBase + (s + k) * stride, sIdx = sub[k];
+        op[dst] = R[sIdx]; op[dst + 1] = G[sIdx]; op[dst + 2] = B[sIdx]; op[dst + 3] = A[sIdx];
+      }
+    };
 
     for (let L = 0; L < nLines; L++) {
-      const base = vertical ? L * 4 : L * sw * 4;
+      curBase = vertical ? L * 4 : L * sw * 4;
 
       for (let q = 0; q < lineLen; q++) {
-        const off = base + q * stride;
+        const off = curBase + q * stride;
         const r = op[off], gg = op[off + 1], b = op[off + 2];
         R[q] = r; G[q] = gg; B[q] = b; A[q] = op[off + 3];
         const br = (0.299 * r + 0.587 * gg + 0.114 * b) / 255;
@@ -74,18 +88,6 @@ export default {
         K[q] = key === 'r' ? r : key === 'g' ? gg : key === 'b' ? b
           : key === 'hue' ? rgb2hue(r, gg, b) : key === 'saturation' ? rgb2sat(r, gg, b) : br;
       }
-
-      const sortInterval = (s, e) => {
-        if (e - s < 2) return;
-        const order = new Array(e - s);
-        for (let k = 0; k < order.length; k++) order[k] = s + k;
-        order.sort((a, b) => K[a] - K[b]);
-        if (desc) order.reverse();
-        for (let k = 0; k < order.length; k++) {
-          const dst = base + (s + k) * stride, sIdx = order[k];
-          op[dst] = R[sIdx]; op[dst + 1] = G[sIdx]; op[dst + 2] = B[sIdx]; op[dst + 3] = A[sIdx];
-        }
-      };
 
       if (mode === 'full') {
         sortInterval(0, lineLen);

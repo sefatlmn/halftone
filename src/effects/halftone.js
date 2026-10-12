@@ -57,6 +57,12 @@ function renderMono(g, src, params, ctx) {
   const { cell, shape, angle, ink, invert } = params;
   const cellSize = Math.max(2, cell);
   const half = cellSize / 2;
+  const angRad = angle * D2R;
+  const cosA = Math.cos(angRad), sinA = Math.sin(angRad);
+  const dx = half * cosA, dy = half * sinA;
+  const cMinusS = cosA - sinA, sPlusC = sinA + cosA;
+  const cPlusS = cosA + sinA, sMinusC = sinA - cosA;
+  const starUnit = shape === 'star' ? starVertices(1, angRad) : null;
 
   if (shape === 'line') { g.noFill(); g.stroke(ink); g.strokeCap(p.SQUARE); }
   else { g.noStroke(); g.fill(ink); }
@@ -69,17 +75,21 @@ function renderMono(g, src, params, ctx) {
     if (shape === 'circle') {
       g.circle(wx, wy, 2 * r);
     } else if (shape === 'square') {
-      g.push(); g.translate(wx, wy); g.rotate(angle * D2R);
-      g.rectMode(p.CENTER); g.rect(0, 0, 2 * r, 2 * r); g.pop();
+      g.quad(
+        wx - r * cMinusS, wy - r * sPlusC,
+        wx + r * cPlusS,  wy + r * sMinusC,
+        wx + r * cMinusS, wy + r * sPlusC,
+        wx - r * cPlusS,  wy - r * sMinusC,
+      );
     } else if (shape === 'star') {
-      g.push(); g.translate(wx, wy);
       g.beginShape();
-      for (const [vx, vy] of starVertices(r, angle * D2R)) g.vertex(vx, vy);
-      g.endShape(p.CLOSE); g.pop();
+      for (let i = 0; i < starUnit.length; i++) {
+        g.vertex(wx + starUnit[i][0] * r, wy + starUnit[i][1] * r);
+      }
+      g.endShape(p.CLOSE);
     } else { // line — variable thickness
-      g.push(); g.translate(wx, wy); g.rotate(angle * D2R);
       g.strokeWeight(Math.max(0.4, 2 * r));
-      g.line(-half, 0, half, 0); g.pop();
+      g.line(wx - dx, wy - dy, wx + dx, wy + dy);
     }
   });
 }
@@ -100,6 +110,13 @@ function drawCmykChannel(g, src, params, ctx, ch) {
   const cellSize = Math.max(2, params.cell);
   const half = cellSize / 2;
   const shape = params.shape;
+  const angRad = ch.ang * D2R;
+  const cosA = Math.cos(angRad), sinA = Math.sin(angRad);
+  const dx = half * cosA, dy = half * sinA;
+  const cMinusS = cosA - sinA, sPlusC = sinA + cosA;
+  const cPlusS = cosA + sinA, sMinusC = sinA - cosA;
+  const starUnit = shape === 'star' ? starVertices(1, angRad) : null;
+
   // Match the mono screen: line → variable-weight stroke, everything else fills.
   // Each channel screens at its fixed print angle (ch.ang) — moiré-free.
   if (shape === 'line') { g.noFill(); g.stroke(ch.col[0], ch.col[1], ch.col[2]); g.strokeCap(p.SQUARE); }
@@ -111,17 +128,21 @@ function drawCmykChannel(g, src, params, ctx, ch) {
     const rad = half * Math.sqrt(clamp(amt, 0, 1));
     if (rad < 0.35) return;
     if (shape === 'square') {
-      g.push(); g.translate(wx, wy); g.rotate(ch.ang * D2R);
-      g.rectMode(p.CENTER); g.rect(0, 0, 2 * rad, 2 * rad); g.pop();
+      g.quad(
+        wx - rad * cMinusS, wy - rad * sPlusC,
+        wx + rad * cPlusS,  wy + rad * sMinusC,
+        wx + rad * cMinusS, wy + rad * sPlusC,
+        wx - rad * cPlusS,  wy - rad * sMinusC,
+      );
     } else if (shape === 'star') {
-      g.push(); g.translate(wx, wy);
       g.beginShape();
-      for (const [vx, vy] of starVertices(rad, ch.ang * D2R)) g.vertex(vx, vy);
-      g.endShape(p.CLOSE); g.pop();
+      for (let i = 0; i < starUnit.length; i++) {
+        g.vertex(wx + starUnit[i][0] * rad, wy + starUnit[i][1] * rad);
+      }
+      g.endShape(p.CLOSE);
     } else if (shape === 'line') {
-      g.push(); g.translate(wx, wy); g.rotate(ch.ang * D2R);
       g.strokeWeight(Math.max(0.4, 2 * rad));
-      g.line(-half, 0, half, 0); g.pop();
+      g.line(wx - dx, wy - dy, wx + dx, wy + dy);
     } else {
       g.circle(wx, wy, 2 * rad);
     }

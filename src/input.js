@@ -76,16 +76,19 @@ function applyPreAdjust(g, pre) {
   const cf = (259 * (c + 255)) / (255 * (259 - c));
   const gInv = 1 / Math.max(0.01, gamma);
   const b = (brightness / 100) * 255;
+  const lut = new Uint8ClampedArray(256);
+  for (let val = 0; val < 256; val++) {
+    let v = cf * (val - 128) + 128 + b;          // contrast + brightness
+    v = clamp(v, 0, 255) / 255;
+    v = 255 * Math.pow(v, gInv);                 // gamma
+    if (invert) v = 255 - v;
+    lut[val] = v;
+  }
 
   for (let i = 0; i < px.length; i += 4) {
-    for (let k = 0; k < 3; k++) {
-      let v = px[i + k];
-      v = cf * (v - 128) + 128 + b;          // contrast + brightness
-      v = clamp(v, 0, 255) / 255;
-      v = 255 * Math.pow(v, gInv);            // gamma
-      if (invert) v = 255 - v;
-      px[i + k] = clamp(v, 0, 255);
-    }
+    px[i]     = lut[px[i]];
+    px[i + 1] = lut[px[i + 1]];
+    px[i + 2] = lut[px[i + 2]];
   }
   g.updatePixels();
 }

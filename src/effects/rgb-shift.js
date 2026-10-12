@@ -1,7 +1,5 @@
 // rgb-shift.js — chromatic aberration. Split R/G/B, offset each independently,
 // recombine. Static and deterministic (no seed needed).
-//
-// Works on the raw working buffer OR on another effect's output (acceptsBase).
 import { getScratch } from '../util/scratch.js';
 
 // Nearest-neighbour single-channel sample with edge clamp.
@@ -16,7 +14,6 @@ export default {
   id: 'rgb-shift',
   name: 'RGB Shift',
   no: '08',
-  acceptsBase: true,
   params: [
     { key: 'mode',           label: 'Mode',            type: 'select', options: ['linear', 'radial'], value: 'linear', rebuildOnChange: true },
     // amount/angle only drive the linear mode — radial ignores them, so hide

@@ -22,13 +22,12 @@ There's no backend, no framework, no build step. Just static files. Everything r
 | 07  | **Glitch**      | Static, seeded datamosh. Random-height band shifts, block smears, channel tears, and bit-crush corruption. Works horizontal or vertical. |
 | 08  | **RGB Shift**   | Chromatic aberration in linear or radial (lens fringing) mode. Simple amount/angle control or advanced per-channel offsets with edge bias. |
 | 09  | **Pixel Sort**  | Sorts pixel runs by brightness, hue, saturation, or individual R/G/B channels. Several interval modes: threshold (Asendorf-style), edge detection, seeded random, or full row/column. |
-| 10  | **Gradient Map**| Maps luminance to a multi-stop colour ramp. Comes with presets for duotone, tritone, thermal, cyanotype, and viridis. Stops are fully editable, and there's an optional posterise control. |
-| 11  | **Tone**        | Tone curves (composite plus individual R/G/B channels) and colour matrices for sepia, saturate, desaturate, and channel swap. |
-| 12  | **Hue / Sat**   | Simple global hue rotation, saturation, and lightness adjustments. |
+| 10  | **Emboss**      | Raised-relief look mapping luminance gradients along a light angle around mid-grey. Supports grey, colour, and tinted modes. |
+| 11  | **Tiles**       | Cuts the frame into a dynamic grid of multi-spanning rectangular tiles with partial shuffle, rotation, jitter, and gaps. |
 
-Effects 07 to 09 are the **glitch family**: they accept a **base layer** so you can glitch a halftone, pixel-sort a dither, and so on. Their randomness is seeded, so the same seed always gives you the same result. Hit **Randomize** to reroll.
+Effects 07 to 09 are the **glitch family**. Their randomness is seeded, so the same seed always gives you the same result. Hit **Randomize** to reroll.
 
-Effects 10 to 12 are **colour modules**: you can use them as a main effect, or set them as the **Colour pre-stage** to recolour the source before the screen runs (e.g. gradient-map into a halftone).
+**Gradient Map**, **Tone**, and **Hue / Sat** are **colour modules**: set them as the **Colour pre-stage** under Pre-adjust to recolour the source before the effect runs (e.g. gradient-map into a halftone).
 
 ## How to run it
 

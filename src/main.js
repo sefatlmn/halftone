@@ -41,7 +41,6 @@ const App = {
   states: {}, // per-effect param values
   canvasW: 0,
   canvasH: 0,
-  baseLayers: {}, // composition: per-effect base choice { effectId: baseId | 'none' }
   preStage: "none", // color pre-stage: id of a color module, or 'none'
   preStageParams: {}, // pre-stage params, kept separate from active-effect params
   effect2Id: "none", // the second slot's effect; 'none' = no second pass (slot B off)
@@ -55,6 +54,7 @@ const App = {
   _paintHold: 0, // performance.now() deadline before which painting is suspended
   _holdTimer: null, // re-arms the paint when _paintHold lapses
   _srcOwned: null, // fitSource()'s downscaled graphics — removed when replaced
+  _exportLastFocus: null, // element focused before export panel opened
   mediaSource: null, // animated GIF/video controller; null for still images
   mediaKind: "image",
   mediaVersion: 0, // increments whenever an animated frame replaces srcImage pixels
@@ -105,9 +105,6 @@ for (const e of EFFECTS) App.states2[e.id] = defaultsOf(e.params);
 // color modules keep a second, independent set of params for the pre-stage
 for (const e of EFFECTS)
   if (e.category === "color") App.preStageParams[e.id] = defaultsOf(e.params);
-// each base-accepting effect remembers its own base-layer choice, so swapping
-// or switching effects never silently transplants a base onto another effect
-for (const e of EFFECTS) if (e.acceptsBase) App.baseLayers[e.id] = "none";
 
 const activeEffect = () => EFFECTS.find((e) => e.id === App.activeId);
 const activeState = () => App.states[App.activeId];
@@ -232,16 +229,14 @@ function recompute() {
 
 // A bundle is heavy when a redraw runs more than one cheap pass: a heavy
 // effect, a stacked B pass (two full renders + a display-res loadPixels per
-// frame), a base layer, or a colour pre-stage. Heavy bundles get a short
+// frame), or a colour pre-stage. Heavy bundles get a short
 // debounce so a slider drag doesn't run the full pipeline per input event —
 // the old check only looked at effect A, so any stacked chain re-rendered
 // everything on every tick.
 const isHeavyBundle = () =>
   !!activeEffect().heavy ||
   isEffect2On() ||
-  App.preStage !== "none" ||
-  (activeEffect().acceptsBase &&
-    (App.baseLayers[App.activeId] || "none") !== "none");
+  App.preStage !== "none";
 
 function requestRender() {
   if (isHeavyBundle()) {
@@ -253,10 +248,8 @@ function requestRender() {
 }
 
 // Single mode's params bundle for the shared EffectStack: the global pre-adjust,
-// colour pre-stage, active effect, and (for glitch-family effects) the base layer.
+// colour pre-stage, and active effect.
 function singleBundle() {
-  const eff = activeEffect();
-  const base = eff.acceptsBase ? App.baseLayers[eff.id] || "none" : "none";
   return {
     pre: App.pre,
     sourceVersion: App.mediaVersion,
@@ -264,14 +257,12 @@ function singleBundle() {
     preStageParams: App.preStageParams[App.preStage] || {},
     effect: App.activeId,
     effectParams: activeState(),
-    baseLayer: base,
-    baseParams: base !== "none" ? App.states[base] : {},
     effect2: App.effect2Id, // 'none' → the stack skips the second pass
     effect2Params: effect2State(),
   };
 }
 
-// The buffer the active effect samples from (staged + optional base layer), at
+// The buffer the active effect samples from (staged), at
 // sampling resolution — used by export, which re-renders the effect at scale.
 function getSourceForActive() {
   if (!App.srcImage) return null;
@@ -606,10 +597,10 @@ function setSource(img) {
   disposeAnimatedSource();
   App.srcDims = { w: img.width, h: img.height }; // report the true upload size
   const fitted = fitSource(img);
-  // fitSource may hand us a graphics we created; keep exactly one alive so
-  // repeated loads don't stack dead source canvases (Safari frees them lazily).
+  // fitSource or useDemo may hand us an offscreen graphics; keep exactly one
+  // alive so repeated loads don't stack dead source canvases (Safari frees them lazily).
   if (App._srcOwned && App._srcOwned !== fitted) App._srcOwned.remove();
-  App._srcOwned = fitted === img ? null : fitted;
+  App._srcOwned = typeof fitted.remove === "function" ? fitted : null;
   App.srcImage = fitted;
   App.mediaKind = "image";
   App.mediaVersion = 0;
@@ -664,9 +655,7 @@ function useDemo() {
   g.textStyle(p.BOLD);
   g.textSize(140);
   g.text("HALFTONE", W * 0.5, H * 0.88);
-  const img = g.get();
-  g.remove();
-  setSource(img);
+  setSource(g);
 }
 
 /* ----------------------------------------------------------------
@@ -692,10 +681,23 @@ function labeledRow(text, control) {
 // follows the target and recolours (red → blue) to match it.
 function buildEffectChips() {
   const root = $("#films");
-  root.innerHTML = "";
   root.classList.toggle("is-b", App.filmTarget === "B");
   const sel = targetEffectId();
-  EFFECTS.forEach((e, i) => {
+  const existing = root.querySelectorAll(".film");
+  const nonColor = EFFECTS.filter((e) => e.category !== "color");
+
+  if (existing.length === nonColor.length) {
+    existing.forEach((film, i) => {
+      const e = nonColor[i];
+      const isSelected = e.id === sel;
+      film.classList.toggle("on", isSelected);
+      film.setAttribute("aria-selected", String(isSelected));
+    });
+    return;
+  }
+
+  root.innerHTML = "";
+  nonColor.forEach((e, i) => {
     const film = document.createElement("button");
     film.type = "button";
     film.className = "film" + (e.id === sel ? " on" : "");
@@ -730,6 +732,24 @@ function applyPreset(id) {
 function buildFilmTargetToggle() {
   const root = $("#film-target");
   if (!root) return;
+  const existing = root.querySelectorAll(".abtog__btn");
+  if (existing.length === 2) {
+    ["A", "B"].forEach((slot, i) => {
+      const b = existing[i];
+      const active = slot === App.filmTarget;
+      b.className = "abtog__btn" + (active ? " is-active" : "");
+      b.setAttribute("aria-selected", String(active));
+      if (slot === "B" && !isEffect2On() && !active) b.classList.add("is-empty");
+      b.title =
+        slot === "A"
+          ? "Target effect A"
+          : isEffect2On()
+            ? "Target effect B"
+            : "Target slot B — pick an effect to stack";
+    });
+    return;
+  }
+
   root.innerHTML = "";
   ["A", "B"].forEach((slot) => {
     const b = document.createElement("button");
@@ -892,6 +912,26 @@ function effectMotif(id, idx) {
           .join("") +
         `</g>`,
       );
+    case "emboss":
+      return wrap(
+        `<path d="M24,66 L59,22 L94,66 Z" fill="${S}" opacity=".35"/>` +
+        `<path d="M24,66 L59,22" stroke="${P}" stroke-width="4" fill="none"/>` +
+        `<path d="M59,22 L94,66 L24,66" stroke="${K}" stroke-width="4" fill="none"/>`,
+      );
+    case "tiles":
+      return wrap(
+        `<g>` +
+        [
+          [14, 12, 38, 30, K, 0.8],
+          [55, 12, 23, 64, A, 0.9],
+          [81, 12, 23, 24, S, 0.7],
+          [81, 39, 23, 37, K, 0.6],
+          [14, 45, 38, 31, A, 0.65],
+        ]
+          .map(([x, y, w, h, c, o]) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${c}" opacity="${o}"/>`)
+          .join("") +
+        `</g>`,
+      );
     default:
       return wrap(
         `<text x="59" y="50" text-anchor="middle" font-size="14" fill="${K}">${idx + 1}</text>`,
@@ -905,7 +945,6 @@ function buildParamPanel() {
   $(".block--a .block-tools").hidden = !eff.params.length;
   const root = $("#param-controls");
   root.innerHTML = "";
-  if (eff.acceptsBase) root.appendChild(buildBaseLayerControl());
   if (!eff.params.length && eff.hint) {
     const hint = document.createElement("p");
     hint.className = "note";
@@ -985,34 +1024,6 @@ function doReset2() {
   App.states2[App.effect2Id] = defaultsOf(effect2().params);
   buildEffect2Panel();
   requestRender();
-}
-
-// "Base layer" selector — only shown for effects that accept a base; each such
-// effect remembers its own choice.
-// Options: None + every non-glitch effect (you can't base a glitch on a glitch).
-function buildBaseLayerControl() {
-  const effId = App.activeId;
-  const sel = document.createElement("select");
-  sel.setAttribute("aria-label", "Base layer");
-  const opts = [{ value: "none", label: "None (source image)" }].concat(
-    EFFECTS.filter(
-      (e) => e.id !== "none" && !e.acceptsBase && e.category !== "color",
-    ).map((e) => ({ value: e.id, label: e.name })),
-  );
-  for (const o of opts) {
-    const opt = document.createElement("option");
-    opt.value = o.value;
-    opt.textContent = o.label;
-    sel.appendChild(opt);
-  }
-  sel.value = App.baseLayers[effId] || "none";
-  sel.addEventListener("change", () => {
-    App.baseLayers[effId] = sel.value;
-    requestRender();
-  });
-  const row = labeledRow("Base layer", sel);
-  row.classList.add("row--base");
-  return row;
 }
 
 // Color pre-stage selector (None + each color module) + its own param group.
@@ -1104,8 +1115,11 @@ function setExportBusy(busy) {
 
 function waitForVideoEnd(video, signal) {
   return new Promise((resolve, reject) => {
+    let timer = 0;
     const clean = () => {
+      clearTimeout(timer);
       video.removeEventListener("ended", done);
+      video.removeEventListener("timeupdate", checkTime);
       video.removeEventListener("error", failed);
       signal?.removeEventListener("abort", aborted);
     };
@@ -1115,9 +1129,19 @@ function waitForVideoEnd(video, signal) {
       clean();
       reject(signal.reason || new DOMException("Aborted", "AbortError"));
     };
+    const checkTime = () => {
+      if (video.ended || (video.duration > 0 && video.currentTime >= video.duration - 0.05)) {
+        done();
+      }
+    };
     video.addEventListener("ended", done, { once: true });
+    video.addEventListener("timeupdate", checkTime);
     video.addEventListener("error", failed, { once: true });
     signal?.addEventListener("abort", aborted, { once: true });
+
+    // Fallback timer: duration + 2.5s buffer prevents hanging if browser drops 'ended'
+    const maxWait = Math.max(3000, ((video.duration || 10) + 2.5) * 1000);
+    timer = setTimeout(done, maxWait);
   });
 }
 
@@ -1414,6 +1438,14 @@ function doExportSVG() {
    gating left is availability (separations/SVG don't apply to every effect,
    or to a stacked chain).
    ---------------------------------------------------------------- */
+function getFocusableElements(container) {
+  const selector =
+    'button:not([disabled]), [href]:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+  return Array.from(container.querySelectorAll(selector)).filter((el) => {
+    return !el.hasAttribute("hidden") && el.offsetParent !== null;
+  });
+}
+
 function openExportPanel() {
   if (!App.srcImage) {
     note("Load an image first.");
@@ -1455,12 +1487,38 @@ function openExportPanel() {
         : "Processed GIF, max 720px."
       : "Animated export is not supported in this browser.";
 
-  $("#xpanel").removeAttribute("hidden");
+  const panel = $("#xpanel");
+  if (panel.hasAttribute("hidden")) {
+    App._exportLastFocus = document.activeElement;
+  }
+  panel.removeAttribute("hidden");
+
+  const focusables = getFocusableElements(panel);
+  if (focusables.length) {
+    const closeBtn = $("#xpanel-close");
+    if (closeBtn && focusables.includes(closeBtn)) {
+      closeBtn.focus();
+    } else {
+      focusables[0].focus();
+    }
+  }
 }
 
 function closeExportPanel() {
   if (App.exportBusy) return;
-  $("#xpanel").setAttribute("hidden", "");
+  const panel = $("#xpanel");
+  if (panel.hasAttribute("hidden")) return;
+  panel.setAttribute("hidden", "");
+  const targetToFocus =
+    App._exportLastFocus &&
+    App._exportLastFocus !== document.body &&
+    typeof App._exportLastFocus.focus === "function"
+      ? App._exportLastFocus
+      : $("#btn-export");
+  App._exportLastFocus = null;
+  try {
+    targetToFocus?.focus();
+  } catch { }
 }
 
 /* ----------------------------------------------------------------
@@ -1509,11 +1567,34 @@ function updateAsciiOverlay(eff, state) {
 }
 
 let noteTimer = null;
+let toastTimer = null;
+
+function showToast(msg) {
+  const t = $("#toast");
+  if (!t) return;
+  t.textContent = msg;
+  t.removeAttribute("hidden");
+  void t.offsetWidth;
+  t.classList.add("is-visible");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    t.classList.remove("is-visible");
+    setTimeout(() => {
+      if (!t.classList.contains("is-visible")) {
+        t.setAttribute("hidden", "");
+      }
+    }, 220);
+  }, 4000);
+}
+
 function note(msg) {
   const el = $("#drop-note");
   el.textContent = msg;
   el.style.color = "";
   el.style.fontWeight = "";
+  if (msg && msg !== "Your files stay in your browser and are not stored.") {
+    showToast(msg);
+  }
   clearTimeout(noteTimer);
   noteTimer = setTimeout(() => {
     el.textContent = "Your files stay in your browser and are not stored.";
@@ -1608,14 +1689,50 @@ function wireEvents() {
     if (f) loadFromFile(f);
   });
 
-  // Keyboard: R randomize, E export
+  // Focus trap for export modal dialog
+  const xpanel = $("#xpanel");
+  xpanel.addEventListener("keydown", (e) => {
+    if (e.key === "Tab") {
+      const focusables = getFocusableElements(xpanel);
+      if (!focusables.length) {
+        e.preventDefault();
+        return;
+      }
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      if (e.shiftKey) {
+        if (document.activeElement === first || !xpanel.contains(document.activeElement)) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else {
+        if (document.activeElement === last || !xpanel.contains(document.activeElement)) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    }
+  });
+
+  // Keyboard: R randomize, E export, Space play/pause animated media
   window.addEventListener("keydown", (e) => {
     if (e.metaKey || e.ctrlKey || e.altKey) return; // don't shadow browser shortcuts (⌘R, Ctrl+R, …)
     const tag = (e.target.tagName || "").toLowerCase();
     if (tag === "input" || tag === "select" || tag === "textarea") return;
-    if (e.key === "r" || e.key === "R") doRandomize();
+    if (e.key === " " || e.code === "Space") {
+      if (App.mediaSource && $("#xpanel").hasAttribute("hidden")) {
+        if (tag === "button" || tag === "a") return;
+        e.preventDefault();
+        setMediaPlaying(!App.mediaPlaying);
+      }
+    } else if (e.key === "r" || e.key === "R") doRandomize();
     else if (e.key === "e" || e.key === "E") openExportPanel();
-    else if (e.key === "Escape") closeExportPanel();
+    else if (e.key === "Escape") {
+      if (!$("#xpanel").hasAttribute("hidden")) {
+        e.preventDefault();
+        closeExportPanel();
+      }
+    }
   });
 
   // Wake handlers — the other half of the render scheduler. rAF is suspended
@@ -1672,14 +1789,11 @@ function wireEvents() {
 }
 
 /* ----------------------------------------------------------------
-   Collapsible rail sections (phones). Each block's header folds its body.
-   Purely presentational: the fold only animates under the max-width:720px
-   CSS, so toggling on wider screens is a harmless no-op and the chevron is
-   hidden there. The header itself is a tap target, but the real controls it
+   Collapsible rail sections. Each block's header folds its body.
+   The header itself is a tap/click target, but the real controls it
    holds (Randomize / Reset, the effect-B tools) must not trigger a fold.
    ---------------------------------------------------------------- */
 function wireFolds() {
-  const mobile = window.matchMedia("(max-width: 720px)");
   document.querySelectorAll(".block").forEach((block) => {
     const head = block.querySelector(".block-head");
     const btn = block.querySelector(".fold");
@@ -1693,7 +1807,6 @@ function wireFolds() {
       toggle();
     });
     head.addEventListener("click", (e) => {
-      if (!mobile.matches) return; // desktop: header isn't a fold target
       if (e.target.closest("button, a, input, select, .block-tools")) return;
       toggle();
     });

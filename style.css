@@ -232,17 +232,29 @@ kbd {
   min-height: 0;
 }
 
+/* Collapsible rail sections. Each .block becomes a two-row grid (header +
+   body); collapsing animates the body row from 1fr to 0fr. An fr track
+   animates smoothly and needs no brittle max-height guess. The header row
+   stays auto so it's always tappable. */
 .block {
   border-bottom: var(--hair);
+  display: grid;
+  grid-template-rows: auto 1fr;
+  transition: grid-template-rows 0.26s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/* Collapsible sections — the affordance only exists on phones (see the
-   max-width: 720px block, where .block becomes a grid that animates its body
-   row open/closed). On desktop the toggle is hidden and .block-fold is an inert
-   wrapper, so the rail behaves exactly as before. */
+.block.is-collapsed {
+  grid-template-rows: auto 0fr;
+}
+
+.block-fold {
+  min-height: 0;
+  /* let the body row shrink below content height */
+  overflow: hidden;
+}
+
 .fold {
-  display: none;
-  /* desktop: sections are always open */
+  display: block;
   flex: 0 0 auto;
   align-self: center;
   margin-left: 10px;
@@ -297,6 +309,9 @@ kbd {
   gap: 10px;
   padding: 12px 20px 10px;
   border-bottom: var(--hair-soft);
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .block-head .ix {
@@ -794,11 +809,6 @@ input[type="color"]::-moz-color-swatch {
     font-size: 12px;
   }
 
-  /* comfortable finger height for buttons */
-  .btn {
-    padding: 13px 16px;
-  }
-
   .tool {
     padding: 8px 12px;
   }
@@ -898,20 +908,10 @@ input[type="color"]::-moz-color-swatch {
 @media (pointer: coarse),
 (max-width: 720px) {
 
-  .btn,
   .tool,
   .fold,
-  .abtog__btn,
-  .swap-btn,
-  .media-controls__play,
-  .xpanel__close,
-  .xtier__btn,
-  .bmc {
+  .media-controls__play {
     min-height: 44px;
-  }
-
-  .btn {
-    padding: 13px 16px;
   }
 
   .tool {
@@ -921,11 +921,6 @@ input[type="color"]::-moz-color-swatch {
   .fold {
     width: 44px;
     height: 44px;
-  }
-
-  .abtog__btn,
-  .xpanel__close {
-    min-width: 44px;
   }
 }
 
@@ -1763,6 +1758,33 @@ input[type="color"]::-moz-color-swatch {
     font-size: 9px;
   }
 
+  /* Tuned canvas empty state so actions never clip the frame border */
+  .empty-inner {
+    padding: 10px 14px;
+    max-width: 100%;
+  }
+
+  .empty-glyph svg {
+    width: 30px;
+    height: 30px;
+  }
+
+  .empty h2 {
+    font-size: 19px;
+    margin: 10px 0 4px;
+  }
+
+  .empty p {
+    font-size: 11px;
+    margin: 0 0 14px;
+  }
+
+  .empty-actions .btn {
+    font-size: 10px;
+    padding: 7px 12px;
+    white-space: nowrap;
+  }
+
   /* Shorter, tighter filmstrip on phones. The EFFECT / A·B row sits ~11px below
      the top border and ~12px above the boxes — enough to un-cramp it (both were
      ~1px) without the top gap ballooning past the rest of the strip's rhythm. */
@@ -1798,31 +1820,6 @@ input[type="color"]::-moz-color-swatch {
     display: none;
   }
 
-  /* Collapsible rail sections. Each .block becomes a two-row grid (header +
-     body); collapsing animates the body row from 1fr to 0fr. An fr track
-     animates smoothly and needs no brittle max-height guess. The header row
-     stays auto so it's always tappable. */
-  .block {
-    display: grid;
-    grid-template-rows: auto 1fr;
-    transition: grid-template-rows 0.26s cubic-bezier(0.22, 1, 0.36, 1);
-  }
-
-  .block.is-collapsed {
-    grid-template-rows: auto 0fr;
-  }
-
-  .block-fold {
-    min-height: 0;
-    /* let the body row shrink below content height */
-    overflow: hidden;
-  }
-
-  .fold {
-    display: block;
-    /* reveal the toggle only where sections can collapse */
-  }
-
   /* tighter rail body + export bar for thumb reach */
   .block-head {
     padding: 11px 16px 9px;
@@ -1836,23 +1833,46 @@ input[type="color"]::-moz-color-swatch {
      @media (pointer: coarse) block — it's an input-type concern, not a width one,
      so tablets like iPad (which are wider than this breakpoint) get it too. */
 
-  /* Smaller A/B target + swap on phones — reduce both the font and the box. */
-  .abtog__btn {
-    font-size: 9px;
-    padding: 3px 9px;
-  }
-
-  .swap-btn {
-    font-size: 9px;
-    padding: 3px 9px;
-    letter-spacing: 0.04em;
-    line-height: 1;
-  }
-
   /* let the last control clear the pinned Export bar */
   .rail-scroll {
     padding-bottom: 8px;
   }
+}
+
+/* ============================================================
+   STATUS TOAST — Floating notifications for exports, warnings,
+   and errors. Visible across all breakpoints even when rail is
+   collapsed, inverted with theme automatically via --ink/--paper.
+   ============================================================ */
+.toast {
+  position: fixed;
+  top: 56px;
+  left: 50%;
+  transform: translateX(-50%) translateY(-6px);
+  background: var(--ink);
+  color: var(--paper);
+  font-family: var(--exp, inherit);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 8px 18px;
+  border-radius: 999px;
+  border: var(--hair);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.22);
+  z-index: 1000;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  white-space: nowrap;
+  max-width: calc(100vw - 32px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.toast.is-visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
 }
 
 /* ============================================================

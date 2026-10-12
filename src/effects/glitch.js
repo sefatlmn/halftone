@@ -1,8 +1,6 @@
 // glitch.js — static, seeded block-displacement + local corruption.
 // Composites four passes per band, each gated by its own amount. All randomness
 // comes from makeRng(seed) so a given seed reproduces the exact same glitch.
-//
-// Works on the raw working buffer OR on another effect's output (acceptsBase).
 import { makeRng } from '../util/prng.js';
 import { getScratch } from '../util/scratch.js';
 
@@ -104,7 +102,6 @@ export default {
   name: 'Glitch',
   no: '07',
   heavy: true,
-  acceptsBase: true,
   params: [
     { key: 'seed',        label: 'Seed',         type: 'range', min: 0, max: 9999, step: 1, value: 42 },
     { key: 'intensity',   label: 'Intensity',    type: 'range', min: 0, max: 1, step: 0.01, value: 0.7 },
