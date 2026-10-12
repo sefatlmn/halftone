@@ -2,7 +2,7 @@
 // a light direction and maps it around mid-grey, so edges facing the light rise
 // and edges facing away sink. Static and deterministic.
 import { getScratch } from '../util/scratch.js';
-import { hex2rgb } from './_shared.js';
+import { hex2rgb, clamp } from './_shared.js';
 
 let cachedL = null;
 function getLuminanceBuffer(len) {
@@ -51,14 +51,18 @@ export default {
         const x1 = Math.min(sw - 1, Math.max(0, x - ox));
         const x2 = Math.min(sw - 1, Math.max(0, x + ox));
         const diff = (L[y2 * sw + x2] - L[y1 * sw + x1]) * depth * 0.5;
-        const v = 128 + diff;
+        const v = clamp(128 + diff, 0, 255);
         const i = (y * sw + x) << 2;
         let r, gg, b;
         if (mode === 'colour') {
-          r = sp[i] + diff; gg = sp[i + 1] + diff; b = sp[i + 2] + diff;
+          r = clamp(sp[i] + diff, 0, 255);
+          gg = clamp(sp[i + 1] + diff, 0, 255);
+          b = clamp(sp[i + 2] + diff, 0, 255);
         } else if (mode === 'tint') {
           const t = v / 255;
-          r = tr * t * 1.6; gg = tg * t * 1.6; b = tb * t * 1.6;
+          r = clamp(tr * t * 1.6, 0, 255);
+          gg = clamp(tg * t * 1.6, 0, 255);
+          b = clamp(tb * t * 1.6, 0, 255);
         } else {
           r = gg = b = v;
         }

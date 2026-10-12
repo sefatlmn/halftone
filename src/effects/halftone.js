@@ -72,7 +72,6 @@ function renderMono(g, src, params, ctx) {
 
   if (shape === 'circle') {
     const dc = g.drawingContext;
-    dc.fillStyle = ink;
     dc.beginPath();
     let batch = 0;
     forEachCell(w, h, cellSize, angle, (wx, wy, nx, ny, hwN, hhN) => {
@@ -149,7 +148,6 @@ function drawCmykChannel(g, src, params, ctx, ch) {
 
   if (shape === 'circle' || (shape !== 'square' && shape !== 'star' && shape !== 'line')) {
     const dc = g.drawingContext;
-    dc.fillStyle = `rgb(${ch.col[0]},${ch.col[1]},${ch.col[2]})`;
     dc.beginPath();
     let batch = 0;
     forEachCell(w, h, cellSize, ch.ang, (wx, wy, nx, ny, hwN, hhN) => {

@@ -47,8 +47,8 @@ function drawRisoLayer(g, src, params, ctx, li, col, rand, ox, oy) {
   const half = cell / 2;
   const minR = Math.min(0.35, cell * 0.12);
   const fastSample = cell <= 2.5;
+  g.fill(col[0], col[1], col[2]);
   const dc = g.drawingContext;
-  dc.fillStyle = `rgb(${col[0]},${col[1]},${col[2]})`;
   dc.beginPath();
   let batch = 0;
   forEachCell(w, h, cell, RISO_ANGLES[li], (wx, wy, nx, ny, hwN, hhN) => {
