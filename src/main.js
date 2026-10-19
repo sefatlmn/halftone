@@ -12,6 +12,7 @@ import {
 import { exportPNG, exportSeparations, exportSVG } from "./export.js";
 import {
   MEDIA_LIMITS,
+  computeTargetFps,
   detectMediaKind,
   fitWithin,
   formatMediaTime,
@@ -408,14 +409,21 @@ function drawAnimatedFrame({ paint = true } = {}) {
   ctx.drawImage(source.element, 0, 0, frame.width, frame.height);
   ctx.restore();
   App.mediaVersion += 1;
-  if (paint) markDirty();
+  if (App.exportBusy) {
+    paintNow();
+  } else if (paint) {
+    markDirty();
+  }
   updateMediaControls();
   return true;
 }
 
 function animatedTargetFps() {
-  return isHeavyBundle() ? 6 : 12;
+  const source = App.mediaSource;
+  if (!source) return 15;
+  return computeTargetFps(source.fps, 15);
 }
+App.animatedTargetFps = animatedTargetFps;
 
 function startMediaPump() {
   stopMediaPump();
@@ -424,8 +432,10 @@ function startMediaPump() {
     App.mediaPump = 0;
     if (!App.mediaPlaying || !App.mediaSource || document.hidden) return;
     const interval = 1000 / animatedTargetFps();
-    if (!App.mediaPumpLast || now - App.mediaPumpLast >= interval) {
-      App.mediaPumpLast = now;
+    if (!App.mediaPumpLast || now - App.mediaPumpLast >= interval - 4) {
+      App.mediaPumpLast = !App.mediaPumpLast
+        ? now
+        : Math.max(now - interval, App.mediaPumpLast + interval);
       drawAnimatedFrame();
     }
     if (!App.mediaSource.playing && !App.mediaSource.loop) {
@@ -495,7 +505,9 @@ async function setAnimatedSource(source) {
   markDirty();
   updateMeta();
   updateMediaControls();
-  note(`${source.kind === "gif" ? "GIF" : "Video"} loaded · capped playback at ${ANIMATED_FRAME_CAP}px / 12 fps.`);
+  const targetFps = animatedTargetFps();
+  const fpsLabel = Number.isInteger(targetFps) ? `${targetFps}` : Number(targetFps.toFixed(1));
+  note(`${source.kind === "gif" ? "GIF" : "Video"} loaded · ${source.fps > 15 ? "capped playback at" : "playback at"} ${ANIMATED_FRAME_CAP}px / ${fpsLabel} fps.`);
   await setMediaPlaying(true);
 }
 
@@ -1169,11 +1181,13 @@ async function exportAnimatedVideo(signal) {
   drawAnimatedFrame({ paint: false });
   paintNow();
 
+  const targetFps = animatedTargetFps();
+
   try {
     const blob = await recordCanvasWebM({
       canvas: App.p.canvas,
       duration: source.duration,
-      fps: 12,
+      fps: targetFps,
       signal,
       onProgress: (value) => setExportProgress(value, "Recording processed WebM…"),
       play: async () => {
@@ -1221,21 +1235,47 @@ async function exportAnimatedGif(signal) {
   const ctx = canvas.getContext("2d", { alpha: false, willReadFrequently: true });
   const frameCount = source.frameCount;
   const delays = source.frameDelays;
+  const originalFps = Number(source.fps) || 15;
+  const shouldCapFps = originalFps > 15;
 
   async function* frames() {
-    for (let index = 0; index < frameCount; index++) {
-      if (signal.aborted) throw signal.reason || new DOMException("Aborted", "AbortError");
-      source.renderFrame(index);
-      drawAnimatedFrame({ paint: false });
-      paintNow();
-      ctx.drawImage(App.p.canvas, 0, 0, canvas.width, canvas.height);
-      const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
-      yield {
-        rgba: new Uint8Array(pixels),
-        delay: delays[index],
-        progress: (index + 1) / frameCount,
-      };
-      await new Promise((resolve) => setTimeout(resolve, 0));
+    if (!shouldCapFps) {
+      for (let index = 0; index < frameCount; index++) {
+        if (signal.aborted) throw signal.reason || new DOMException("Aborted", "AbortError");
+        source.renderFrame(index);
+        drawAnimatedFrame({ paint: false });
+        paintNow();
+        ctx.drawImage(App.p.canvas, 0, 0, canvas.width, canvas.height);
+        const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+        yield {
+          rgba: new Uint8Array(pixels),
+          delay: delays[index],
+          progress: (index + 1) / frameCount,
+        };
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
+    } else {
+      const targetFps = 15;
+      const duration = Math.max(0.01, Number(source.duration) || 0);
+      const exportFrameCount = Math.max(1, Math.round(duration * targetFps));
+      for (let index = 0; index < exportFrameCount; index++) {
+        if (signal.aborted) throw signal.reason || new DOMException("Aborted", "AbortError");
+        const sampleTime = Math.min(index / targetFps, Math.max(0, duration - 0.0001));
+        source.renderAtTime(sampleTime);
+        drawAnimatedFrame({ paint: false });
+        paintNow();
+        ctx.drawImage(App.p.canvas, 0, 0, canvas.width, canvas.height);
+        const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+        const currentCentis = Math.round(((index + 1) * 100) / targetFps);
+        const previousCentis = Math.round((index * 100) / targetFps);
+        const delayMs = Math.max(20, (currentCentis - previousCentis) * 10);
+        yield {
+          rgba: new Uint8Array(pixels),
+          delay: delayMs,
+          progress: (index + 1) / exportFrameCount,
+        };
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
     }
   }
 
@@ -1479,12 +1519,14 @@ function openExportPanel() {
   $("#xanimated-label").textContent = App.mediaKind === "video" ? "Video" : "Animated GIF";
   $("#xbtn-animated").textContent = App.mediaKind === "video" ? "Download WebM" : "Download GIF";
   $("#xbtn-animated").disabled = App.exportBusy || !animated || !animatedSupported;
+  const targetFps = animatedTargetFps();
+  const fpsLabel = Number.isInteger(targetFps) ? `${targetFps}` : Number(targetFps.toFixed(1));
   $("#xanimated-desc").textContent = !animated
     ? "Load a GIF or video to export motion."
     : animatedSupported
       ? App.mediaKind === "video"
-        ? "Silent WebM at 12 fps."
-        : "Processed GIF, max 720px."
+        ? `Silent WebM at ${fpsLabel} fps.`
+        : `Processed GIF at ${fpsLabel} fps, max 720px.`
       : "Animated export is not supported in this browser.";
 
   const panel = $("#xpanel");

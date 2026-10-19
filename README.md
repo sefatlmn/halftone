@@ -69,7 +69,7 @@ output. The same matrix runs automatically in GitHub Actions.
 1. **Load an image, animated GIF, or short video** (or try the **Demo plate**). You can also drag and drop onto the stage.
    - GIF: up to 12 MB, 1600 px per side, 240 frames, 30 seconds, and a 48 MB decoded-patch budget.
    - Video: MP4, WebM, MOV, or OGV up to 60 MB, 1920 px per side, and 60 seconds.
-   - Animated playback is intentionally capped at 12 processed frames per second (6 for expensive effect combinations) to keep the browser responsive.
+   - Animated playback runs at a constant 15 processed frames per second (or the media's original frame rate if 15 fps or lower) to keep motion smooth and the browser responsive.
 2. **Pre-adjust** brightness, contrast, gamma, and invert. Optionally pick a **Colour pre-stage** (Gradient Map, Tone, or Hue/Sat) that gets applied to the working buffer before the effect runs.
 3. Pick **Effect A** from the filmstrip at the bottom and tweak its parameters. The preview updates live.
 4. Want to **stack a second effect**? Click **B** in the filmstrip toggle, then pick any effect. B runs on A's rendered output. Picking **00 None** in slot B clears the stack.
@@ -77,8 +77,8 @@ output. The same matrix runs automatically in GitHub Actions.
    - **PNG** at 2x device resolution
    - **Colour separation ZIP** with one plate per ink (for Halftone CMYK, RGB Shift, and Risograph)
    - **SVG** with true vectors (for Halftone, ASCII, Dither, and Risograph). Not available for raster effects or while two effects are stacked.
-    - **Animated GIF** for GIF sources, encoded in a worker and capped at 720 px.
-    - **Silent WebM** for video sources, recorded from the processed canvas at 12 fps. Source audio is never captured.
+    - **Animated GIF** for GIF sources, encoded in a worker at a constant 15 fps (or original if ≤ 15 fps) and capped at 720 px.
+    - **Silent WebM** for video sources, recorded from the processed canvas at a constant 15 fps (or original if ≤ 15 fps). Source audio is never captured.
 
 PNG, SVG, and separation exports capture the animated source's current frame when that export is compatible with the selected effect.
 

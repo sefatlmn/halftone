@@ -22,7 +22,7 @@ export function preferredWebMMime() {
 export async function recordCanvasWebM({
   canvas,
   duration,
-  fps,
+  fps = 15,
   play,
   stop,
   onProgress,

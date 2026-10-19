@@ -198,6 +198,7 @@
           );
           assert(source.width === 160 && source.height === 120, "Unexpected video size.");
           assert(source.duration > 0 && source.duration <= 2, "Unexpected video duration.");
+          assert(source.fps > 0, "Video fps was not set.");
           await source.seek(Math.min(0.05, source.duration / 3));
           assert(source.currentTime > 0, "Video seek did not move the playhead.");
           await source.play();

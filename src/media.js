@@ -159,7 +159,361 @@ function checkDimensions(width, height, limits, label) {
   }
 }
 
-export async function loadVideoSource(file, { signal } = {}) {
+export function computeTargetFps(mediaFps, fallback = 15) {
+  const fps = Number(mediaFps);
+  if (!Number.isFinite(fps) || fps <= 0) return fallback;
+  return fps > 15 ? 15 : fps;
+}
+
+export function parseMp4Fps(buffer) {
+  if (!buffer || buffer.byteLength < 8) return null;
+  const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+
+  let currentTrack = null;
+  const tracks = [];
+
+  function walk(start, end) {
+    let pos = start;
+    while (pos + 8 <= end) {
+      let size = view.getUint32(pos);
+      let headerSize = 8;
+      if (size === 1) {
+        if (pos + 16 > end) break;
+        const bigSize = view.getBigUint64(pos + 8);
+        if (bigSize > BigInt(Number.MAX_SAFE_INTEGER)) break;
+        size = Number(bigSize);
+        headerSize = 16;
+      } else if (size === 0) {
+        size = end - pos;
+      }
+      if (size < headerSize || pos + size > end) break;
+      const type = String.fromCharCode(
+        bytes[pos + 4], bytes[pos + 5], bytes[pos + 6], bytes[pos + 7]
+      );
+      const payloadStart = pos + headerSize;
+      const payloadEnd = pos + size;
+
+      if (type === "moov") {
+        walk(payloadStart, payloadEnd);
+      } else if (type === "trak") {
+        currentTrack = { timescale: 0, sampleDelta: 0, isVideo: false };
+        tracks.push(currentTrack);
+        walk(payloadStart, payloadEnd);
+        currentTrack = null;
+      } else if (type === "mdia" || type === "minf" || type === "stbl") {
+        walk(payloadStart, payloadEnd);
+      } else if (type === "hdlr" && currentTrack) {
+        if (payloadEnd - payloadStart >= 12) {
+          const handlerType = String.fromCharCode(
+            bytes[payloadStart + 8], bytes[payloadStart + 9],
+            bytes[payloadStart + 10], bytes[payloadStart + 11]
+          );
+          if (handlerType === "vide") {
+            currentTrack.isVideo = true;
+          }
+        }
+      } else if (type === "mdhd" && currentTrack) {
+        const version = view.getUint8(payloadStart);
+        const tsOffset = version === 1 ? payloadStart + 4 + 16 : payloadStart + 4 + 8;
+        if (tsOffset + 4 <= payloadEnd) {
+          currentTrack.timescale = view.getUint32(tsOffset);
+        }
+      } else if (type === "stts" && currentTrack) {
+        if (payloadStart + 8 <= payloadEnd) {
+          const entryCount = view.getUint32(payloadStart + 4);
+          let totalSamples = 0;
+          let totalDelta = 0;
+          let entryPos = payloadStart + 8;
+          for (let e = 0; e < entryCount && entryPos + 8 <= payloadEnd; e++) {
+            const count = view.getUint32(entryPos);
+            const delta = view.getUint32(entryPos + 4);
+            totalSamples += count;
+            totalDelta += count * delta;
+            entryPos += 8;
+          }
+          if (totalSamples > 0 && totalDelta > 0) {
+            currentTrack.sampleDelta = totalDelta / totalSamples;
+          }
+        }
+      }
+      pos += size;
+    }
+  }
+
+  try {
+    walk(0, bytes.byteLength);
+  } catch {
+    return null;
+  }
+
+  // If moov was not found at root level, scan the buffer for 'moov' FourCC
+  if (!tracks.some((t) => t.timescale > 0 && t.sampleDelta > 0)) {
+    for (let i = 4; i <= bytes.byteLength - 8; i++) {
+      if (bytes[i] === 0x6D && bytes[i + 1] === 0x6F && bytes[i + 2] === 0x6F && bytes[i + 3] === 0x76) {
+        const boxStart = i - 4;
+        let boxSize = view.getUint32(boxStart);
+        if (boxSize >= 8 && boxStart + boxSize <= bytes.byteLength + 64) {
+          try {
+            walk(boxStart, Math.min(bytes.byteLength, boxStart + boxSize));
+          } catch {}
+          if (tracks.some((t) => t.timescale > 0 && t.sampleDelta > 0)) break;
+        }
+      }
+    }
+  }
+
+  const videoTrack = tracks.find((t) => t.isVideo && t.timescale > 0 && t.sampleDelta > 0) ||
+    tracks.find((t) => t.timescale > 0 && t.sampleDelta > 0);
+  if (videoTrack && videoTrack.sampleDelta > 0) {
+    const fps = videoTrack.timescale / videoTrack.sampleDelta;
+    return Number.isFinite(fps) && fps > 0 ? fps : null;
+  }
+  return null;
+}
+
+function readEbmlId(bytes, offset) {
+  const first = bytes[offset];
+  if (first === undefined) return null;
+  let mask = 0x80;
+  let length = 1;
+  while (length <= 4 && !(first & mask)) {
+    mask >>= 1;
+    length++;
+  }
+  if (length > 4 || offset + length > bytes.length) return null;
+  let id = 0;
+  for (let i = 0; i < length; i++) {
+    id = (id << 8) | bytes[offset + i];
+  }
+  return { length, id };
+}
+
+function readEbmlVint(bytes, offset) {
+  const first = bytes[offset];
+  if (first === undefined) return null;
+  let mask = 0x80;
+  let length = 1;
+  while (length <= 8 && !(first & mask)) {
+    mask >>= 1;
+    length++;
+  }
+  if (length > 8 || offset + length > bytes.length) return null;
+  let value = first & (mask - 1);
+  for (let i = 1; i < length; i++) {
+    value = (value * 256) + bytes[offset + i];
+  }
+  return { length, value };
+}
+
+export function parseWebmFps(buffer) {
+  if (!buffer || buffer.byteLength < 8) return null;
+  const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+
+  try {
+    const limit = Math.min(bytes.length - 3, 65536);
+    for (let i = 0; i < limit; i++) {
+      // DefaultDuration (0x23E383)
+      if (bytes[i] === 0x23 && bytes[i + 1] === 0xE3 && bytes[i + 2] === 0x83) {
+        const vint = readEbmlVint(bytes, i + 3);
+        if (vint && vint.value > 0 && vint.value <= 8 && i + 3 + vint.length + vint.value <= bytes.length) {
+          let val = 0;
+          for (let j = 0; j < vint.value; j++) {
+            val = (val * 256) + bytes[i + 3 + vint.length + j];
+          }
+          if (val > 0) {
+            const fps = 1e9 / val;
+            if (Number.isFinite(fps) && fps > 0) return fps;
+          }
+        }
+      }
+      // FrameRate (0x2383E3)
+      if (bytes[i] === 0x23 && bytes[i + 1] === 0x83 && bytes[i + 2] === 0xE3) {
+        const vint = readEbmlVint(bytes, i + 3);
+        if (vint && i + 3 + vint.length + vint.value <= bytes.length) {
+          const valOffset = i + 3 + vint.length;
+          let fps = null;
+          if (vint.value === 4) {
+            fps = view.getFloat32(valOffset);
+          } else if (vint.value === 8) {
+            fps = view.getFloat64(valOffset);
+          }
+          if (fps && Number.isFinite(fps) && fps > 0 && fps <= 240) {
+            return fps;
+          }
+        }
+      }
+    }
+
+    // Scan forward from start for Clusters and track timecodes per track
+    const trackTimecodes = new Map();
+    let scanPos = 0;
+    while (scanPos + 4 <= bytes.length) {
+      if (bytes[scanPos] === 0x1F && bytes[scanPos + 1] === 0x43 && bytes[scanPos + 2] === 0xB6 && bytes[scanPos + 3] === 0x75) {
+        const cLen = readEbmlVint(bytes, scanPos + 4);
+        if (!cLen) { scanPos += 4; continue; }
+        let cPos = scanPos + 4 + cLen.length;
+        const cEnd = (cLen.value > 0 && cLen.value < 0x00FFFFFFFFFFFFFF)
+          ? Math.min(bytes.length, cPos + cLen.value)
+          : bytes.length;
+        let clusterTimecode = 0;
+        while (cPos < cEnd) {
+          const elId = readEbmlId(bytes, cPos);
+          if (!elId) break;
+          cPos += elId.length;
+          const elLen = readEbmlVint(bytes, cPos);
+          if (!elLen) break;
+          cPos += elLen.length;
+          const elemEnd = cPos + elLen.value;
+          if (elemEnd > bytes.length) break;
+
+          if (elId.id === 0xE7) {
+            let tcVal = 0;
+            for (let b = 0; b < elLen.value; b++) tcVal = (tcVal * 256) + bytes[cPos + b];
+            clusterTimecode = tcVal;
+          } else if (elId.id === 0xA3) {
+            const trackVint = readEbmlVint(bytes, cPos);
+            if (trackVint && cPos + trackVint.length + 2 <= elemEnd) {
+              const tcOffset = cPos + trackVint.length;
+              let relTc = (bytes[tcOffset] << 8) | bytes[tcOffset + 1];
+              if (relTc & 0x8000) relTc -= 0x10000;
+              const absTc = clusterTimecode + relTc;
+              const list = trackTimecodes.get(trackVint.value) || [];
+              list.push(absTc);
+              trackTimecodes.set(trackVint.value, list);
+            }
+          } else if (elId.id === 0xA0) {
+            let sub = cPos;
+            while (sub < elemEnd) {
+              const sId = readEbmlId(bytes, sub);
+              if (!sId) break;
+              sub += sId.length;
+              const sLen = readEbmlVint(bytes, sub);
+              if (!sLen) break;
+              sub += sLen.length;
+              const sEnd = sub + sLen.value;
+              if (sEnd > elemEnd) break;
+              if (sId.id === 0xA1) {
+                const trackVint = readEbmlVint(bytes, sub);
+                if (trackVint && sub + trackVint.length + 2 <= sEnd) {
+                  const tcOffset = sub + trackVint.length;
+                  let relTc = (bytes[tcOffset] << 8) | bytes[tcOffset + 1];
+                  if (relTc & 0x8000) relTc -= 0x10000;
+                  const absTc = clusterTimecode + relTc;
+                  const list = trackTimecodes.get(trackVint.value) || [];
+                  list.push(absTc);
+                  trackTimecodes.set(trackVint.value, list);
+                }
+              }
+              sub = sEnd;
+            }
+          }
+          cPos = elemEnd;
+          let maxCount = 0;
+          for (const list of trackTimecodes.values()) if (list.length > maxCount) maxCount = list.length;
+          if (maxCount >= 16) break;
+        }
+        let maxCount = 0;
+        for (const list of trackTimecodes.values()) if (list.length > maxCount) maxCount = list.length;
+        if (maxCount >= 16) break;
+        scanPos = cEnd;
+      } else {
+        scanPos++;
+      }
+    }
+
+    for (const timecodes of trackTimecodes.values()) {
+      if (timecodes.length >= 2) {
+        const deltas = [];
+        for (let k = 1; k < timecodes.length; k++) {
+          const d = timecodes[k] - timecodes[k - 1];
+          if (d > 0) deltas.push(d);
+        }
+        if (deltas.length > 0) {
+          const avgDelta = deltas.reduce((a, b) => a + b, 0) / deltas.length;
+          if (avgDelta > 0) {
+            const fps = 1000 / avgDelta;
+            if (Number.isFinite(fps) && fps > 0) return fps;
+          }
+        }
+      }
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+export async function detectVideoFps(file) {
+  if (!file || typeof file.arrayBuffer !== "function") return null;
+  const size = file.size || 0;
+  let headBuf;
+  try {
+    const headSlice = file.slice(0, Math.min(size, 2 * 1024 * 1024));
+    headBuf = await headSlice.arrayBuffer();
+  } catch {
+    return null;
+  }
+
+  // 1. Try parsing MP4 from the head buffer
+  let fps = parseMp4Fps(headBuf);
+  if (fps) return fps;
+
+  // 2. Walk top-level box sizes to locate moov if placed after mdat
+  if (headBuf.byteLength >= 8) {
+    const view = new DataView(headBuf);
+    let pos = 0;
+    while (pos + 8 <= headBuf.byteLength) {
+      let bSize = view.getUint32(pos);
+      let hSize = 8;
+      if (bSize === 1) {
+        if (pos + 16 > headBuf.byteLength) break;
+        const big = view.getBigUint64(pos + 8);
+        if (big > BigInt(Number.MAX_SAFE_INTEGER)) break;
+        bSize = Number(big);
+        hSize = 16;
+      } else if (bSize === 0) {
+        bSize = size - pos;
+      }
+      if (bSize < hSize) break;
+      const nextPos = pos + bSize;
+      if (nextPos <= headBuf.byteLength) {
+        pos = nextPos;
+      } else {
+        if (nextPos < size) {
+          try {
+            const nextSlice = file.slice(nextPos, Math.min(size, nextPos + 2 * 1024 * 1024));
+            const nextBuf = await nextSlice.arrayBuffer();
+            fps = parseMp4Fps(nextBuf);
+            if (fps) return fps;
+          } catch {}
+        }
+        break;
+      }
+    }
+  }
+
+  // 3. Fallback: inspect the tail buffer for moov (supporting unaligned / scan)
+  if (size > 2 * 1024 * 1024) {
+    try {
+      const tailSlice = file.slice(Math.max(0, size - 2 * 1024 * 1024));
+      const tailBuf = await tailSlice.arrayBuffer();
+      fps = parseMp4Fps(tailBuf);
+      if (fps) return fps;
+    } catch {
+      // ignore
+    }
+  }
+
+  // 4. Try WebM parsing from the head buffer
+  fps = parseWebmFps(headBuf);
+  if (fps) return fps;
+
+  return null;
+}
+
+export async function loadVideoSource(file, { signal, fps } = {}) {
   assertBrowser("Video loading");
   validateMediaFile(file, "video");
   const url = URL.createObjectURL(file);
@@ -181,10 +535,27 @@ export async function loadVideoSource(file, { signal } = {}) {
     element.removeAttribute("src"); element.load(); URL.revokeObjectURL(url);
     throw error;
   }
+  let detectedFps = null;
+  if (typeof fps === "number" && Number.isFinite(fps) && fps > 0) {
+    detectedFps = fps;
+  } else if (typeof file?.fps === "number" && Number.isFinite(file.fps) && file.fps > 0) {
+    detectedFps = file.fps;
+  } else {
+    try {
+      detectedFps = await detectVideoFps(file);
+    } catch {
+      // ignore
+    }
+  }
+  const videoFps = detectedFps && Number.isFinite(detectedFps) && detectedFps > 0
+    ? detectedFps
+    : 15;
+
   let disposed = false;
   const guard = () => { if (disposed) throw new Error("This media source has been disposed."); };
   return {
     kind: "video", element, url, width: element.videoWidth, height: element.videoHeight, duration,
+    fps: videoFps,
     get currentTime() { return element.currentTime; },
     get playing() { return !element.paused && !element.ended; },
     set currentTime(time) { this.seek(time); },
@@ -205,7 +576,7 @@ export async function loadVideoSource(file, { signal } = {}) {
   };
 }
 
-export async function loadGifSource(file, { signal } = {}) {
+export async function loadGifSource(file, { signal, fps } = {}) {
   assertBrowser("GIF loading");
   validateMediaFile(file, "gif");
   if (signal?.aborted) throw signal.reason || new DOMException("Aborted", "AbortError");
@@ -238,6 +609,10 @@ export async function loadGifSource(file, { signal } = {}) {
   if (delays.some((delay) => 1000 / delay > MEDIA_LIMITS.gif.fps)) throw new RangeError("GIF frame rate is too high.");
   const duration = delays.reduce((sum, delay) => sum + delay, 0) / 1000;
   if (duration > MEDIA_LIMITS.gif.duration) throw new RangeError("GIF duration is too long.");
+  const detectedGifFps = duration > 0 ? frames.length / duration : (delays.length > 0 ? 1000 / delays[0] : 15);
+  const gifFps = typeof fps === "number" && Number.isFinite(fps) && fps > 0
+    ? fps
+    : (typeof file?.fps === "number" && Number.isFinite(file.fps) && file.fps > 0 ? file.fps : detectedGifFps);
 
   const canvas = document.createElement("canvas");
   canvas.width = width; canvas.height = height;
@@ -305,6 +680,7 @@ export async function loadGifSource(file, { signal } = {}) {
   renderFrame(0);
   return {
     kind: "gif", element: canvas, canvas, width, height, duration,
+    fps: gifFps,
     frameCount: frames.length,
     frameDelays: delays.slice(),
     get currentTime() { return time; }, set currentTime(value) { this.seek(value); },

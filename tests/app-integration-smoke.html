@@ -61,6 +61,15 @@
         return encodeGif({ width: 24, height: 24, frames: frames() });
       }
 
+      async function makeHighFpsGif() {
+        async function* frames() {
+          yield { rgba: solid(238, 55, 40), delay: 33, progress: 0.33 };
+          yield { rgba: solid(20, 85, 225), delay: 33, progress: 0.66 };
+          yield { rgba: solid(40, 175, 90), delay: 33, progress: 1 };
+        }
+        return encodeGif({ width: 24, height: 24, frames: frames() });
+      }
+
       async function makeVideo() {
         const canvas = document.createElement("canvas");
         canvas.width = 120; canvas.height = 90;
@@ -78,6 +87,28 @@
               ctx.fillRect(0, 0, canvas.width, canvas.height);
               if (elapsed >= 300) resolve();
             }, 25);
+          }),
+          stop: () => clearInterval(timer),
+        });
+      }
+
+      async function makeHighFpsVideo() {
+        const canvas = document.createElement("canvas");
+        canvas.width = 120; canvas.height = 90;
+        const ctx = canvas.getContext("2d");
+        let timer;
+        return recordCanvasWebM({
+          canvas,
+          duration: 0.3,
+          fps: 24,
+          play: () => new Promise((resolve) => {
+            const started = performance.now();
+            timer = setInterval(() => {
+              const elapsed = performance.now() - started;
+              ctx.fillStyle = elapsed % 80 < 40 ? "#ef4434" : "#155bd6";
+              ctx.fillRect(0, 0, canvas.width, canvas.height);
+              if (elapsed >= 300) resolve();
+            }, 15);
           }),
           stop: () => clearInterval(timer),
         });
@@ -114,6 +145,20 @@
         assert(doc.querySelector("#xbtn-animated").textContent.includes("GIF"), "GIF export option is missing.");
         doc.querySelector("#xbtn-animated").click();
         await until(() => !win.__hp.exportBusy && downloads.some((name) => name.endsWith(".gif")), "GIF export did not finish.");
+        assert(Math.abs(win.__hp.animatedTargetFps() - 12.5) < 0.1, "Expected target fps to preserve original 12.5 fps.");
+
+        const initialGif = win.__hp.mediaSource;
+        const highFpsBlob = await makeHighFpsGif();
+        highFpsBlob.name = "integration-high-fps.gif";
+        selectFile(win, highFpsBlob);
+        await until(
+          () => win.__hp.mediaSource !== initialGif && win.__hp.mediaKind === "gif" && win.__hp.mediaPlaying,
+          "High FPS GIF did not load and play.",
+        );
+        assert(win.__hp.animatedTargetFps() === 15, "Expected target fps to be constant 15 fps for > 15 fps media.");
+        doc.querySelector("#btn-export").click();
+        doc.querySelector("#xbtn-animated").click();
+        await until(() => !win.__hp.exportBusy && downloads.filter((name) => name.endsWith(".gif")).length >= 2, "High FPS GIF export did not finish.");
 
         const oldGif = win.__hp.mediaSource;
         const disposal3Blob = makeDisposal3Gif();
@@ -157,6 +202,7 @@
             "Video did not load and play.",
           );
           assert(disposal2Source.canvas.width === 1, "Replaced disposal 2 resources were not released.");
+          assert(Math.abs(win.__hp.animatedTargetFps() - 12) < 1.0, "Expected video target fps to preserve original ~12 fps.");
           doc.querySelector("#media-loop").checked = false;
           doc.querySelector("#media-loop").dispatchEvent(new win.Event("change", { bubbles: true }));
           assert(!win.__hp.mediaSource.loop, "Loop control did not update the video.");
@@ -164,6 +210,19 @@
           assert(doc.querySelector("#xbtn-animated").textContent.includes("WebM"), "WebM export option is missing.");
           doc.querySelector("#xbtn-animated").click();
           await until(() => !win.__hp.exportBusy && downloads.some((name) => name.endsWith(".webm")), "WebM export did not finish.");
+
+          const initialVideo = win.__hp.mediaSource;
+          const highFpsVideoBlob = await makeHighFpsVideo();
+          highFpsVideoBlob.name = "integration-high-fps.webm";
+          selectFile(win, highFpsVideoBlob);
+          await until(
+            () => win.__hp.mediaSource !== initialVideo && win.__hp.mediaKind === "video" && win.__hp.mediaPlaying,
+            "High FPS video did not load and play.",
+          );
+          assert(win.__hp.animatedTargetFps() === 15, "Expected high fps video target to be constant 15 fps.");
+          doc.querySelector("#btn-export").click();
+          doc.querySelector("#xbtn-animated").click();
+          await until(() => !win.__hp.exportBusy && downloads.filter((name) => name.endsWith(".webm")).length >= 2, "High FPS WebM export did not finish.");
         }
 
         status.textContent = preferredWebMMime()
