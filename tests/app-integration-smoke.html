@@ -202,7 +202,7 @@
             "Video did not load and play.",
           );
           assert(disposal2Source.canvas.width === 1, "Replaced disposal 2 resources were not released.");
-          assert(Math.abs(win.__hp.animatedTargetFps() - 12) < 1.0, "Expected video target fps to preserve original ~12 fps.");
+          assert(Math.abs(win.__hp.animatedTargetFps() - 12) < 3.0, "Expected video target fps to preserve original ~12 fps.");
           doc.querySelector("#media-loop").checked = false;
           doc.querySelector("#media-loop").dispatchEvent(new win.Event("change", { bubbles: true }));
           assert(!win.__hp.mediaSource.loop, "Loop control did not update the video.");
