@@ -1828,6 +1828,43 @@ function wireEvents() {
   if (document.fonts && document.fonts.ready) {
     document.fonts.ready.then(() => requestRender());
   }
+
+  // On desktop breakpoint / mouse input: scroll effects strip left or right on mousewheel up or down
+  const strip = $(".strip");
+  const films = $("#films");
+  if (strip && films) {
+    const onStripWheel = (e) => {
+      if (e.ctrlKey || e.metaKey) return;
+
+      const isDesktop = window.matchMedia
+        ? window.matchMedia("(min-width: 721px)").matches
+        : window.innerWidth > 720;
+
+      if (!isDesktop) return;
+
+      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+      if (e.deltaY === 0) return;
+
+      let delta = e.deltaY;
+      if (e.deltaMode === 1) {
+        delta *= 32;
+      } else if (e.deltaMode === 2) {
+        delta *= films.clientWidth;
+      }
+
+      films.scrollLeft += delta;
+      if (e.cancelable) {
+        e.preventDefault();
+      }
+    };
+
+    films.addEventListener("wheel", onStripWheel, { passive: false });
+    strip.addEventListener("wheel", (e) => {
+      const target = e.target instanceof Element ? e.target : e.target?.parentElement;
+      if (target?.closest("#films")) return;
+      onStripWheel(e);
+    }, { passive: false });
+  }
 }
 
 /* ----------------------------------------------------------------
