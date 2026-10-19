@@ -26,6 +26,7 @@ import {
   preferredWebMMime,
   recordCanvasWebM,
 } from "./animated-export.js";
+import { wireFilmstripWheel } from "./ui/filmstrip-wheel.js";
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -380,6 +381,9 @@ function stopMediaPump() {
   if (App.mediaPump) cancelAnimationFrame(App.mediaPump);
   App.mediaPump = 0;
   App.mediaPumpLast = 0;
+  if (App.mediaSource && App.mediaSource.kind === "gif") {
+    App.mediaSource.externallyDriven = false;
+  }
 }
 
 function disposeAnimatedSource() {
@@ -428,6 +432,9 @@ App.animatedTargetFps = animatedTargetFps;
 function startMediaPump() {
   stopMediaPump();
   if (!App.mediaPlaying || !App.mediaSource) return;
+  if (App.mediaSource.kind === "gif") {
+    App.mediaSource.externallyDriven = true;
+  }
   const tick = (now) => {
     App.mediaPump = 0;
     if (!App.mediaPlaying || !App.mediaSource || document.hidden) return;
@@ -436,6 +443,9 @@ function startMediaPump() {
       App.mediaPumpLast = !App.mediaPumpLast
         ? now
         : Math.max(now - interval, App.mediaPumpLast + interval);
+      if (typeof App.mediaSource.step === "function") {
+        App.mediaSource.step(now);
+      }
       drawAnimatedFrame();
     }
     if (!App.mediaSource.playing && !App.mediaSource.loop) {
@@ -1204,7 +1214,8 @@ async function exportAnimatedVideo(signal) {
       },
     });
     if (signal.aborted) throw signal.reason || new DOMException("Aborted", "AbortError");
-    downloadBlob(blob, `halftone-press_${App.activeId}.webm`);
+    const ext = blob.type.includes("mp4") ? "mp4" : "webm";
+    downloadBlob(blob, `halftone-press_${App.activeId}.${ext}`);
   } finally {
     source.loop = previous.loop;
     await source.seek(previous.time);
@@ -1229,10 +1240,8 @@ async function exportAnimatedGif(signal) {
   stopMediaPump();
 
   const outputSize = fitWithin(App.canvasW, App.canvasH, 720);
-  const canvas = document.createElement("canvas");
-  canvas.width = outputSize.width;
-  canvas.height = outputSize.height;
-  const ctx = canvas.getContext("2d", { alpha: false, willReadFrequently: true });
+  const exportG = App.p.createGraphics(outputSize.width, outputSize.height);
+  exportG.pixelDensity(1);
   const frameCount = source.frameCount;
   const delays = source.frameDelays;
   const originalFps = Number(source.fps) || 15;
@@ -1244,11 +1253,12 @@ async function exportAnimatedGif(signal) {
         if (signal.aborted) throw signal.reason || new DOMException("Aborted", "AbortError");
         source.renderFrame(index);
         drawAnimatedFrame({ paint: false });
-        paintNow();
-        ctx.drawImage(App.p.canvas, 0, 0, canvas.width, canvas.height);
-        const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+        exportG.clear();
+        App.stack.renderInto(exportG, App.srcImage, singleBundle(), outputSize.width, outputSize.height);
+        const pixels = exportG.canvas.getContext("2d", { willReadFrequently: true })
+          .getImageData(0, 0, outputSize.width, outputSize.height).data;
         yield {
-          rgba: new Uint8Array(pixels),
+          rgba: pixels,
           delay: delays[index],
           progress: (index + 1) / frameCount,
         };
@@ -1263,14 +1273,15 @@ async function exportAnimatedGif(signal) {
         const sampleTime = Math.min(index / targetFps, Math.max(0, duration - 0.0001));
         source.renderAtTime(sampleTime);
         drawAnimatedFrame({ paint: false });
-        paintNow();
-        ctx.drawImage(App.p.canvas, 0, 0, canvas.width, canvas.height);
-        const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+        exportG.clear();
+        App.stack.renderInto(exportG, App.srcImage, singleBundle(), outputSize.width, outputSize.height);
+        const pixels = exportG.canvas.getContext("2d", { willReadFrequently: true })
+          .getImageData(0, 0, outputSize.width, outputSize.height).data;
         const currentCentis = Math.round(((index + 1) * 100) / targetFps);
         const previousCentis = Math.round((index * 100) / targetFps);
         const delayMs = Math.max(20, (currentCentis - previousCentis) * 10);
         yield {
-          rgba: new Uint8Array(pixels),
+          rgba: pixels,
           delay: delayMs,
           progress: (index + 1) / exportFrameCount,
         };
@@ -1281,8 +1292,8 @@ async function exportAnimatedGif(signal) {
 
   try {
     const blob = await encodeGif({
-      width: canvas.width,
-      height: canvas.height,
+      width: outputSize.width,
+      height: outputSize.height,
       frames: frames(),
       signal,
       onProgress: (value) => setExportProgress(value, "Encoding processed GIF…"),
@@ -1290,7 +1301,7 @@ async function exportAnimatedGif(signal) {
     if (signal.aborted) throw signal.reason || new DOMException("Aborted", "AbortError");
     downloadBlob(blob, `halftone-press_${App.activeId}.gif`);
   } finally {
-    canvas.width = canvas.height = 1;
+    exportG.remove();
     await source.seek(previous.time);
     drawAnimatedFrame({ paint: false });
     paintNow();
@@ -1513,11 +1524,13 @@ function openExportPanel() {
       : "Not available for this effect.";
 
   const animated = !!App.mediaSource;
+  const videoMime = preferredWebMMime();
   const animatedSupported = App.mediaKind === "video"
-    ? !!preferredWebMMime() && !!App.p.canvas.captureStream
+    ? !!videoMime && !!App.p.canvas.captureStream
     : App.mediaKind === "gif" && typeof Worker !== "undefined";
+  const videoExtLabel = videoMime.includes("mp4") ? "MP4" : "WebM";
   $("#xanimated-label").textContent = App.mediaKind === "video" ? "Video" : "Animated GIF";
-  $("#xbtn-animated").textContent = App.mediaKind === "video" ? "Download WebM" : "Download GIF";
+  $("#xbtn-animated").textContent = App.mediaKind === "video" ? `Download ${videoExtLabel}` : "Download GIF";
   $("#xbtn-animated").disabled = App.exportBusy || !animated || !animatedSupported;
   const targetFps = animatedTargetFps();
   const fpsLabel = Number.isInteger(targetFps) ? `${targetFps}` : Number(targetFps.toFixed(1));
@@ -1525,7 +1538,7 @@ function openExportPanel() {
     ? "Load a GIF or video to export motion."
     : animatedSupported
       ? App.mediaKind === "video"
-        ? `Silent WebM at ${fpsLabel} fps.`
+        ? `Silent ${videoExtLabel} at ${fpsLabel} fps.`
         : `Processed GIF at ${fpsLabel} fps, max 720px.`
       : "Animated export is not supported in this browser.";
 
@@ -1767,8 +1780,11 @@ function wireEvents() {
         e.preventDefault();
         setMediaPlaying(!App.mediaPlaying);
       }
-    } else if (e.key === "r" || e.key === "R") doRandomize();
-    else if (e.key === "e" || e.key === "E") openExportPanel();
+    } else if (e.key === "r" || e.key === "R") {
+      if ($("#xpanel").hasAttribute("hidden")) doRandomize();
+    } else if (e.key === "e" || e.key === "E") {
+      if ($("#xpanel").hasAttribute("hidden")) openExportPanel();
+    }
     else if (e.key === "Escape") {
       if (!$("#xpanel").hasAttribute("hidden")) {
         e.preventDefault();
@@ -1830,41 +1846,7 @@ function wireEvents() {
   }
 
   // On desktop breakpoint / mouse input: scroll effects strip left or right on mousewheel up or down
-  const strip = $(".strip");
-  const films = $("#films");
-  if (strip && films) {
-    const onStripWheel = (e) => {
-      if (e.ctrlKey || e.metaKey) return;
-
-      const isDesktop = window.matchMedia
-        ? window.matchMedia("(min-width: 721px)").matches
-        : window.innerWidth > 720;
-
-      if (!isDesktop) return;
-
-      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
-      if (e.deltaY === 0) return;
-
-      let delta = e.deltaY;
-      if (e.deltaMode === 1) {
-        delta *= 32;
-      } else if (e.deltaMode === 2) {
-        delta *= films.clientWidth;
-      }
-
-      films.scrollLeft += delta;
-      if (e.cancelable) {
-        e.preventDefault();
-      }
-    };
-
-    films.addEventListener("wheel", onStripWheel, { passive: false });
-    strip.addEventListener("wheel", (e) => {
-      const target = e.target instanceof Element ? e.target : e.target?.parentElement;
-      if (target?.closest("#films")) return;
-      onStripWheel(e);
-    }, { passive: false });
-  }
+  wireFilmstripWheel({ strip: $(".strip"), films: $("#films") });
 }
 
 /* ----------------------------------------------------------------

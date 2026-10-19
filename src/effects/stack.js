@@ -41,7 +41,7 @@ export function emptyBundle() {
 
 export function createEffectStack(p) {
   let working = null, staged = null, chainPG = null;
-  let wSig = null, sSig = null;
+  let wSig = null, sSig = null, cSig = null;
 
   function sizeBuffer(buf, w, h) {
     if (buf && buf.width === w && buf.height === h) return buf;
@@ -106,12 +106,17 @@ export function createEffectStack(p) {
     // — can read it), then render the second effect from that into the target.
     // Distinct scratch slots ('a' vs 'b') keep the same effect in both passes
     // from resizing one pooled buffer back and forth every frame.
-    chainPG = sizeBuffer(chainPG, w, h);
-    chainPG.blendMode(p.BLEND);
-    if (chainPG.noTint) chainPG.noTint();
-    chainPG.clear();
-    eff.render(chainPG, activeSrc, b.effectParams || {}, { p, w, h, slot: 'a' });
-    chainPG.loadPixels();
+    const activeSrcSig = (b.preStage && b.preStage !== 'none') ? sSig : `${wSig}:none`;
+    const csig = `${activeSrcSig}|${b.effect}|${j(b.effectParams)}|${w}x${h}`;
+    if (csig !== cSig || !chainPG) {
+      chainPG = sizeBuffer(chainPG, w, h);
+      chainPG.blendMode(p.BLEND);
+      if (chainPG.noTint) chainPG.noTint();
+      chainPG.clear();
+      eff.render(chainPG, activeSrc, b.effectParams || {}, { p, w, h, slot: 'a' });
+      chainPG.loadPixels();
+      cSig = csig;
+    }
 
     target.blendMode(p.BLEND);
     if (target.noTint) target.noTint();
@@ -128,7 +133,7 @@ export function createEffectStack(p) {
   function dispose() {
     [working, staged, chainPG].forEach((g) => g && g.remove());
     working = staged = chainPG = null;
-    wSig = sSig = null;
+    wSig = sSig = cSig = null;
   }
 
   return { renderInto, sourceFor, prepare, dispose };

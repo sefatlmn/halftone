@@ -15,9 +15,12 @@ export function preferredWebMMime() {
     "video/webm;codecs=vp9",
     "video/webm;codecs=vp8",
     "video/webm",
+    "video/mp4;codecs=avc1",
+    "video/mp4",
   ];
   return candidates.find((type) => MediaRecorder.isTypeSupported(type)) || "";
 }
+export const preferredVideoMime = preferredWebMMime;
 
 export async function recordCanvasWebM({
   canvas,
@@ -34,7 +37,7 @@ export async function recordCanvasWebM({
   }
   const mimeType = preferredWebMMime();
   if (!mimeType) {
-    throw new Error("WebM recording is not supported in this browser.");
+    throw new Error("Video recording is not supported in this browser.");
   }
 
   const stream = canvas.captureStream(fps);
@@ -50,7 +53,7 @@ export async function recordCanvasWebM({
       if (event.data?.size) chunks.push(event.data);
     });
     recorder.addEventListener("error", () => {
-      reject(recorder.error || new Error("WebM recording failed."));
+      reject(recorder.error || new Error("Video recording failed."));
     }, { once: true });
     recorder.addEventListener("stop", () => {
       resolve(new Blob(chunks, { type: mimeType }));
@@ -141,7 +144,7 @@ export async function encodeGif({
     let index = 0;
     for await (const frame of frames) {
       if (signal?.aborted) throw abortError(signal);
-      const rgba = frame.rgba instanceof Uint8Array
+      const rgba = (frame.rgba instanceof Uint8Array || frame.rgba instanceof Uint8ClampedArray)
         ? frame.rgba
         : new Uint8Array(frame.rgba);
       worker.postMessage({

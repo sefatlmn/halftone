@@ -41,16 +41,32 @@ function forEachCell(w, h, cell, angleDeg, cb) {
   }
 }
 
-function rgb2cmyk(r, g, b) {
+const _cmyk = { c: 0, m: 0, y: 0, k: 0 };
+function rgb2cmyk(r, g, b, out = _cmyk) {
   r /= 255; g /= 255; b /= 255;
   const k = 1 - Math.max(r, g, b);
-  if (k >= 0.9999) return { c: 0, m: 0, y: 0, k: 1 };
-  return {
-    c: (1 - r - k) / (1 - k),
-    m: (1 - g - k) / (1 - k),
-    y: (1 - b - k) / (1 - k),
-    k,
-  };
+  if (k >= 0.9999) {
+    out.c = 0; out.m = 0; out.y = 0; out.k = 1;
+    return out;
+  }
+  const denom = 1 - k;
+  out.c = (1 - r - k) / denom;
+  out.m = (1 - g - k) / denom;
+  out.y = (1 - b - k) / denom;
+  out.k = k;
+  return out;
+}
+
+function cmykChannelAmount(r, g, b, id) {
+  r /= 255; g /= 255; b /= 255;
+  const k = 1 - Math.max(r, g, b);
+  if (k >= 0.9999) return id === 'k' ? 1 : 0;
+  if (id === 'k') return k;
+  const denom = 1 - k;
+  if (id === 'c') return (1 - r - k) / denom;
+  if (id === 'm') return (1 - g - k) / denom;
+  if (id === 'y') return (1 - b - k) / denom;
+  return 0;
 }
 
 function renderMono(g, src, params, ctx) {
@@ -67,53 +83,47 @@ function renderMono(g, src, params, ctx) {
   const cPlusS = cosA + sinA, sMinusC = sinA - cosA;
   const starUnit = shape === 'star' ? starVertices(1, angRad) : null;
 
-  if (shape === 'line') { g.noFill(); g.stroke(ink); g.strokeCap(p.SQUARE); }
-  else { g.noStroke(); g.fill(ink); }
+  g.noStroke();
+  g.fill(ink);
 
-  if (shape === 'circle') {
-    const dc = g.drawingContext;
-    dc.beginPath();
-    let batch = 0;
-    forEachCell(w, h, cellSize, angle, (wx, wy, nx, ny, hwN, hhN) => {
-      let l = fastSample ? lumaAt(src, nx, ny) : avgLuma(src, nx, ny, hwN, hhN);
-      if (invert) l = 1 - l;
-      const r = half * Math.sqrt(clamp(1 - l, 0, 1));
-      if (r < minR) return;
-      dc.moveTo(wx + r, wy);
-      dc.arc(wx, wy, r, 0, TAU);
-      if (++batch >= 4096) {
-        dc.fill();
-        dc.beginPath();
-        batch = 0;
-      }
-    });
-    if (batch > 0) dc.fill();
-    return;
-  }
-
+  const dc = g.drawingContext;
+  dc.beginPath();
+  let batch = 0;
   forEachCell(w, h, cellSize, angle, (wx, wy, nx, ny, hwN, hhN) => {
     let l = fastSample ? lumaAt(src, nx, ny) : avgLuma(src, nx, ny, hwN, hhN);
     if (invert) l = 1 - l;
-    const r = half * Math.sqrt(clamp(1 - l, 0, 1)); // sqrt → even visual weight
+    const r = half * Math.sqrt(clamp(1 - l, 0, 1));
     if (r < minR) return;
-    if (shape === 'square') {
-      g.quad(
-        wx - r * cMinusS, wy - r * sPlusC,
-        wx + r * cPlusS,  wy + r * sMinusC,
-        wx + r * cMinusS, wy + r * sPlusC,
-        wx - r * cPlusS,  wy - r * sMinusC,
-      );
+    if (shape === 'circle' || (shape !== 'square' && shape !== 'star' && shape !== 'line')) {
+      dc.moveTo(wx + r, wy);
+      dc.arc(wx, wy, r, 0, TAU);
+    } else if (shape === 'square') {
+      dc.moveTo(wx - r * cMinusS, wy - r * sPlusC);
+      dc.lineTo(wx + r * cPlusS,  wy + r * sMinusC);
+      dc.lineTo(wx + r * cMinusS, wy + r * sPlusC);
+      dc.lineTo(wx - r * cPlusS,  wy - r * sMinusC);
+      dc.closePath();
     } else if (shape === 'star') {
-      g.beginShape();
-      for (let i = 0; i < starUnit.length; i++) {
-        g.vertex(wx + starUnit[i][0] * r, wy + starUnit[i][1] * r);
+      dc.moveTo(wx + starUnit[0][0] * r, wy + starUnit[0][1] * r);
+      for (let i = 1; i < starUnit.length; i++) {
+        dc.lineTo(wx + starUnit[i][0] * r, wy + starUnit[i][1] * r);
       }
-      g.endShape(p.CLOSE);
-    } else { // line — variable thickness
-      g.strokeWeight(Math.max(0.2, 2 * r));
-      g.line(wx - dx, wy - dy, wx + dx, wy + dy);
+      dc.closePath();
+    } else if (shape === 'line') {
+      const px = -sinA * r, py = cosA * r;
+      dc.moveTo(wx - dx - px, wy - dy - py);
+      dc.lineTo(wx + dx - px, wy + dy - py);
+      dc.lineTo(wx + dx + px, wy + dy + py);
+      dc.lineTo(wx - dx + px, wy - dy + py);
+      dc.closePath();
+    }
+    if (++batch >= 4096) {
+      dc.fill();
+      dc.beginPath();
+      batch = 0;
     }
   });
+  if (batch > 0) dc.fill();
 }
 
 // Process inks + screen angles, shared by the composite (overprinted with
@@ -140,58 +150,51 @@ function drawCmykChannel(g, src, params, ctx, ch) {
   const cMinusS = cosA - sinA, sPlusC = sinA + cosA;
   const cPlusS = cosA + sinA, sMinusC = sinA - cosA;
   const starUnit = shape === 'star' ? starVertices(1, angRad) : null;
+  const sampleBuf = [0, 0, 0];
+  const chId = ch.id;
 
-  // Match the mono screen: line → variable-weight stroke, everything else fills.
-  // Each channel screens at its fixed print angle (ch.ang) — moiré-free.
-  if (shape === 'line') { g.noFill(); g.stroke(ch.col[0], ch.col[1], ch.col[2]); g.strokeCap(p.SQUARE); }
-  else { g.noStroke(); g.fill(ch.col[0], ch.col[1], ch.col[2]); }
+  g.noStroke();
+  g.fill(ch.col[0], ch.col[1], ch.col[2]);
 
-  if (shape === 'circle' || (shape !== 'square' && shape !== 'star' && shape !== 'line')) {
-    const dc = g.drawingContext;
-    dc.beginPath();
-    let batch = 0;
-    forEachCell(w, h, cellSize, ch.ang, (wx, wy, nx, ny, hwN, hhN) => {
-      let [r, gg, b] = fastSample ? rgbAt(src, nx, ny) : avgRGB(src, nx, ny, hwN, hhN);
-      if (params.invert) { r = 255 - r; gg = 255 - gg; b = 255 - b; }
-      const amt = ch.pick(rgb2cmyk(r, gg, b));
-      const rad = half * Math.sqrt(clamp(amt, 0, 1));
-      if (rad < minR) return;
-      dc.moveTo(wx + rad, wy);
-      dc.arc(wx, wy, rad, 0, TAU);
-      if (++batch >= 4096) {
-        dc.fill();
-        dc.beginPath();
-        batch = 0;
-      }
-    });
-    if (batch > 0) dc.fill();
-    return;
-  }
-
+  const dc = g.drawingContext;
+  dc.beginPath();
+  let batch = 0;
   forEachCell(w, h, cellSize, ch.ang, (wx, wy, nx, ny, hwN, hhN) => {
-    let [r, gg, b] = fastSample ? rgbAt(src, nx, ny) : avgRGB(src, nx, ny, hwN, hhN);
+    let [r, gg, b] = fastSample ? rgbAt(src, nx, ny) : avgRGB(src, nx, ny, hwN, hhN, sampleBuf);
     if (params.invert) { r = 255 - r; gg = 255 - gg; b = 255 - b; }
-    const amt = ch.pick(rgb2cmyk(r, gg, b));
+    const amt = cmykChannelAmount(r, gg, b, chId);
     const rad = half * Math.sqrt(clamp(amt, 0, 1));
     if (rad < minR) return;
-    if (shape === 'square') {
-      g.quad(
-        wx - rad * cMinusS, wy - rad * sPlusC,
-        wx + rad * cPlusS,  wy + rad * sMinusC,
-        wx + rad * cMinusS, wy + rad * sPlusC,
-        wx - rad * cPlusS,  wy - rad * sMinusC,
-      );
+    if (shape === 'circle' || (shape !== 'square' && shape !== 'star' && shape !== 'line')) {
+      dc.moveTo(wx + rad, wy);
+      dc.arc(wx, wy, rad, 0, TAU);
+    } else if (shape === 'square') {
+      dc.moveTo(wx - rad * cMinusS, wy - rad * sPlusC);
+      dc.lineTo(wx + rad * cPlusS,  wy + rad * sMinusC);
+      dc.lineTo(wx + rad * cMinusS, wy + rad * sPlusC);
+      dc.lineTo(wx - rad * cPlusS,  wy - rad * sMinusC);
+      dc.closePath();
     } else if (shape === 'star') {
-      g.beginShape();
-      for (let i = 0; i < starUnit.length; i++) {
-        g.vertex(wx + starUnit[i][0] * rad, wy + starUnit[i][1] * rad);
+      dc.moveTo(wx + starUnit[0][0] * rad, wy + starUnit[0][1] * rad);
+      for (let i = 1; i < starUnit.length; i++) {
+        dc.lineTo(wx + starUnit[i][0] * rad, wy + starUnit[i][1] * rad);
       }
-      g.endShape(p.CLOSE);
+      dc.closePath();
     } else if (shape === 'line') {
-      g.strokeWeight(Math.max(0.2, 2 * rad));
-      g.line(wx - dx, wy - dy, wx + dx, wy + dy);
+      const px = -sinA * rad, py = cosA * rad;
+      dc.moveTo(wx - dx - px, wy - dy - py);
+      dc.lineTo(wx + dx - px, wy + dy - py);
+      dc.lineTo(wx + dx + px, wy + dy + py);
+      dc.lineTo(wx - dx + px, wy - dy + py);
+      dc.closePath();
+    }
+    if (++batch >= 4096) {
+      dc.fill();
+      dc.beginPath();
+      batch = 0;
     }
   });
+  if (batch > 0) dc.fill();
 }
 
 function renderCMYK(g, src, params, ctx) {
@@ -257,10 +260,12 @@ export default {
       for (const ch of CMYK_CHANNELS) {
         const col = `rgb(${ch.col[0]},${ch.col[1]},${ch.col[2]})`;
         const dots = [];
+        const sampleBuf = [0, 0, 0];
+        const chId = ch.id;
         forEachCell(w, h, cellSize, ch.ang, (wx, wy, nx, ny, hwN, hhN) => {
-          let [r, gg, b] = fastSample ? rgbAt(src, nx, ny) : avgRGB(src, nx, ny, hwN, hhN);
+          let [r, gg, b] = fastSample ? rgbAt(src, nx, ny) : avgRGB(src, nx, ny, hwN, hhN, sampleBuf);
           if (invert) { r = 255 - r; gg = 255 - gg; b = 255 - b; }
-          const rad = half * Math.sqrt(clamp(ch.pick(rgb2cmyk(r, gg, b)), 0, 1));
+          const rad = half * Math.sqrt(clamp(cmykChannelAmount(r, gg, b, chId), 0, 1));
           if (rad < minR) return;
           if (shape === 'square') {
             dots.push(`<rect x="${n(-rad)}" y="${n(-rad)}" width="${n(2 * rad)}" height="${n(2 * rad)}" transform="translate(${n(wx)} ${n(wy)}) rotate(${ch.ang})"/>`);

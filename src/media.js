@@ -669,13 +669,25 @@ export async function loadGifSource(file, { signal, fps } = {}) {
     let i = 0; while (i < delays.length - 1 && (ms -= delays[i]) >= 0) i++;
     return i;
   };
-  const tick = (now) => {
+  let externallyDriven = false;
+  const step = (now = performance.now()) => {
     if (!playing || disposed) return;
+    if (!last) last = now;
     time += (now - last) / 1000; last = now;
-    if (time >= duration) { if (looping) time %= duration; else { time = duration; playing = false; renderFrame(frames.length - 1); return; } }
+    if (time >= duration) {
+      if (looping) time %= duration;
+      else { time = duration; playing = false; renderFrame(frames.length - 1); return; }
+    }
     const next = frameAt(time);
     if (next !== shown) renderFrame(next);
-    raf = requestAnimationFrame(tick);
+  };
+  const tick = (now) => {
+    if (!playing || disposed) return;
+    if (externallyDriven) return;
+    step(now);
+    if (playing && !disposed) {
+      raf = requestAnimationFrame(tick);
+    }
   };
   renderFrame(0);
   return {
@@ -686,6 +698,18 @@ export async function loadGifSource(file, { signal, fps } = {}) {
     get currentTime() { return time; }, set currentTime(value) { this.seek(value); },
     get playing() { return playing; },
     get loop() { return looping; }, set loop(value) { looping = Boolean(value); },
+    get externallyDriven() { return externallyDriven; },
+    set externallyDriven(value) {
+      externallyDriven = Boolean(value);
+      if (externallyDriven && raf) {
+        cancelAnimationFrame(raf);
+        raf = 0;
+      } else if (!externallyDriven && playing && !raf) {
+        last = performance.now();
+        raf = requestAnimationFrame(tick);
+      }
+    },
+    step,
     renderFrame, renderAtTime(value) { time = Math.max(0, Math.min(Number(value) || 0, duration)); return renderFrame(frameAt(time)); },
     play() { ensure(); if (!playing) { playing = true; last = performance.now(); raf = requestAnimationFrame(tick); } return Promise.resolve(); },
     pause() { ensure(); playing = false; if (raf) cancelAnimationFrame(raf); raf = 0; },

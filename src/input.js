@@ -130,15 +130,29 @@ export function avgLuma(g, cx, cy, hw, hh) {
 }
 
 // Average RGB across a small cell (3×3) — used by the CMYK / channel splits.
-export function avgRGB(g, cx, cy, hw, hh) {
+export function avgRGB(g, cx, cy, hw, hh, out = [0, 0, 0]) {
+  const w = g.width, h = g.height;
+  const px = g.pixels;
   let r = 0, gg = 0, b = 0;
   for (let j = -1; j <= 1; j++) {
+    const ny = cy + j * hh * 0.62;
+    let y = (ny * h) | 0;
+    if (y < 0) y = 0; else if (y >= h) y = h - 1;
+    const row = y * w;
     for (let i = -1; i <= 1; i++) {
-      const c = rgbAt(g, cx + i * hw * 0.62, cy + j * hh * 0.62);
-      r += c[0]; gg += c[1]; b += c[2];
+      const nx = cx + i * hw * 0.62;
+      let x = (nx * w) | 0;
+      if (x < 0) x = 0; else if (x >= w) x = w - 1;
+      const idx = (row + x) << 2;
+      r += px[idx];
+      gg += px[idx + 1];
+      b += px[idx + 2];
     }
   }
-  return [r / 9, gg / 9, b / 9];
+  out[0] = r / 9;
+  out[1] = gg / 9;
+  out[2] = b / 9;
+  return out;
 }
 
 /* ----------------------------------------------------------------

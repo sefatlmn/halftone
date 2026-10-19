@@ -4,6 +4,12 @@ import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { resolve, extname, sep } from "node:path";
 import { chromium } from "playwright";
+import {
+  DESKTOP_BREAKPOINT_PX,
+  DESKTOP_MEDIA_QUERY,
+  isDesktopBreakpoint,
+  normalizeWheelDelta,
+} from "../src/ui/filmstrip-wheel.js";
 
 const ROOT = resolve(new URL("..", import.meta.url).pathname);
 const MIME_TYPES = {
@@ -41,6 +47,19 @@ function startServer() {
     server.listen(0, "127.0.0.1", () => resolveServer(server));
   });
 }
+
+test("DESKTOP_BREAKPOINT_PX is centralized and exported as 721", () => {
+  assert.equal(DESKTOP_BREAKPOINT_PX, 721);
+  assert.equal(DESKTOP_MEDIA_QUERY, "(min-width: 721px)");
+  assert.equal(isDesktopBreakpoint({ matchMedia: (q) => ({ matches: q === "(min-width: 721px)" }) }), true);
+  assert.equal(isDesktopBreakpoint({ matchMedia: () => ({ matches: false }), innerWidth: 720 }), false);
+  assert.equal(isDesktopBreakpoint({ innerWidth: 721 }), true);
+  assert.equal(isDesktopBreakpoint({ innerWidth: 720 }), false);
+  assert.equal(isDesktopBreakpoint(null), false);
+  assert.equal(normalizeWheelDelta({ deltaY: 2, deltaMode: 1 }), 64);
+  assert.equal(normalizeWheelDelta({ deltaY: 2, deltaMode: 2 }, 100), 200);
+  assert.equal(normalizeWheelDelta({ deltaY: 42, deltaMode: 0 }), 42);
+});
 
 test("effects strip scrolls horizontally on mousewheel at desktop breakpoint", async () => {
   const server = await startServer();
@@ -107,20 +126,36 @@ test("effects strip scrolls horizontally on mousewheel at desktop breakpoint", a
     assert.equal(afterTrackpad, 50, "Horizontal trackpad scroll should not be modified by deltaY");
 
     // Non-cancelable wheel event does not double-scroll
-    await films.evaluate((el) => {
+    await films.evaluate(async (el) => {
       el.scrollLeft = 0;
       el.dispatchEvent(new WheelEvent("wheel", { deltaY: 50, cancelable: false, bubbles: true }));
+      await new Promise(requestAnimationFrame);
     });
     const afterNonCancelable = await films.evaluate((el) => el.scrollLeft);
     assert.equal(afterNonCancelable, 50, "Non-cancelable wheel event should scroll exactly 50px without duplicate bubbling");
 
     // deltaMode = 1 (lines) scales delta by 32
-    await films.evaluate((el) => {
+    await films.evaluate(async (el) => {
       el.scrollLeft = 0;
       el.dispatchEvent(new WheelEvent("wheel", { deltaY: 2, deltaMode: 1, cancelable: true, bubbles: true }));
+      await new Promise(requestAnimationFrame);
     });
     const afterLineMode = await films.evaluate((el) => el.scrollLeft);
     assert.equal(afterLineMode, 64, "deltaMode 1 should scale delta by 32px per line");
+
+    // High-frequency free-spinning wheel delta updates are batched with requestAnimationFrame
+    const batchingResult = await films.evaluate(async (el) => {
+      el.scrollLeft = 0;
+      el.dispatchEvent(new WheelEvent("wheel", { deltaY: 15, cancelable: true, bubbles: true }));
+      el.dispatchEvent(new WheelEvent("wheel", { deltaY: 25, cancelable: true, bubbles: true }));
+      el.dispatchEvent(new WheelEvent("wheel", { deltaY: 35, cancelable: true, bubbles: true }));
+      const immediateScroll = el.scrollLeft;
+      await new Promise(requestAnimationFrame);
+      const batchedScroll = el.scrollLeft;
+      return { immediateScroll, batchedScroll };
+    });
+    assert.equal(batchingResult.immediateScroll, 0, "High-frequency wheel events should not trigger immediate synchronous layout writes");
+    assert.equal(batchingResult.batchedScroll, 75, "Batched wheel events should combine deltas and apply in a single animation frame");
 
     // Mobile breakpoint (<= 720px) does not scroll on wheel
     await page.setViewportSize({ width: 500, height: 800 });

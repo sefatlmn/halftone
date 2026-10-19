@@ -24,9 +24,10 @@ function forEachCell(w, h, cell, angleDeg, cb) {
   }
 }
 
+const _rgb = [0, 0, 0];
 function layerAmount(src, split, layers, li, nx, ny, hwN, hhN, fastSample) {
   if (split === 'rgb') {
-    const rgb = fastSample ? rgbAt(src, nx, ny) : avgRGB(src, nx, ny, hwN, hhN);
+    const rgb = fastSample ? rgbAt(src, nx, ny) : avgRGB(src, nx, ny, hwN, hhN, _rgb);
     return 1 - rgb[li] / 255; // low channel value → more spot ink
   }
   // luminance: triangular tonal separation across the layers

@@ -164,8 +164,8 @@
 
       if (preferredWebMMime()) {
         let videoBlob;
-        await check("Silent canvas WebM recording", async () => {
-          assert(preferredWebMMime(), "This browser exposes no WebM recorder.");
+        await check("Silent canvas video recording", async () => {
+          assert(preferredWebMMime(), "This browser exposes no video recorder.");
           const canvas = document.createElement("canvas");
           canvas.width = 160;
           canvas.height = 120;
@@ -188,13 +188,17 @@
             },
             stop: () => clearInterval(timer),
           });
-          assert(videoBlob.type.startsWith("video/webm"), "Unexpected WebM MIME type.");
-          assert(videoBlob.size > 100, "Recorded WebM is empty.");
+          const mime = preferredWebMMime();
+          const expectedPrefix = mime.startsWith("video/mp4") ? "video/mp4" : "video/webm";
+          assert(videoBlob.type.startsWith(expectedPrefix), `Unexpected video MIME type: ${videoBlob.type}`);
+          assert(videoBlob.size > 100, "Recorded video is empty.");
         });
 
         await check("Video decode, seek, playback, and disposal", async () => {
+          const mime = videoBlob.type.startsWith("video/mp4") ? "video/mp4" : "video/webm";
+          const ext = mime === "video/mp4" ? "mp4" : "webm";
           const source = await loadVideoSource(
-            new File([videoBlob], "smoke.webm", { type: "video/webm" }),
+            new File([videoBlob], `smoke.${ext}`, { type: mime }),
           );
           assert(source.width === 160 && source.height === 120, "Unexpected video size.");
           assert(source.duration > 0 && source.duration <= 2, "Unexpected video duration.");
@@ -208,8 +212,8 @@
           assert(!source.element.getAttribute("src"), "Video URL was not released.");
         });
       } else {
-        await check("WebM recording unsupported in this environment (clean fallback)", () => {
-          assert(!preferredWebMMime(), "Expected WebM recorder to be unsupported.");
+        await check("Video recording unsupported in this environment (clean fallback)", () => {
+          assert(!preferredWebMMime(), "Expected video recorder to be unsupported.");
         });
       }
 

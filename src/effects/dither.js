@@ -33,28 +33,43 @@ function paletteFor(name, ink, paper) {
   return pal.slice().sort((a, b) => lumaOf(a) - lumaOf(b)); // dark → light
 }
 
-function addErr(buf, x, y, cols, rows, e) {
-  if (x < 0 || x >= cols || y < 0 || y >= rows) return;
-  buf[y * cols + x] += e;
-}
+const E7 = 7 / 16, E3 = 3 / 16, E5 = 5 / 16, E1 = 1 / 16;
 
 function floydSteinberg(lum, idx, cols, rows, L, serpentine) {
   const buf = Float32Array.from(lum);
+  const maxIdx = L - 1;
+  const invMaxIdx = 1 / maxIdx;
   for (let y = 0; y < rows; y++) {
     const ltr = !serpentine || y % 2 === 0;
     const dir = ltr ? 1 : -1;
     const xs = ltr ? 0 : cols - 1;
     const xe = ltr ? cols : -1;
+    const rowOffset = y * cols;
+    const nextY = y + 1;
+    const hasNextY = nextY < rows;
+    const nextRowOffset = nextY * cols;
+
     for (let x = xs; x !== xe; x += dir) {
-      const i = y * cols + x;
+      const i = rowOffset + x;
       const old = clamp(buf[i], 0, 1);
-      const qi = Math.round(old * (L - 1));
+      const qi = Math.round(old * maxIdx);
       idx[i] = qi;
-      const err = old - qi / (L - 1);
-      addErr(buf, x + dir, y, cols, rows, err * 7 / 16);
-      addErr(buf, x - dir, y + 1, cols, rows, err * 3 / 16);
-      addErr(buf, x, y + 1, cols, rows, err * 5 / 16);
-      addErr(buf, x + dir, y + 1, cols, rows, err * 1 / 16);
+      const err = old - qi * invMaxIdx;
+
+      const xRight = x + dir;
+      if (xRight >= 0 && xRight < cols) {
+        buf[rowOffset + xRight] += err * E7;
+      }
+      if (hasNextY) {
+        const xLeft = x - dir;
+        if (xLeft >= 0 && xLeft < cols) {
+          buf[nextRowOffset + xLeft] += err * E3;
+        }
+        buf[nextRowOffset + x] += err * E5;
+        if (xRight >= 0 && xRight < cols) {
+          buf[nextRowOffset + xRight] += err * E1;
+        }
+      }
     }
   }
 }
@@ -134,16 +149,13 @@ export default {
     const { p, w, h } = ctx;
     const { cols, rows, idx, pal } = computeDither(src, params, w, h, p);
 
-    // Paint indices into a pooled buffer, then upscale crisply. The buffer is
-    // fixed at GRID_CAP² because the grid size follows the pixel-size slider —
-    // a size-keyed pool entry would reallocate a canvas on every drag tick.
-    // Namespaced key (not the bare slot): this buffer's size differs from the
-    // slot's shared source-sized buffer, so sharing the key would resize the
-    // pooled canvas back and forth whenever dither alternates with another
-    // effect. Only the cols×rows corner is written and blitted.
-    const tmp = getScratch(p, `dither:${ctx.slot || 'fx'}`, GRID_CAP, GRID_CAP);
+    // Size scratch canvas to the needed cols×rows, and cache the ImageData object
+    // on the scratch buffer so rapid re-renders do not allocate fresh pixel buffers.
+    const tmp = getScratch(p, `dither:${ctx.slot || 'fx'}`, cols, rows);
     const tctx = tmp.drawingContext;
-    const id = tctx.createImageData(cols, rows);
+    const id = (tmp._cachedImgData && tmp._cachedImgData.width === cols && tmp._cachedImgData.height === rows)
+      ? tmp._cachedImgData
+      : (tmp._cachedImgData = tctx.createImageData(cols, rows));
     const px = id.data;
     for (let i = 0; i < idx.length; i++) {
       const c = pal[idx[i]];

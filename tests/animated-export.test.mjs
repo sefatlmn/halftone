@@ -29,6 +29,22 @@ test("WebM feature detection chooses the first supported codec", () => {
   }
 });
 
+test("Video feature detection falls back to MP4 when WebM is unsupported", () => {
+  const original = globalThis.MediaRecorder;
+  globalThis.MediaRecorder = class {
+    static isTypeSupported(type) {
+      return type.startsWith("video/mp4");
+    }
+  };
+  try {
+    assert.equal(animatedExport.preferredWebMMime(), "video/mp4;codecs=avc1");
+    assert.equal(animatedExport.preferredVideoMime(), "video/mp4;codecs=avc1");
+  } finally {
+    if (original === undefined) delete globalThis.MediaRecorder;
+    else globalThis.MediaRecorder = original;
+  }
+});
+
 test("animated export operations reject an already-cancelled signal", async () => {
   const controller = new AbortController();
   controller.abort();
