@@ -241,18 +241,45 @@ const isHeavyBundle = () =>
   App.preStage !== "none";
 
 function requestRender() {
-  if (isHeavyBundle()) {
-    clearTimeout(App._debounce);
-    App._debounce = setTimeout(markDirty, 70);
-  } else {
+  if (!isHeavyBundle() || (App._lastRenderMs || 0) < 20) {
+    if (App._debounce) {
+      clearTimeout(App._debounce);
+      App._debounce = null;
+    }
+    App._lastRequestTime = performance.now();
     markDirty();
+    return;
+  }
+  const now = performance.now();
+  const throttleMs = 50;
+  const elapsed = now - (App._lastRequestTime || 0);
+  if (elapsed >= throttleMs) {
+    if (App._debounce) {
+      clearTimeout(App._debounce);
+      App._debounce = null;
+    }
+    App._lastRequestTime = now;
+    markDirty();
+  } else if (!App._debounce) {
+    App._debounce = setTimeout(() => {
+      App._debounce = null;
+      App._lastRequestTime = performance.now();
+      markDirty();
+    }, throttleMs - elapsed);
   }
 }
 
 // Single mode's params bundle for the shared EffectStack: the global pre-adjust,
 // colour pre-stage, and active effect.
-function singleBundle() {
-  return {
+function singleBundle(overrides) {
+  // For animated media (video/GIF), cap internal working resolution to 1x canvas
+  // dimensions (up to 960px) across playback, pause, seeking, and WebM recording
+  // so playback stays fluid and pausing/exporting never shifts pixel-space effects.
+  // Still images use full SAMPLING_CAP (1600).
+  const liveCap = App.mediaSource
+    ? Math.min(960, Math.max(480, Math.max(App.canvasW || 0, App.canvasH || 0)))
+    : undefined;
+  const b = {
     pre: App.pre,
     sourceVersion: App.mediaVersion,
     preStage: App.preStage,
@@ -261,7 +288,9 @@ function singleBundle() {
     effectParams: activeState(),
     effect2: App.effect2Id, // 'none' → the stack skips the second pass
     effect2Params: effect2State(),
+    samplingCap: liveCap,
   };
+  return overrides ? Object.assign(b, overrides) : b;
 }
 
 // The buffer the active effect samples from (staged), at
@@ -354,6 +383,7 @@ function releasePaint() {
 function renderActive() {
   const p = App.p;
   if (!App.srcImage) return;
+  const t0 = performance.now();
   p.push();
   const eff = App.stack.renderInto(
     p,
@@ -363,6 +393,7 @@ function renderActive() {
     App.canvasH,
   );
   p.pop();
+  App._lastRenderMs = performance.now() - t0;
   updateAsciiOverlay(eff, finalState());
 }
 
@@ -390,6 +421,8 @@ function disposeAnimatedSource() {
   stopMediaPump();
   App.mediaPlaying = false;
   App._resumeOnVisible = false;
+  App._lastMediaFrame = -1;
+  App._lastMediaTime = -1;
   if (App.mediaSource) {
     try { App.mediaSource.dispose(); } catch { }
   }
@@ -398,14 +431,34 @@ function disposeAnimatedSource() {
   App._srcOwned = null;
   App.mediaKind = "image";
   App.mediaVersion = 0;
+  updateMeta();
   updateMediaControls();
 }
 
-function drawAnimatedFrame({ paint = true } = {}) {
+function drawAnimatedFrame({ paint = true, onlyIfAdvanced = false } = {}) {
   const source = App.mediaSource;
   const frame = App._srcOwned;
   if (!source || !frame) return false;
   if (source.kind === "video" && source.element.readyState < 2) return false;
+  if (onlyIfAdvanced && !App._dirty) {
+    if (source.kind === "gif" && typeof source.currentFrame === "number") {
+      if (source.currentFrame === App._lastMediaFrame) {
+        updateMediaControls();
+        return false;
+      }
+    } else if (source.kind === "video") {
+      const ct = source.currentTime;
+      if (ct === App._lastMediaTime) {
+        updateMediaControls();
+        return false;
+      }
+    }
+  }
+  if (source.kind === "gif" && typeof source.currentFrame === "number") {
+    App._lastMediaFrame = source.currentFrame;
+  } else if (source.kind === "video") {
+    App._lastMediaTime = source.currentTime;
+  }
   const ctx = frame.drawingContext;
   ctx.save();
   ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -413,10 +466,12 @@ function drawAnimatedFrame({ paint = true } = {}) {
   ctx.drawImage(source.element, 0, 0, frame.width, frame.height);
   ctx.restore();
   App.mediaVersion += 1;
-  if (App.exportBusy) {
-    paintNow();
-  } else if (paint) {
-    markDirty();
+  if (paint) {
+    if (App.exportBusy || (paint === "direct" && performance.now() >= App._paintHold)) {
+      paintNow();
+    } else {
+      markDirty();
+    }
   }
   updateMediaControls();
   return true;
@@ -440,13 +495,21 @@ function startMediaPump() {
     if (!App.mediaPlaying || !App.mediaSource || document.hidden) return;
     const interval = 1000 / animatedTargetFps();
     if (!App.mediaPumpLast || now - App.mediaPumpLast >= interval - 4) {
-      App.mediaPumpLast = !App.mediaPumpLast
-        ? now
-        : Math.max(now - interval, App.mediaPumpLast + interval);
       if (typeof App.mediaSource.step === "function") {
         App.mediaSource.step(now);
       }
-      drawAnimatedFrame();
+      const rendered = drawAnimatedFrame({ paint: "direct", onlyIfAdvanced: true });
+      if (rendered) {
+        const after = performance.now();
+        const renderCost = after - now;
+        // Preserve at least min(32ms, 50% of renderCost) of main-thread idle time
+        // after heavy renders so UI controls and pointer events never starve.
+        const minIdle = renderCost > 16 ? Math.min(32, renderCost * 0.5) : 0;
+        const nextTarget = !App.mediaPumpLast
+          ? now + interval
+          : Math.max(now, App.mediaPumpLast + interval);
+        App.mediaPumpLast = Math.max(nextTarget, after + minIdle) - interval;
+      }
     }
     if (!App.mediaSource.playing && !App.mediaSource.loop) {
       App.mediaPlaying = false;
@@ -465,7 +528,7 @@ async function setMediaPlaying(playing) {
     source.pause();
     App.mediaPlaying = false;
     stopMediaPump();
-    drawAnimatedFrame();
+    drawAnimatedFrame({ onlyIfAdvanced: true });
     updateMediaControls();
     return;
   }
@@ -1240,8 +1303,10 @@ async function exportAnimatedGif(signal) {
   stopMediaPump();
 
   const outputSize = fitWithin(App.canvasW, App.canvasH, 720);
+  const exportCap = Math.max(outputSize.width, outputSize.height);
   const exportG = App.p.createGraphics(outputSize.width, outputSize.height);
   exportG.pixelDensity(1);
+  const exportCtx = exportG.drawingContext;
   const frameCount = source.frameCount;
   const delays = source.frameDelays;
   const originalFps = Number(source.fps) || 15;
@@ -1254,15 +1319,19 @@ async function exportAnimatedGif(signal) {
         source.renderFrame(index);
         drawAnimatedFrame({ paint: false });
         exportG.clear();
-        App.stack.renderInto(exportG, App.srcImage, singleBundle(), outputSize.width, outputSize.height);
-        const pixels = exportG.canvas.getContext("2d", { willReadFrequently: true })
-          .getImageData(0, 0, outputSize.width, outputSize.height).data;
+        App.stack.renderInto(
+          exportG,
+          App.srcImage,
+          singleBundle({ samplingCap: exportCap }),
+          outputSize.width,
+          outputSize.height,
+        );
+        const pixels = exportCtx.getImageData(0, 0, outputSize.width, outputSize.height).data;
         yield {
           rgba: pixels,
           delay: delays[index],
           progress: (index + 1) / frameCount,
         };
-        await new Promise((resolve) => setTimeout(resolve, 0));
       }
     } else {
       const targetFps = 15;
@@ -1274,9 +1343,14 @@ async function exportAnimatedGif(signal) {
         source.renderAtTime(sampleTime);
         drawAnimatedFrame({ paint: false });
         exportG.clear();
-        App.stack.renderInto(exportG, App.srcImage, singleBundle(), outputSize.width, outputSize.height);
-        const pixels = exportG.canvas.getContext("2d", { willReadFrequently: true })
-          .getImageData(0, 0, outputSize.width, outputSize.height).data;
+        App.stack.renderInto(
+          exportG,
+          App.srcImage,
+          singleBundle({ samplingCap: exportCap }),
+          outputSize.width,
+          outputSize.height,
+        );
+        const pixels = exportCtx.getImageData(0, 0, outputSize.width, outputSize.height).data;
         const currentCentis = Math.round(((index + 1) * 100) / targetFps);
         const previousCentis = Math.round((index * 100) / targetFps);
         const delayMs = Math.max(20, (currentCentis - previousCentis) * 10);
@@ -1285,7 +1359,6 @@ async function exportAnimatedGif(signal) {
           delay: delayMs,
           progress: (index + 1) / exportFrameCount,
         };
-        await new Promise((resolve) => setTimeout(resolve, 0));
       }
     }
   }
@@ -1596,27 +1669,37 @@ function updateMediaControls() {
   const source = App.mediaSource;
   const root = $("#media-controls");
   if (!root) return;
-  root.hidden = !source;
+  const hide = !source;
+  if (root.hidden !== hide) root.hidden = hide;
   if (!source) return;
   const time = Math.max(0, Math.min(source.currentTime || 0, source.duration || 0));
-  $("#media-play").textContent = App.mediaPlaying ? "Pause" : "Play";
-  $("#media-play").disabled = App.exportBusy;
-  $("#media-seek").disabled = App.exportBusy;
-  $("#media-seek").max = String(source.duration || 0);
-  $("#media-seek").value = String(time);
-  $("#media-time").textContent =
-    `${formatMediaTime(time)} / ${formatMediaTime(source.duration)}`;
-  $("#media-loop").checked = source.loop;
-  $("#media-loop").disabled = App.exportBusy;
-  updateMeta();
+  const playBtn = $("#media-play");
+  const playLabel = App.mediaPlaying ? "Pause" : "Play";
+  if (playBtn.textContent !== playLabel) playBtn.textContent = playLabel;
+  if (playBtn.disabled !== App.exportBusy) playBtn.disabled = App.exportBusy;
+
+  const seekEl = $("#media-seek");
+  if (seekEl.disabled !== App.exportBusy) seekEl.disabled = App.exportBusy;
+  const maxStr = String(source.duration || 0);
+  if (seekEl.max !== maxStr) seekEl.max = maxStr;
+  const valStr = String(time);
+  if (seekEl.value !== valStr) seekEl.value = valStr;
+
+  const timeEl = $("#media-time");
+  const timeText = `${formatMediaTime(time)} / ${formatMediaTime(source.duration)}`;
+  if (timeEl.textContent !== timeText) timeEl.textContent = timeText;
+
+  const loopEl = $("#media-loop");
+  if (loopEl.checked !== source.loop) loopEl.checked = source.loop;
+  if (loopEl.disabled !== App.exportBusy) loopEl.disabled = App.exportBusy;
 }
 
 function updateAsciiOverlay(eff, state) {
   const pre = $("#ascii-text");
   if (eff.id === "ascii" && state && state.showText && eff.lastText) {
-    pre.textContent = eff.lastText;
-    pre.hidden = false;
-  } else {
+    if (pre.textContent !== eff.lastText) pre.textContent = eff.lastText;
+    if (pre.hidden) pre.hidden = false;
+  } else if (!pre.hidden) {
     pre.hidden = true;
   }
 }

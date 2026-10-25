@@ -12,14 +12,19 @@ function forEachCell(w, h, cell, angleDeg, cb) {
   const cos = Math.cos(a), sin = Math.sin(a);
   const cx = w / 2, cy = h / 2;
   const diag = Math.sqrt(w * w + h * h);
-  const start = -Math.ceil(diag / 2 / cell) * cell;
-  const hwN = cell / 2 / w, hhN = cell / 2 / h;
-  for (let gy = start; gy <= diag / 2; gy += cell) {
-    for (let gx = start; gx <= diag / 2; gx += cell) {
-      const wx = cx + gx * cos - gy * sin;
-      const wy = cy + gx * sin + gy * cos;
-      if (wx < -cell || wx > w + cell || wy < -cell || wy > h + cell) continue;
-      cb(wx, wy, wx / w, wy / h, hwN, hhN);
+  const halfDiag = diag / 2;
+  const start = -Math.ceil(halfDiag / cell) * cell;
+  const invW = 1 / w, invH = 1 / h;
+  const hwN = (cell / 2) * invW, hhN = (cell / 2) * invH;
+  const minX = -cell, maxX = w + cell, minY = -cell, maxY = h + cell;
+  for (let gy = start; gy <= halfDiag; gy += cell) {
+    const baseX = cx - gy * sin;
+    const baseY = cy + gy * cos;
+    for (let gx = start; gx <= halfDiag; gx += cell) {
+      const wx = baseX + gx * cos;
+      const wy = baseY + gx * sin;
+      if (wx < minX || wx > maxX || wy < minY || wy > maxY) continue;
+      cb(wx, wy, wx * invW, wy * invH, hwN, hhN);
     }
   }
 }
@@ -27,7 +32,7 @@ function forEachCell(w, h, cell, angleDeg, cb) {
 const _rgb = [0, 0, 0];
 function layerAmount(src, split, layers, li, nx, ny, hwN, hhN, fastSample) {
   if (split === 'rgb') {
-    const rgb = fastSample ? rgbAt(src, nx, ny) : avgRGB(src, nx, ny, hwN, hhN, _rgb);
+    const rgb = fastSample ? rgbAt(src, nx, ny, _rgb) : avgRGB(src, nx, ny, hwN, hhN, _rgb);
     return 1 - rgb[li] / 255; // low channel value → more spot ink
   }
   // luminance: triangular tonal separation across the layers
@@ -75,17 +80,49 @@ function drawRisoLayer(g, src, params, ctx, li, col, rand, ox, oy) {
   if (batch > 0) dc.fill();
 }
 
+const GRAIN_BUCKETS = 8;
+const _grainDark = Array.from({ length: GRAIN_BUCKETS }, () => []);
+const _grainLight = Array.from({ length: GRAIN_BUCKETS }, () => []);
+
 function addGrain(g, ctx, amount) {
   const { w, h } = ctx;
   const rand = rng(2024);
   const count = Math.floor(w * h * 0.015 * amount);
-  g.noStroke();
+  if (count <= 0) return;
+  for (let b = 0; b < GRAIN_BUCKETS; b++) {
+    _grainDark[b].length = 0;
+    _grainLight[b].length = 0;
+  }
   for (let i = 0; i < count; i++) {
     const x = rand() * w, y = rand() * h;
     const dark = rand() < 0.5;
-    g.fill(dark ? 0 : 255, (30 + rand() * 70) * amount);
+    const aNorm = rand();
     const s = 0.4 + rand() * 1.0;
-    g.rect(x, y, s, s);
+    const bi = Math.min(GRAIN_BUCKETS - 1, (aNorm * GRAIN_BUCKETS) | 0);
+    const list = dark ? _grainDark[bi] : _grainLight[bi];
+    list.push(x, y, s);
+  }
+  const dc = g.drawingContext;
+  for (let b = 0; b < GRAIN_BUCKETS; b++) {
+    const alpha = (((30 + ((b + 0.5) / GRAIN_BUCKETS) * 70) * amount) / 255).toFixed(3);
+    const dList = _grainDark[b];
+    if (dList.length) {
+      dc.fillStyle = `rgba(0,0,0,${alpha})`;
+      dc.beginPath();
+      for (let j = 0; j < dList.length; j += 3) {
+        dc.rect(dList[j], dList[j + 1], dList[j + 2], dList[j + 2]);
+      }
+      dc.fill();
+    }
+    const lList = _grainLight[b];
+    if (lList.length) {
+      dc.fillStyle = `rgba(255,255,255,${alpha})`;
+      dc.beginPath();
+      for (let j = 0; j < lList.length; j += 3) {
+        dc.rect(lList[j], lList[j + 1], lList[j + 2], lList[j + 2]);
+      }
+      dc.fill();
+    }
   }
 }
 

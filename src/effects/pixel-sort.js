@@ -1,7 +1,7 @@
 // pixel-sort.js — sort contiguous runs of pixels along rows or columns.
 // Static. Vertical mode walks columns via stride (no rotated copy).
 import { makeRng } from '../util/prng.js';
-import { getScratch } from '../util/scratch.js';
+import { getScratchPixels } from '../util/scratch.js';
 
 function rgb2hue(r, g, b) {
   r /= 255; g /= 255; b /= 255;
@@ -17,6 +17,21 @@ function rgb2hue(r, g, b) {
 function rgb2sat(r, g, b) {
   const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
   return mx === 0 ? 0 : (mx - mn) / mx;
+}
+
+let _cap = 0;
+let _R, _G, _B, _A, _K, _kBits, _bright, _sortBuf;
+function ensureLineScratch(len) {
+  if (_cap >= len) return;
+  _cap = len;
+  _R = new Uint8Array(len);
+  _G = new Uint8Array(len);
+  _B = new Uint8Array(len);
+  _A = new Uint8Array(len);
+  _K = new Float32Array(len);
+  _kBits = new Uint32Array(_K.buffer);
+  _bright = new Float32Array(len);
+  _sortBuf = new Float64Array(len);
 }
 
 export default {
@@ -41,9 +56,7 @@ export default {
     const { p, w, h } = ctx;
     const sw = src.width, sh = src.height;
     const sp = src.pixels;
-    const out = getScratch(p, ctx.slot || 'fx', sw, sh); // pooled per slot
-    out.loadPixels();
-    const op = out.pixels;
+    const { g: out, pixels: op, commit } = getScratchPixels(p, ctx.slot || 'fx', sw, sh);
     op.set(sp); // pixels outside any sorted interval keep their place
 
     const vertical = params.direction === 'vertical';
@@ -57,21 +70,32 @@ export default {
     const hi = Math.max(params.low, params.high);
     const rng = mode === 'random' ? makeRng(params.seed) : null;
 
-    // reusable per-line scratch (sized to the longest line)
-    const R = new Uint8Array(lineLen), G = new Uint8Array(lineLen), B = new Uint8Array(lineLen), A = new Uint8Array(lineLen);
-    const K = new Float32Array(lineLen), bright = new Float32Array(lineLen);
-    const order = new Int32Array(lineLen);
-    const cmp = desc ? (a, b) => K[b] - K[a] : (a, b) => K[a] - K[b];
+    ensureLineScratch(lineLen);
+    const R = _R, G = _G, B = _B, A = _A, K = _K, kBits = _kBits, bright = _bright, sortBuf = _sortBuf;
+    const needBright = mode === 'threshold' || mode === 'edge' || key === 'brightness';
     let curBase = 0;
 
+    // Pack non-negative IEEE-754 Float32 sort key bits + 16-bit index into a Float64
+    // so TypedArray.prototype.sort() runs in native C++ without a JS comparator callback.
     const sortInterval = (s, e) => {
       const len = e - s;
       if (len < 2) return;
-      const sub = order.subarray(0, len);
-      for (let k = 0; k < len; k++) sub[k] = s + k;
-      sub.sort(cmp);
+      const sub = sortBuf.subarray(0, len);
+      if (desc) {
+        for (let k = 0; k < len; k++) {
+          const idx = s + k;
+          sub[k] = (0x7fffffff - kBits[idx]) * 65536 + idx;
+        }
+      } else {
+        for (let k = 0; k < len; k++) {
+          const idx = s + k;
+          sub[k] = kBits[idx] * 65536 + idx;
+        }
+      }
+      sub.sort();
       for (let k = 0; k < len; k++) {
-        const dst = curBase + (s + k) * stride, sIdx = sub[k];
+        const dst = curBase + (s + k) * stride;
+        const sIdx = sub[k] & 0xffff;
         op[dst] = R[sIdx]; op[dst + 1] = G[sIdx]; op[dst + 2] = B[sIdx]; op[dst + 3] = A[sIdx];
       }
     };
@@ -83,10 +107,11 @@ export default {
         const off = curBase + q * stride;
         const r = op[off], gg = op[off + 1], b = op[off + 2];
         R[q] = r; G[q] = gg; B[q] = b; A[q] = op[off + 3];
-        const br = (0.299 * r + 0.587 * gg + 0.114 * b) / 255;
-        bright[q] = br;
-        K[q] = key === 'r' ? r : key === 'g' ? gg : key === 'b' ? b
+        const br = needBright ? (0.299 * r + 0.587 * gg + 0.114 * b) / 255 : 0;
+        if (needBright) bright[q] = br;
+        const kv = key === 'r' ? r : key === 'g' ? gg : key === 'b' ? b
           : key === 'hue' ? rgb2hue(r, gg, b) : key === 'saturation' ? rgb2sat(r, gg, b) : br;
+        K[q] = kv > 0 ? kv : 0; // canonical +0.0 so sign bit is always 0
       }
 
       if (mode === 'full') {
@@ -116,9 +141,10 @@ export default {
       }
     }
 
-    out.updatePixels();
+    commit();
     g.drawingContext.imageSmoothingEnabled = false;
     g.image(out, 0, 0, w, h);
     g.drawingContext.imageSmoothingEnabled = true;
   },
 };
+

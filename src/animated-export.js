@@ -109,32 +109,42 @@ export async function encodeGif({
     type: "module",
   });
   let waiter = null;
+  let stickyError = null;
 
-  const waitFor = (type) => new Promise((resolve, reject) => {
-    waiter = { type, resolve, reject };
-  });
+  const waitFor = (type) => {
+    if (stickyError) return Promise.reject(stickyError);
+    return new Promise((resolve, reject) => {
+      waiter = { type, resolve, reject };
+    });
+  };
+  const failAll = (err) => {
+    stickyError = err;
+    if (waiter) {
+      const w = waiter;
+      waiter = null;
+      w.reject(err);
+    }
+  };
   const onMessage = (event) => {
     const message = event.data || {};
     if (message.type === "error") {
-      waiter?.reject(new Error(message.message || "GIF encoding failed."));
-      waiter = null;
+      failAll(new Error(message.message || "GIF encoding failed."));
       return;
     }
     if (waiter?.type === message.type) {
-      waiter.resolve(message);
+      const w = waiter;
       waiter = null;
+      w.resolve(message);
     }
   };
   const onError = (event) => {
-    waiter?.reject(event.error || new Error(event.message || "GIF worker failed."));
-    waiter = null;
+    failAll(event.error || new Error(event.message || "GIF worker failed."));
   };
   worker.addEventListener("message", onMessage);
   worker.addEventListener("error", onError);
   const abort = () => {
     worker.postMessage({ type: "cancel" });
-    waiter?.reject(abortError(signal));
-    waiter = null;
+    failAll(abortError(signal));
   };
   signal?.addEventListener("abort", abort, { once: true });
 
@@ -142,20 +152,35 @@ export async function encodeGif({
     worker.postMessage({ type: "init", width, height });
     await waitFor("ready");
     let index = 0;
+    let pendingAck = null;
+    let pendingProgress = 0;
     for await (const frame of frames) {
+      if (signal?.aborted) throw abortError(signal);
+      if (pendingAck) {
+        await pendingAck;
+        pendingAck = null;
+        onProgress?.(pendingProgress);
+      }
       if (signal?.aborted) throw abortError(signal);
       const rgba = (frame.rgba instanceof Uint8Array || frame.rgba instanceof Uint8ClampedArray)
         ? frame.rgba
         : new Uint8Array(frame.rgba);
+      pendingProgress = frame.progress ?? 0;
+      pendingAck = waitFor("frame");
+      // Prevent unhandled rejection if next frame generation throws or aborts before await
+      pendingAck.catch(() => {});
       worker.postMessage({
         type: "frame",
         index,
         delay: frame.delay,
         rgba: rgba.buffer,
       }, [rgba.buffer]);
-      await waitFor("frame");
       index += 1;
-      onProgress?.(frame.progress ?? 0);
+    }
+    if (pendingAck) {
+      await pendingAck;
+      pendingAck = null;
+      onProgress?.(pendingProgress);
     }
     worker.postMessage({ type: "finish" });
     const message = await waitFor("finished");

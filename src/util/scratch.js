@@ -29,9 +29,22 @@
 // iOS tab's canvas budget. Eviction is safe at any cap — a scratch buffer only
 // matters during its own render call — so overflow costs a reallocation, never
 // correctness.
-const MAX_BUFFERS = 8;
+const MAX_BUFFERS = 10;
 
 const pool = new Map(); // key → p5.Graphics, in LRU order (oldest first)
+
+const _packBuf = new ArrayBuffer(4);
+const _packU8 = new Uint8Array(_packBuf);
+const _packU32 = new Uint32Array(_packBuf);
+
+// Endian-safe RGBA → 32-bit Uint32 pixel packer for fast Uint32Array writes.
+export function packRGBA(r, g, b, a = 255) {
+  _packU8[0] = r;
+  _packU8[1] = g;
+  _packU8[2] = b;
+  _packU8[3] = a;
+  return _packU32[0];
+}
 
 export function getScratch(p, key, w, h) {
   let g = pool.get(key);
@@ -52,3 +65,28 @@ export function getScratch(p, key, w, h) {
   }
   return g;
 }
+
+// Acquire a pooled scratch buffer along with a cached ImageData + Uint32Array view.
+// Avoids calling g.loadPixels() (which triggers a costly GPU→CPU getImageData readback)
+// when an effect completely overwrites the output buffer.
+export function getScratchPixels(p, key, w, h) {
+  const g = getScratch(p, key, w, h);
+  const ctx = g.drawingContext;
+  let imgData = g._cachedImgData;
+  if (!imgData || imgData.width !== w || imgData.height !== h) {
+    imgData = ctx.createImageData(w, h);
+    g._cachedImgData = imgData;
+    g._cachedU32 = new Uint32Array(imgData.data.buffer);
+  }
+  return {
+    g,
+    ctx,
+    imgData,
+    pixels: imgData.data,
+    u32: g._cachedU32,
+    commit() {
+      ctx.putImageData(imgData, 0, 0);
+    },
+  };
+}
+

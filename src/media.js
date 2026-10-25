@@ -627,7 +627,10 @@ export async function loadGifSource(file, { signal, fps } = {}) {
     if (patch.width !== frame.dims.width || patch.height !== frame.dims.height) {
       patch.width = frame.dims.width; patch.height = frame.dims.height;
     }
-    patchCtx.putImageData(new ImageData(frame.patch, frame.dims.width, frame.dims.height), 0, 0);
+    const imgData = frame.imageData || (
+      frame.imageData = new ImageData(frame.patch, frame.dims.width, frame.dims.height)
+    );
+    patchCtx.putImageData(imgData, 0, 0);
     ctx.drawImage(patch, frame.dims.left, frame.dims.top);
   };
   const advance = (index) => {
@@ -695,6 +698,7 @@ export async function loadGifSource(file, { signal, fps } = {}) {
     fps: gifFps,
     frameCount: frames.length,
     frameDelays: delays.slice(),
+    get currentFrame() { return shown; },
     get currentTime() { return time; }, set currentTime(value) { this.seek(value); },
     get playing() { return playing; },
     get loop() { return looping; }, set loop(value) { looping = Boolean(value); },

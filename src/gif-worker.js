@@ -31,8 +31,8 @@ self.addEventListener("message", (event) => {
     if (message.type === "frame") {
       if (!encoder || cancelled) throw new Error("GIF encoder is not active.");
       const rgba = new Uint8Array(message.rgba);
-      const palette = quantize(rgba, 256);
-      const indexed = applyPalette(rgba, palette);
+      const palette = quantize(rgba, 256, { format: "rgb565" });
+      const indexed = applyPalette(rgba, palette, "rgb565");
       encoder.writeFrame(indexed, width, height, {
         palette,
         delay: Math.max(20, Math.round(message.delay)),

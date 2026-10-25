@@ -2,9 +2,17 @@
 // Composites four passes per band, each gated by its own amount. All randomness
 // comes from makeRng(seed) so a given seed reproduces the exact same glitch.
 import { makeRng } from '../util/prng.js';
-import { getScratch } from '../util/scratch.js';
+import { getScratchPixels } from '../util/scratch.js';
 
 const idx = (x, y, sw) => (y * sw + x) << 2;
+
+let _tearBuf = null;
+function getTearBuf(len) {
+  if (!_tearBuf || _tearBuf.length < len) _tearBuf = new Uint8Array(len);
+  return _tearBuf;
+}
+
+const _crushLut = new Uint8Array(256);
 
 // Split [0,len) into `n` contiguous bands of random size (seeded).
 function randomBands(len, n, rng) {
@@ -20,16 +28,25 @@ function randomBands(len, n, rng) {
 // Pass 1 — shift a band along the primary axis, reading from the source snapshot.
 function shiftBand(op, sp, sw, sh, a0, a1, vertical, shift, wrap) {
   if (shift === 0) { // still copy through so the band is filled
-    if (!vertical) for (let y = a0; y < a1; y++) for (let x = 0; x < sw; x++) { const i = idx(x, y, sw); op[i] = sp[i]; op[i + 1] = sp[i + 1]; op[i + 2] = sp[i + 2]; op[i + 3] = sp[i + 3]; }
-    else for (let x = a0; x < a1; x++) for (let y = 0; y < sh; y++) { const i = idx(x, y, sw); op[i] = sp[i]; op[i + 1] = sp[i + 1]; op[i + 2] = sp[i + 2]; op[i + 3] = sp[i + 3]; }
+    if (!vertical) {
+      op.set(sp.subarray(a0 * sw * 4, a1 * sw * 4), a0 * sw * 4);
+    } else {
+      for (let x = a0; x < a1; x++) {
+        for (let y = 0; y < sh; y++) {
+          const i = idx(x, y, sw);
+          op[i] = sp[i]; op[i + 1] = sp[i + 1]; op[i + 2] = sp[i + 2]; op[i + 3] = sp[i + 3];
+        }
+      }
+    }
     return;
   }
   if (!vertical) {
     for (let y = a0; y < a1; y++) {
+      const rowOff = y * sw;
       for (let x = 0; x < sw; x++) {
         let sx = x - shift;
         sx = wrap ? ((sx % sw) + sw) % sw : (sx < 0 ? 0 : sx >= sw ? sw - 1 : sx);
-        const d = idx(x, y, sw), s = idx(sx, y, sw);
+        const d = (rowOff + x) << 2, s = (rowOff + sx) << 2;
         op[d] = sp[s]; op[d + 1] = sp[s + 1]; op[d + 2] = sp[s + 2]; op[d + 3] = sp[s + 3];
       }
     }
@@ -74,16 +91,25 @@ function smearBand(op, sp, sw, sh, a0, a1, vertical, rng) {
 function tearBand(op, sw, sh, a0, a1, vertical, off, c) {
   if (off === 0) return;
   if (!vertical) {
-    const tmp = new Uint8Array(sw);
+    const tmp = getTearBuf(sw);
     for (let y = a0; y < a1; y++) {
-      for (let x = 0; x < sw; x++) tmp[x] = op[idx(x, y, sw) + c];
-      for (let x = 0; x < sw; x++) { let sx = x - off; sx = sx < 0 ? 0 : sx >= sw ? sw - 1 : sx; op[idx(x, y, sw) + c] = tmp[sx]; }
+      const rowOff = y * sw;
+      for (let x = 0; x < sw; x++) tmp[x] = op[((rowOff + x) << 2) + c];
+      for (let x = 0; x < sw; x++) {
+        let sx = x - off;
+        if (sx < 0) sx = 0; else if (sx >= sw) sx = sw - 1;
+        op[((rowOff + x) << 2) + c] = tmp[sx];
+      }
     }
   } else {
-    const tmp = new Uint8Array(sh);
+    const tmp = getTearBuf(sh);
     for (let x = a0; x < a1; x++) {
       for (let y = 0; y < sh; y++) tmp[y] = op[idx(x, y, sw) + c];
-      for (let y = 0; y < sh; y++) { let sy = y - off; sy = sy < 0 ? 0 : sy >= sh ? sh - 1 : sy; op[idx(x, y, sw) + c] = tmp[sy]; }
+      for (let y = 0; y < sh; y++) {
+        let sy = y - off;
+        if (sy < 0) sy = 0; else if (sy >= sh) sy = sh - 1;
+        op[idx(x, y, sw) + c] = tmp[sy];
+      }
     }
   }
 }
@@ -92,9 +118,29 @@ function tearBand(op, sw, sh, a0, a1, vertical, off, c) {
 function corruptBand(op, sw, sh, a0, a1, vertical, amount) {
   const levels = Math.max(2, Math.round(2 + (1 - amount) * 14)); // more amount → fewer levels
   const q = 255 / (levels - 1);
-  const crush = (i) => { for (let c = 0; c < 3; c++) op[i + c] = Math.round(Math.round(op[i + c] / q) * q); };
-  if (!vertical) for (let y = a0; y < a1; y++) for (let x = 0; x < sw; x++) crush(idx(x, y, sw));
-  else for (let x = a0; x < a1; x++) for (let y = 0; y < sh; y++) crush(idx(x, y, sw));
+  for (let v = 0; v < 256; v++) {
+    _crushLut[v] = Math.round(Math.round(v / q) * q);
+  }
+  if (!vertical) {
+    for (let y = a0; y < a1; y++) {
+      const rowOff = y * sw;
+      for (let x = 0; x < sw; x++) {
+        const i = (rowOff + x) << 2;
+        op[i] = _crushLut[op[i]];
+        op[i + 1] = _crushLut[op[i + 1]];
+        op[i + 2] = _crushLut[op[i + 2]];
+      }
+    }
+  } else {
+    for (let x = a0; x < a1; x++) {
+      for (let y = 0; y < sh; y++) {
+        const i = idx(x, y, sw);
+        op[i] = _crushLut[op[i]];
+        op[i + 1] = _crushLut[op[i + 1]];
+        op[i + 2] = _crushLut[op[i + 2]];
+      }
+    }
+  }
 }
 
 export default {
@@ -118,10 +164,7 @@ export default {
     const { p, w, h } = ctx;
     const sw = src.width, sh = src.height;
     const sp = src.pixels;
-    const out = getScratch(p, ctx.slot || 'fx', sw, sh); // pooled per slot — never removed per frame
-    out.loadPixels();
-    const op = out.pixels;
-    op.set(sp); // baseline = source (fully overwrites the reused buffer)
+    const { g: out, pixels: op, commit } = getScratchPixels(p, ctx.slot || 'fx', sw, sh);
 
     const rng = makeRng(params.seed);
     const I = params.intensity;
@@ -145,9 +188,10 @@ export default {
       if (params.corrupt > 0 && rng() < params.corrupt * I) corruptBand(op, sw, sh, a0, a1, vertical, params.corrupt);
     }
 
-    out.updatePixels();
+    commit();
     g.drawingContext.imageSmoothingEnabled = false;
     g.image(out, 0, 0, w, h);
     g.drawingContext.imageSmoothingEnabled = true;
   },
 };
+

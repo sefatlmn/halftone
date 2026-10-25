@@ -1,6 +1,6 @@
 // rgb-shift.js — chromatic aberration. Split R/G/B, offset each independently,
 // recombine. Static and deterministic (no seed needed).
-import { getScratch } from '../util/scratch.js';
+import { getScratchPixels } from '../util/scratch.js';
 
 // Nearest-neighbour single-channel sample with edge clamp.
 function chan(sp, sw, sh, fx, fy, c) {
@@ -35,9 +35,7 @@ export default {
     const { p, w, h } = ctx;
     const sw = src.width, sh = src.height;
     const sp = src.pixels;
-    const out = getScratch(p, ctx.slot || 'fx', sw, sh); // pooled per slot
-    out.loadPixels();
-    const op = out.pixels;
+    const { g: out, pixels: op, commit } = getScratchPixels(p, ctx.slot || 'fx', sw, sh);
 
     const { mode, advanced, edgeBias } = params;
     const cx = sw / 2, cy = sh / 2;
@@ -45,16 +43,54 @@ export default {
     const ar = (params.angle * Math.PI) / 180;
     const dx = Math.cos(ar) * params.amount, dy = Math.sin(ar) * params.amount;
 
+    // Fast path: linear mode with zero edgeBias has constant integer offsets across the image.
+    if (mode !== 'radial' && !(edgeBias > 0)) {
+      const rOx = advanced ? params.rx : dx;
+      const rOy = advanced ? params.ry : dy;
+      const gOx = advanced ? params.gx : 0;
+      const gOy = advanced ? params.gy : 0;
+      const bOx = advanced ? params.bx : -dx;
+      const bOy = advanced ? params.by : -dy;
+      const maxX = sw - 1, maxY = sh - 1;
+
+      for (let y = 0; y < sh; y++) {
+        let ry = Math.round(y - rOy); if (ry < 0) ry = 0; else if (ry > maxY) ry = maxY;
+        let gy = Math.round(y - gOy); if (gy < 0) gy = 0; else if (gy > maxY) gy = maxY;
+        let by = Math.round(y - bOy); if (by < 0) by = 0; else if (by > maxY) by = maxY;
+        const rRow = ry * sw, gRow = gy * sw, bRow = by * sw, outRow = y * sw;
+
+        for (let x = 0; x < sw; x++) {
+          let rx = Math.round(x - rOx); if (rx < 0) rx = 0; else if (rx > maxX) rx = maxX;
+          let gx = Math.round(x - gOx); if (gx < 0) gx = 0; else if (gx > maxX) gx = maxX;
+          let bx = Math.round(x - bOx); if (bx < 0) bx = 0; else if (bx > maxX) bx = maxX;
+          const oi = (outRow + x) << 2;
+          op[oi]     = sp[(rRow + rx) << 2];
+          op[oi + 1] = sp[((gRow + gx) << 2) + 1];
+          op[oi + 2] = sp[((bRow + bx) << 2) + 2];
+          op[oi + 3] = 255;
+        }
+      }
+      commit();
+      g.image(out, 0, 0, w, h);
+      return;
+    }
+
+    const radScale = params.radialStrength / maxD;
+    const edgeScale = (edgeBias * 2) / maxD;
+
     for (let y = 0; y < sh; y++) {
+      const ddy = y - cy;
+      const ddy2 = ddy * ddy;
+      const outRow = y * sw;
       for (let x = 0; x < sw; x++) {
+        const ddx = x - cx;
         let rOx, rOy, gOx, gOy, bOx, bOy;
 
         if (mode === 'radial') {
-          const ddx = x - cx, ddy = y - cy;
-          const d = Math.sqrt(ddx * ddx + ddy * ddy) || 1;
-          const mag = params.radialStrength * (d / maxD);
-          const ux = ddx / d, uy = ddy / d;
-          rOx = ux * mag; rOy = uy * mag; gOx = 0; gOy = 0; bOx = -ux * mag; bOy = -uy * mag;
+          // ux * mag = (ddx / d) * (radialStrength * (d / maxD)) = ddx * (radialStrength / maxD)
+          rOx = ddx * radScale; rOy = ddy * radScale;
+          gOx = 0; gOy = 0;
+          bOx = -rOx; bOy = -rOy;
           if (advanced) { rOx += params.rx; rOy += params.ry; gOx = params.gx; gOy = params.gy; bOx += params.bx; bOy += params.by; }
         } else if (advanced) {
           rOx = params.rx; rOy = params.ry; gOx = params.gx; gOy = params.gy; bOx = params.bx; bOy = params.by;
@@ -64,11 +100,10 @@ export default {
 
         let s = 1;
         if (edgeBias > 0) {
-          const ddx = x - cx, ddy = y - cy;
-          s = 1 + edgeBias * 2 * (Math.sqrt(ddx * ddx + ddy * ddy) / maxD);
+          s = 1 + Math.sqrt(ddx * ddx + ddy2) * edgeScale;
         }
 
-        const oi = (y * sw + x) << 2;
+        const oi = (outRow + x) << 2;
         op[oi]     = chan(sp, sw, sh, x - rOx * s, y - rOy * s, 0);
         op[oi + 1] = chan(sp, sw, sh, x - gOx * s, y - gOy * s, 1);
         op[oi + 2] = chan(sp, sw, sh, x - bOx * s, y - bOy * s, 2);
@@ -76,7 +111,7 @@ export default {
       }
     }
 
-    out.updatePixels();
+    commit();
     g.image(out, 0, 0, w, h); // smooth upscale is fine for chromatic fringing
   },
 
@@ -100,16 +135,17 @@ export default {
       const R = new Uint8ClampedArray(sw * sh * 4);
       const G = new Uint8ClampedArray(sw * sh * 4);
       const B = new Uint8ClampedArray(sw * sh * 4);
+      const radScale = params.radialStrength / maxD;
+      const edgeScale = (edgeBias * 2) / maxD;
 
       for (let y = 0; y < sh; y++) {
+        const ddy = y - cy;
+        const ddy2 = ddy * ddy;
         for (let x = 0; x < sw; x++) {
+          const ddx = x - cx;
           let rOx, rOy, gOx, gOy, bOx, bOy;
           if (mode === 'radial') {
-            const ddx = x - cx, ddy = y - cy;
-            const d = Math.sqrt(ddx * ddx + ddy * ddy) || 1;
-            const mag = params.radialStrength * (d / maxD);
-            const ux = ddx / d, uy = ddy / d;
-            rOx = ux * mag; rOy = uy * mag; gOx = 0; gOy = 0; bOx = -ux * mag; bOy = -uy * mag;
+            rOx = ddx * radScale; rOy = ddy * radScale; gOx = 0; gOy = 0; bOx = -rOx; bOy = -rOy;
             if (advanced) { rOx += params.rx; rOy += params.ry; gOx = params.gx; gOy = params.gy; bOx += params.bx; bOy += params.by; }
           } else if (advanced) {
             rOx = params.rx; rOy = params.ry; gOx = params.gx; gOy = params.gy; bOx = params.bx; bOy = params.by;
@@ -119,8 +155,7 @@ export default {
 
           let s = 1;
           if (edgeBias > 0) {
-            const ddx = x - cx, ddy = y - cy;
-            s = 1 + edgeBias * 2 * (Math.sqrt(ddx * ddx + ddy * ddy) / maxD);
+            s = 1 + Math.sqrt(ddx * ddx + ddy2) * edgeScale;
           }
 
           const oi = (y * sw + x) << 2;
@@ -136,13 +171,13 @@ export default {
     const plate = (name, i) => ({
       name,
       draw: (g) => {
-        const out = getScratch(p, ctx.slot || 'fx', sw, sh); // pooled per slot
-        out.loadPixels();
-        out.pixels.set(build()[i]);
-        out.updatePixels();
+        const { g: out, pixels: op, commit } = getScratchPixels(p, ctx.slot || 'fx', sw, sh);
+        op.set(build()[i]);
+        commit();
         g.image(out, 0, 0, w, h);
       },
     });
     return [plate('Red', 0), plate('Green', 1), plate('Blue', 2)];
   },
 };
+

@@ -1,9 +1,8 @@
 // dither.js — ordered (Bayer) and Floyd–Steinberg error-diffusion dithering.
 // Quantises to a palette derived from ink/paper. Computed at a low grid
 // resolution then upscaled with smoothing OFF for crisp chunky pixels.
-import { lumaAt } from '../input.js';
 import { hex2rgb, mix, clamp, n, svgDoc } from './_shared.js';
-import { getScratch } from '../util/scratch.js';
+import { getScratchPixels, packRGBA } from '../util/scratch.js';
 
 const GRID_CAP = 1600; // max dither grid edge — bounds error diffusion AND the pooled buffer
 
@@ -35,8 +34,12 @@ function paletteFor(name, ink, paper) {
 
 const E7 = 7 / 16, E3 = 3 / 16, E5 = 5 / 16, E1 = 1 / 16;
 
-function floydSteinberg(lum, idx, cols, rows, L, serpentine) {
-  const buf = Float32Array.from(lum);
+let _lumPool = null;
+let _idxPool = null;
+let _modNoiseKey = '';
+let _modNoiseBuf = null;
+
+function floydSteinberg(buf, idx, cols, rows, L, serpentine) {
   const maxIdx = L - 1;
   const invMaxIdx = 1 / maxIdx;
   for (let y = 0; y < rows; y++) {
@@ -89,35 +92,64 @@ function computeDither(src, params, w, h, p) {
   if (cols > GRID_CAP) { rows = Math.max(1, Math.round(rows * GRID_CAP / cols)); cols = GRID_CAP; }
   if (rows > GRID_CAP) { cols = Math.max(1, Math.round(cols * GRID_CAP / rows)); rows = GRID_CAP; }
 
-  // sample luminance grid
-  const lum = new Float32Array(cols * rows);
+  const total = cols * rows;
+  if (!_lumPool || _lumPool.length < total) _lumPool = new Float32Array(total);
+  if (!_idxPool || _idxPool.length < total) _idxPool = new Uint8Array(total);
+  const lum = _lumPool.subarray(0, total);
+  const idx = _idxPool.subarray(0, total);
+
+  // sample luminance grid directly from src.pixels
+  const sw = src.width, sh = src.height;
+  const sp = src.pixels;
+  const invCols = sw / cols, invRows = sh / rows;
+  let cellIdx = 0;
   for (let y = 0; y < rows; y++) {
+    let sy = ((y + 0.5) * invRows) | 0;
+    if (sy < 0) sy = 0; else if (sy >= sh) sy = sh - 1;
+    const rowOff = sy * sw;
     for (let x = 0; x < cols; x++) {
-      lum[y * cols + x] = lumaAt(src, (x + 0.5) / cols, (y + 0.5) / rows);
+      let sx = ((x + 0.5) * invCols) | 0;
+      if (sx < 0) sx = 0; else if (sx >= sw) sx = sw - 1;
+      const pi = (rowOff + sx) << 2;
+      lum[cellIdx++] = (0.299 * sp[pi] + 0.587 * sp[pi + 1] + 0.114 * sp[pi + 2]) / 255;
     }
   }
-  // modulation: warp the tone with a coherent noise field (needs p5's noise)
+
+  // modulation: warp the tone with a coherent noise field (cached per grid dims)
   if (modulation > 0 && p) {
-    p.noiseSeed(7);
-    for (let y = 0; y < rows; y++) {
-      for (let x = 0; x < cols; x++) {
-        lum[y * cols + x] += (p.noise(x * 0.05, y * 0.05) - 0.5) * modulation * 0.55;
+    const nKey = `${cols}x${rows}`;
+    if (nKey !== _modNoiseKey || !_modNoiseBuf) {
+      if (!_modNoiseBuf || _modNoiseBuf.length < total) _modNoiseBuf = new Float32Array(total);
+      p.noiseSeed(7);
+      let ni = 0;
+      for (let y = 0; y < rows; y++) {
+        const ny = y * 0.05;
+        for (let x = 0; x < cols; x++) {
+          _modNoiseBuf[ni++] = p.noise(x * 0.05, ny) - 0.5;
+        }
       }
+      _modNoiseKey = nKey;
+    }
+    const modScale = modulation * 0.55;
+    for (let i = 0; i < total; i++) {
+      lum[i] += _modNoiseBuf[i] * modScale;
     }
   }
 
   // quantise to palette indices
-  const idx = new Uint8Array(cols * rows);
   if (mode === 'floyd-steinberg') {
     floydSteinberg(lum, idx, cols, rows, L, serpentine);
   } else {
     const m = BAYER[matrixSize] || BAYER[4];
     const N = m.length, NN = N * N;
+    const invL = 1 / L, maxIdx = L - 1;
+    let i = 0;
     for (let y = 0; y < rows; y++) {
+      const my = m[y % N];
       for (let x = 0; x < cols; x++) {
-        const t = (m[y % N][x % N] + 0.5) / NN;
-        const v = clamp(lum[y * cols + x] + (t - 0.5) / L, 0, 1);
-        idx[y * cols + x] = Math.round(v * (L - 1));
+        const t = (my[x % N] + 0.5) / NN;
+        const v = clamp(lum[i] + (t - 0.5) * invL, 0, 1);
+        idx[i++] = Math.round(v * maxIdx);
       }
     }
   }
@@ -149,20 +181,12 @@ export default {
     const { p, w, h } = ctx;
     const { cols, rows, idx, pal } = computeDither(src, params, w, h, p);
 
-    // Size scratch canvas to the needed cols×rows, and cache the ImageData object
-    // on the scratch buffer so rapid re-renders do not allocate fresh pixel buffers.
-    const tmp = getScratch(p, `dither:${ctx.slot || 'fx'}`, cols, rows);
-    const tctx = tmp.drawingContext;
-    const id = (tmp._cachedImgData && tmp._cachedImgData.width === cols && tmp._cachedImgData.height === rows)
-      ? tmp._cachedImgData
-      : (tmp._cachedImgData = tctx.createImageData(cols, rows));
-    const px = id.data;
-    for (let i = 0; i < idx.length; i++) {
-      const c = pal[idx[i]];
-      const j = i << 2;
-      px[j] = c[0]; px[j + 1] = c[1]; px[j + 2] = c[2]; px[j + 3] = 255;
+    const { g: tmp, u32, commit } = getScratchPixels(p, `dither:${ctx.slot || 'fx'}`, cols, rows);
+    const pal32 = pal.map((c) => packRGBA(c[0], c[1], c[2], 255));
+    for (let i = 0, len = idx.length; i < len; i++) {
+      u32[i] = pal32[idx[i]];
     }
-    tctx.putImageData(id, 0, 0);
+    commit();
 
     g.background(params.paper);
     const gctx = g.drawingContext;

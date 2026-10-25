@@ -11,7 +11,7 @@
 // and recomputes a stage only when that stage's inputs change.
 
 import EFFECTS from './index.js';
-import { buildWorking } from '../input.js';
+import { buildWorking, SAMPLING_CAP } from '../input.js';
 
 const byId = (id) => EFFECTS.find((e) => e.id === id);
 const j = (o) => JSON.stringify(o || null);
@@ -55,12 +55,13 @@ export function createEffectStack(p) {
   // should sample from, plus the resolved effect module.
   function prepare(src, bundle, w, h) {
     const b = bundle || emptyBundle();
+    const cap = b.samplingCap || SAMPLING_CAP;
 
     // 1. working buffer (image fitted + pre-adjust baked in, at sampling res).
     // The old buffer is passed in for reuse — same dims means no reallocation.
-    const wsig = `${imgId(src)}:${b.sourceVersion || 0}|${w}x${h}|${j(b.pre)}`;
+    const wsig = `${imgId(src)}:${b.sourceVersion || 0}|${w}x${h}:${cap}|${j(b.pre)}`;
     if (wsig !== wSig || !working) {
-      working = buildWorking(p, src, w, h, 'contain', b.pre || {}, working);
+      working = buildWorking(p, src, w, h, 'contain', b.pre || {}, working, cap);
       wSig = wsig; sSig = null;
     }
 

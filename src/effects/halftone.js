@@ -29,14 +29,19 @@ function forEachCell(w, h, cell, angleDeg, cb) {
   const cos = Math.cos(a), sin = Math.sin(a);
   const cx = w / 2, cy = h / 2;
   const diag = Math.sqrt(w * w + h * h);
-  const start = -Math.ceil(diag / 2 / cell) * cell;
-  const hwN = cell / 2 / w, hhN = cell / 2 / h;
-  for (let gy = start; gy <= diag / 2; gy += cell) {
-    for (let gx = start; gx <= diag / 2; gx += cell) {
-      const wx = cx + gx * cos - gy * sin;
-      const wy = cy + gx * sin + gy * cos;
-      if (wx < -cell || wx > w + cell || wy < -cell || wy > h + cell) continue;
-      cb(wx, wy, wx / w, wy / h, hwN, hhN);
+  const halfDiag = diag / 2;
+  const start = -Math.ceil(halfDiag / cell) * cell;
+  const invW = 1 / w, invH = 1 / h;
+  const hwN = (cell / 2) * invW, hhN = (cell / 2) * invH;
+  const minX = -cell, maxX = w + cell, minY = -cell, maxY = h + cell;
+  for (let gy = start; gy <= halfDiag; gy += cell) {
+    const baseX = cx - gy * sin;
+    const baseY = cy + gy * cos;
+    for (let gx = start; gx <= halfDiag; gx += cell) {
+      const wx = baseX + gx * cos;
+      const wy = baseY + gx * sin;
+      if (wx < minX || wx > maxX || wy < minY || wy > maxY) continue;
+      cb(wx, wy, wx * invW, wy * invH, hwN, hhN);
     }
   }
 }
@@ -160,7 +165,7 @@ function drawCmykChannel(g, src, params, ctx, ch) {
   dc.beginPath();
   let batch = 0;
   forEachCell(w, h, cellSize, ch.ang, (wx, wy, nx, ny, hwN, hhN) => {
-    let [r, gg, b] = fastSample ? rgbAt(src, nx, ny) : avgRGB(src, nx, ny, hwN, hhN, sampleBuf);
+    let [r, gg, b] = fastSample ? rgbAt(src, nx, ny, sampleBuf) : avgRGB(src, nx, ny, hwN, hhN, sampleBuf);
     if (params.invert) { r = 255 - r; gg = 255 - gg; b = 255 - b; }
     const amt = cmykChannelAmount(r, gg, b, chId);
     const rad = half * Math.sqrt(clamp(amt, 0, 1));
@@ -263,7 +268,7 @@ export default {
         const sampleBuf = [0, 0, 0];
         const chId = ch.id;
         forEachCell(w, h, cellSize, ch.ang, (wx, wy, nx, ny, hwN, hhN) => {
-          let [r, gg, b] = fastSample ? rgbAt(src, nx, ny) : avgRGB(src, nx, ny, hwN, hhN, sampleBuf);
+          let [r, gg, b] = fastSample ? rgbAt(src, nx, ny, sampleBuf) : avgRGB(src, nx, ny, hwN, hhN, sampleBuf);
           if (invert) { r = 255 - r; gg = 255 - gg; b = 255 - b; }
           const rad = half * Math.sqrt(clamp(cmykChannelAmount(r, gg, b, chId), 0, 1));
           if (rad < minR) return;

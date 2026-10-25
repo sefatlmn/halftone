@@ -1,21 +1,6 @@
 // hue-sat.js — HSL hue shift / saturation / lightness. RGB→HSL→RGB per pixel.
-import { getScratch } from '../util/scratch.js';
+import { getScratchPixels } from '../util/scratch.js';
 
-function rgb2hsl(r, g, b) {
-  r /= 255; g /= 255; b /= 255;
-  const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
-  const l = (mx + mn) / 2;
-  let h = 0, s = 0;
-  const d = mx - mn;
-  if (d > 1e-9) { // achromatic stays h=0, s=0 (avoids NaN hue)
-    s = l > 0.5 ? d / (2 - mx - mn) : d / (mx + mn);
-    if (mx === r) h = ((g - b) / d) % 6;
-    else if (mx === g) h = (b - r) / d + 2;
-    else h = (r - g) / d + 4;
-    h *= 60; if (h < 0) h += 360;
-  }
-  return [h, s, l];
-}
 function hue2rgb(p, q, t) {
   if (t < 0) t += 1; if (t > 1) t -= 1;
   if (t < 1 / 6) return p + (q - p) * 6 * t;
@@ -23,18 +8,6 @@ function hue2rgb(p, q, t) {
   if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
   return p;
 }
-function hsl2rgb(h, s, l) {
-  h /= 360;
-  if (s === 0) { const v = Math.round(l * 255); return [v, v, v]; }
-  const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-  const p = 2 * l - q;
-  return [
-    Math.round(hue2rgb(p, q, h + 1 / 3) * 255),
-    Math.round(hue2rgb(p, q, h) * 255),
-    Math.round(hue2rgb(p, q, h - 1 / 3) * 255),
-  ];
-}
-const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
 
 export default {
   id: 'hue-sat',
@@ -51,24 +24,64 @@ export default {
     const { p, w, h } = ctx;
     const sw = src.width, sh = src.height;
     const sp = src.pixels;
-    const out = getScratch(p, ctx.slot || 'fx', sw, sh); // pooled per slot
-    out.loadPixels();
-    const op = out.pixels;
+    const { g: out, pixels: op, commit } = getScratchPixels(p, ctx.slot || 'fx', sw, sh);
 
     const hue = params.hueShift;
     const sMul = 1 + params.saturation / 100;
     const lAdd = params.lightness / 200;
 
-    for (let i = 0; i < sp.length; i += 4) {
-      const hsl = rgb2hsl(sp[i], sp[i + 1], sp[i + 2]);
-      let H = hsl[0] + hue; H %= 360; if (H < 0) H += 360;
-      const S = clamp01(hsl[1] * sMul);
-      const L = clamp01(hsl[2] + lAdd);
-      const rgb = hsl2rgb(H, S, L);
-      op[i] = rgb[0]; op[i + 1] = rgb[1]; op[i + 2] = rgb[2]; op[i + 3] = sp[i + 3];
+    if (hue === 0 && params.saturation === 0 && params.lightness === 0) {
+      op.set(sp);
+      commit();
+      g.image(out, 0, 0, w, h);
+      return;
     }
 
-    out.updatePixels();
+    const inv255 = 1 / 255;
+    const inv360 = 1 / 360;
+    for (let i = 0, len = sp.length; i < len; i += 4) {
+      const r = sp[i] * inv255;
+      const gg = sp[i + 1] * inv255;
+      const b = sp[i + 2] * inv255;
+
+      const mx = r > gg ? (r > b ? r : b) : (gg > b ? gg : b);
+      const mn = r < gg ? (r < b ? r : b) : (gg < b ? gg : b);
+      let L = (mx + mn) * 0.5;
+      const d = mx - mn;
+
+      let H = 0, S = 0;
+      if (d > 1e-9) {
+        S = L > 0.5 ? d / (2 - mx - mn) : d / (mx + mn);
+        if (mx === r) H = ((gg - b) / d) % 6;
+        else if (mx === gg) H = (b - r) / d + 2;
+        else H = (r - gg) / d + 4;
+        H *= 60;
+        if (H < 0) H += 360;
+      }
+
+      H = (H + hue) % 360;
+      if (H < 0) H += 360;
+      S *= sMul;
+      if (S < 0) S = 0; else if (S > 1) S = 1;
+      L += lAdd;
+      if (L < 0) L = 0; else if (L > 1) L = 1;
+
+      if (S === 0) {
+        const v = (L * 255 + 0.5) | 0;
+        op[i] = v; op[i + 1] = v; op[i + 2] = v;
+      } else {
+        const hn = H * inv360;
+        const q = L < 0.5 ? L * (1 + S) : L + S - L * S;
+        const p0 = 2 * L - q;
+        op[i]     = (hue2rgb(p0, q, hn + 1 / 3) * 255 + 0.5) | 0;
+        op[i + 1] = (hue2rgb(p0, q, hn) * 255 + 0.5) | 0;
+        op[i + 2] = (hue2rgb(p0, q, hn - 1 / 3) * 255 + 0.5) | 0;
+      }
+      op[i + 3] = sp[i + 3];
+    }
+
+    commit();
     g.image(out, 0, 0, w, h);
   },
 };
+

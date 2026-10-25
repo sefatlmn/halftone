@@ -2,7 +2,7 @@
 // span several columns and rows (a packed, Mondrian-like layout), then
 // optionally shuffles, rotates, jitters and gaps them. Seeded, so a given seed
 // always produces the same layout (and stays stable across animated frames).
-import { getScratch } from '../util/scratch.js';
+import { getScratchPixels } from '../util/scratch.js';
 import { hex2rgb } from './_shared.js';
 import { makeRng } from '../util/prng.js';
 
@@ -37,6 +37,8 @@ function packGrid(cols, rows, maxSpan, merge, rng) {
   return { owner, tiles };
 }
 
+let _xColBuf = null;
+
 export default {
   id: 'tiles',
   name: 'Tiles',
@@ -58,9 +60,7 @@ export default {
     const { p, w, h } = ctx;
     const sw = src.width, sh = src.height;
     const sp = src.pixels;
-    const out = getScratch(p, ctx.slot || 'fx', sw, sh);
-    out.loadPixels();
-    const op = out.pixels;
+    const { g: out, pixels: op, commit } = getScratchPixels(p, ctx.slot || 'fx', sw, sh);
 
     // never more grid lines than pixels, so every cell is at least 1px
     const cols = Math.max(1, Math.min(sw, num(params.cols, 8) | 0));
@@ -82,9 +82,18 @@ export default {
         const t = map[i]; map[i] = map[j]; map[j] = t;
       }
     }
+
+    // gap is in display px; convert to buffer px, and never let it swallow a
+    // whole tile (keep at least ~1px of picture per cell)
+    const gapPx = (num(params.gap, 0) * sw) / (w || sw) / 2;
+    const gx = Math.max(0, Math.min(gapPx, cw / 2 - 0.5));
+    const gy = Math.max(0, Math.min(gapPx, ch / 2 - 0.5));
+    const [gr, gg, gb] = hex2rgb(params.gapColor || '#15120d');
+
     const jitter = num(params.jitter, 0);
     const want90 = params.rotate === '90°', want180 = params.rotate === '180°';
-    for (const t of tiles) {
+    for (let idx = 0; idx < n; idx++) {
+      const t = tiles[idx];
       // a quarter turn only looks right on (near-)square tiles; others get a
       // half turn instead of being squashed
       const pxW = t.w * cw, pxH = t.h * ch;
@@ -95,27 +104,36 @@ export default {
       t.jx = (rng() - 0.5) * 2 * jitter;
       t.jy = (rng() - 0.5) * 2 * jitter;
       t.x0 = t.c * cw; t.y0 = t.r * ch; t.pw = pxW; t.ph = pxH;
+      t.invPw = 1 / pxW;
+      t.invPh = 1 / pxH;
+      t.maxLx = pxW - gx;
+      t.maxLy = pxH - gy;
+      t.src = tiles[map[idx]];
     }
 
-    // gap is in display px; convert to buffer px, and never let it swallow a
-    // whole tile (keep at least ~1px of picture per cell)
-    const gapPx = (num(params.gap, 0) * sw) / (w || sw) / 2;
-    const gx = Math.max(0, Math.min(gapPx, cw / 2 - 0.5));
-    const gy = Math.max(0, Math.min(gapPx, ch / 2 - 0.5));
-    const [gr, gg, gb] = hex2rgb(params.gapColor || '#15120d');
+    if (!_xColBuf || _xColBuf.length < sw) _xColBuf = new Uint16Array(sw);
+    const xCols = _xColBuf;
+    const invCw = 1 / cw, invCh = 1 / ch;
+    for (let x = 0; x < sw; x++) {
+      const rx = (x * invCw) | 0;
+      xCols[x] = rx < cols ? rx : cols - 1;
+    }
 
     for (let y = 0; y < sh; y++) {
-      const ry = Math.min(rows - 1, Math.floor(y / ch));
+      let ry = (y * invCh) | 0;
+      if (ry >= rows) ry = rows - 1;
+      const rowOwnerOff = ry * cols;
+      const yRowOff = y * sw;
+
       for (let x = 0; x < sw; x++) {
-        const rx = Math.min(cols - 1, Math.floor(x / cw));
-        const t = tiles[owner[ry * cols + rx]];
+        const t = tiles[owner[rowOwnerOff + xCols[x]]];
         const lx = x - t.x0, ly = y - t.y0;
-        const o = (y * sw + x) << 2;
-        if (lx < gx || ly < gy || lx >= t.pw - gx || ly >= t.ph - gy) {
+        const o = (yRowOff + x) << 2;
+        if (lx < gx || ly < gy || lx >= t.maxLx || ly >= t.maxLy) {
           op[o] = gr; op[o + 1] = gg; op[o + 2] = gb; op[o + 3] = 255;
           continue;
         }
-        let u = lx / t.pw, v = ly / t.ph, tmp;
+        let u = lx * t.invPw, v = ly * t.invPh, tmp;
         switch (t.rot) {
           case 1: tmp = u; u = v; v = 1 - tmp; break;
           case 2: u = 1 - u; v = 1 - v; break;
@@ -123,17 +141,18 @@ export default {
         }
         u += t.jx; v += t.jy;
         u -= Math.floor(u); v -= Math.floor(v); // wrap within the tile
-        const s = tiles[map[owner[ry * cols + rx]]];
-        let sx = Math.floor(s.x0 + u * s.pw);
-        let sy = Math.floor(s.y0 + v * s.ph);
-        sx = sx < 0 ? 0 : sx >= sw ? sw - 1 : sx;
-        sy = sy < 0 ? 0 : sy >= sh ? sh - 1 : sy;
+        const s = t.src;
+        let sx = (s.x0 + u * s.pw) | 0;
+        let sy = (s.y0 + v * s.ph) | 0;
+        if (sx < 0) sx = 0; else if (sx >= sw) sx = sw - 1;
+        if (sy < 0) sy = 0; else if (sy >= sh) sy = sh - 1;
         const i = (sy * sw + sx) << 2;
         op[o] = sp[i]; op[o + 1] = sp[i + 1]; op[o + 2] = sp[i + 2]; op[o + 3] = 255;
       }
     }
 
-    out.updatePixels();
+    commit();
     g.image(out, 0, 0, w, h);
   },
 };
+

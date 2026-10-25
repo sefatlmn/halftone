@@ -1,7 +1,7 @@
 // tone.js — Curves + Levels + Brightness/Contrast folded into one combined
 // 256 LUT per channel (applied by lookup), plus an optional 3×3 colour matrix.
 import { buildLUT, defaultCurve } from '../color/curve.js';
-import { getScratch } from '../util/scratch.js';
+import { getScratchPixels } from '../util/scratch.js';
 
 const IDENTITY = [1, 0, 0, 0, 1, 0, 0, 0, 1];
 function satMatrix(s) {
@@ -46,9 +46,7 @@ export default {
     const { p, w, h } = ctx;
     const sw = src.width, sh = src.height;
     const sp = src.pixels;
-    const out = getScratch(p, ctx.slot || 'fx', sw, sh); // pooled per slot
-    out.loadPixels();
-    const op = out.pixels;
+    const { g: out, pixels: op, commit } = getScratchPixels(p, ctx.slot || 'fx', sw, sh);
 
     const cv = params.curve || defaultCurve();
     const lutRGB = buildLUT(cv.points.RGB);
@@ -84,20 +82,32 @@ export default {
       M = blendMatrix(IDENTITY, MATRICES[params.matrixPreset], params.matrixAmount);
     }
 
-    for (let i = 0; i < sp.length; i += 4) {
-      let r = LR[sp[i]], gg = LG[sp[i + 1]], b = LB[sp[i + 2]];
-      if (M) {
-        const nr = M[0] * r + M[1] * gg + M[2] * b;
-        const ng = M[3] * r + M[4] * gg + M[5] * b;
-        const nb = M[6] * r + M[7] * gg + M[8] * b;
-        r = nr < 0 ? 0 : nr > 255 ? 255 : nr;
-        gg = ng < 0 ? 0 : ng > 255 ? 255 : ng;
-        b = nb < 0 ? 0 : nb > 255 ? 255 : nb;
+    const len = sp.length;
+    if (!M) {
+      for (let i = 0; i < len; i += 4) {
+        op[i]     = LR[sp[i]];
+        op[i + 1] = LG[sp[i + 1]];
+        op[i + 2] = LB[sp[i + 2]];
+        op[i + 3] = sp[i + 3];
       }
-      op[i] = r; op[i + 1] = gg; op[i + 2] = b; op[i + 3] = sp[i + 3];
+    } else {
+      const m0 = M[0], m1 = M[1], m2 = M[2];
+      const m3 = M[3], m4 = M[4], m5 = M[5];
+      const m6 = M[6], m7 = M[7], m8 = M[8];
+      for (let i = 0; i < len; i += 4) {
+        const r = LR[sp[i]], gg = LG[sp[i + 1]], b = LB[sp[i + 2]];
+        const nr = m0 * r + m1 * gg + m2 * b;
+        const ng = m3 * r + m4 * gg + m5 * b;
+        const nb = m6 * r + m7 * gg + m8 * b;
+        op[i]     = nr < 0 ? 0 : nr > 255 ? 255 : nr;
+        op[i + 1] = ng < 0 ? 0 : ng > 255 ? 255 : ng;
+        op[i + 2] = nb < 0 ? 0 : nb > 255 ? 255 : nb;
+        op[i + 3] = sp[i + 3];
+      }
     }
 
-    out.updatePixels();
+    commit();
     g.image(out, 0, 0, w, h);
   },
 };
+
