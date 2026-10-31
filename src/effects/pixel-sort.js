@@ -49,7 +49,6 @@ export default {
     { key: 'maxInterval',   label: 'Max interval',   type: 'range', min: 2, max: 400, step: 1, value: 90, showIf: s => s.intervalMode === 'random' },
     { key: 'seed',          label: 'Seed',           type: 'range', min: 0, max: 9999, step: 1, value: 7, showIf: s => s.intervalMode === 'random' },
     { key: 'order',         label: 'Order',          type: 'select', options: ['ascending', 'descending'], value: 'ascending' },
-    { key: 'reverse',       label: 'Reverse',        type: 'toggle', value: false },
   ],
 
   render(g, src, params, ctx) {
@@ -65,7 +64,7 @@ export default {
     const stride = vertical ? sw * 4 : 4;
     const mode = params.intervalMode;
     const key = params.sortKey;
-    const desc = (params.order === 'descending') !== params.reverse;
+    const desc = params.order === 'descending';
     const lo = Math.min(params.low, params.high);
     const hi = Math.max(params.low, params.high);
     const rng = mode === 'random' ? makeRng(params.seed) : null;

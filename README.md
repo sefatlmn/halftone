@@ -16,11 +16,11 @@ There's no backend, no framework, no build step. Just static files. Everything r
 | 01  | **Halftone**    | Classic rotated dot screen where the dot radius maps to darkness. Supports circle, square, and line dots in a single mono ink or full CMYK separation with proper screen angles and multiply blending. |
 | 02  | **Dither**      | Ordered dithering (2x2, 4x4, 8x8 Bayer) and Floyd-Steinberg error diffusion with optional serpentine scan. Multiple palettes (1-bit, duotone, 3/4-tone, CMYK), chunky pixel scaling, and a modulation field. |
 | 03  | **ASCII**       | Converts the image to a grid of characters from an editable brightness ramp. Mono or source-coloured, rendered in a real monospace font. There's an optional selectable-text overlay so you can copy the output. |
-| 04  | **Risograph**   | Simulates 2 or 3 spot-colour separations using luminance bands or RGB channels. Each layer gets its own halftone or grain screen, with misregistration offset, multiply compositing, and paper grain. |
+| 04  | **Risograph**   | Simulates 2 or 3 spot-colour separations using luminance bands or RGB channels. Each layer gets its own halftone or grain screen, with misregistration offset and multiply compositing. |
 | 05  | **Xerox**       | High-contrast photocopy look. Cranks up contrast, applies a soft blur, adds a noisy threshold, and sprinkles in toner dropouts and dust. |
 | 06  | **Print Stamp** | Hard black-and-white threshold with Perlin noise rough edges and an ink-texture mask. Gives you that rubber-stamp or letterpress feel. |
-| 07  | **Glitch**      | Static, seeded datamosh. Random-height band shifts, block smears, channel tears, and bit-crush corruption. Works horizontal or vertical. |
-| 08  | **RGB Shift**   | Chromatic aberration in linear or radial (lens fringing) mode. Simple amount/angle control or advanced per-channel offsets with edge bias. |
+| 07  | **Glitch**      | Static, seeded datamosh. Random-height band shifts, block smears, and channel tears. Works horizontal or vertical. |
+| 08  | **RGB Shift**   | Chromatic aberration in linear or radial (lens fringing) mode. Amount/angle (or radial strength) control with edge bias. |
 | 09  | **Pixel Sort**  | Sorts pixel runs by brightness, hue, saturation, or individual R/G/B channels. Several interval modes: threshold (Asendorf-style), edge detection, seeded random, or full row/column. |
 | 10  | **Emboss**      | Raised-relief look mapping luminance gradients along a light angle around mid-grey. Supports grey, colour, and tinted modes. |
 | 11  | **Tiles**       | Cuts the frame into a dynamic grid of multi-spanning rectangular tiles with partial shuffle, rotation, jitter, and gaps. |

@@ -215,7 +215,7 @@ export default {
   name: 'Halftone',
   no: '01',
   params: [
-    { key: 'cell',   label: 'Cell size',    type: 'range', min: 1, max: 40, step: 0.5, value: 6 },
+    { key: 'cell',   label: 'Cell size',    type: 'range', min: 2, max: 30, step: 0.5, value: 6 },
     { key: 'shape',  label: 'Dot shape',    type: 'select', options: ['circle', 'square', 'line', 'star'], value: 'circle' },
     // CMYK screens at fixed per-channel print angles (moiré-free), so the screen
     // angle only applies to the mono screen; ink is likewise mono-only (CMYK

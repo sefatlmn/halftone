@@ -18,17 +18,10 @@ export default {
     { key: 'mode',           label: 'Mode',            type: 'select', options: ['linear', 'radial'], value: 'linear', rebuildOnChange: true },
     // amount/angle only drive the linear mode — radial ignores them, so hide
     // them there rather than showing dead sliders
-    { key: 'amount',         label: 'Amount',          type: 'range', min: 0, max: 40, step: 0.5, value: 6, showIf: s => !s.advanced && s.mode !== 'radial' },
-    { key: 'angle',          label: 'Angle',           type: 'range', min: 0, max: 360, step: 1, value: 0, showIf: s => !s.advanced && s.mode !== 'radial' },
+    { key: 'amount',         label: 'Amount',          type: 'range', min: 0, max: 40, step: 0.5, value: 6, showIf: s => s.mode !== 'radial' },
+    { key: 'angle',          label: 'Angle',           type: 'range', min: 0, max: 360, step: 1, value: 0, showIf: s => s.mode !== 'radial' },
     { key: 'radialStrength', label: 'Radial strength', type: 'range', min: 0, max: 60, step: 0.5, value: 18, showIf: s => s.mode === 'radial' },
     { key: 'edgeBias',       label: 'Edge bias',       type: 'range', min: 0, max: 1, step: 0.01, value: 0 },
-    { key: 'advanced',       label: 'Advanced (per-channel)', type: 'toggle', value: false, rebuildOnChange: true },
-    { key: 'rx', label: 'Red X',   type: 'range', min: -40, max: 40, step: 0.5, value: 6,  showIf: s => s.advanced },
-    { key: 'ry', label: 'Red Y',   type: 'range', min: -40, max: 40, step: 0.5, value: 0,  showIf: s => s.advanced },
-    { key: 'gx', label: 'Green X', type: 'range', min: -40, max: 40, step: 0.5, value: 0,  showIf: s => s.advanced },
-    { key: 'gy', label: 'Green Y', type: 'range', min: -40, max: 40, step: 0.5, value: 0,  showIf: s => s.advanced },
-    { key: 'bx', label: 'Blue X',  type: 'range', min: -40, max: 40, step: 0.5, value: -6, showIf: s => s.advanced },
-    { key: 'by', label: 'Blue Y',  type: 'range', min: -40, max: 40, step: 0.5, value: 0,  showIf: s => s.advanced },
   ],
 
   render(g, src, params, ctx) {
@@ -37,7 +30,7 @@ export default {
     const sp = src.pixels;
     const { g: out, pixels: op, commit } = getScratchPixels(p, ctx.slot || 'fx', sw, sh);
 
-    const { mode, advanced, edgeBias } = params;
+    const { mode, edgeBias } = params;
     const cx = sw / 2, cy = sh / 2;
     const maxD = Math.sqrt(cx * cx + cy * cy) || 1;
     const ar = (params.angle * Math.PI) / 180;
@@ -45,12 +38,9 @@ export default {
 
     // Fast path: linear mode with zero edgeBias has constant integer offsets across the image.
     if (mode !== 'radial' && !(edgeBias > 0)) {
-      const rOx = advanced ? params.rx : dx;
-      const rOy = advanced ? params.ry : dy;
-      const gOx = advanced ? params.gx : 0;
-      const gOy = advanced ? params.gy : 0;
-      const bOx = advanced ? params.bx : -dx;
-      const bOy = advanced ? params.by : -dy;
+      const rOx = dx, rOy = dy;
+      const gOx = 0, gOy = 0;
+      const bOx = -dx, bOy = -dy;
       const maxX = sw - 1, maxY = sh - 1;
 
       for (let y = 0; y < sh; y++) {
@@ -91,9 +81,6 @@ export default {
           rOx = ddx * radScale; rOy = ddy * radScale;
           gOx = 0; gOy = 0;
           bOx = -rOx; bOy = -rOy;
-          if (advanced) { rOx += params.rx; rOy += params.ry; gOx = params.gx; gOy = params.gy; bOx += params.bx; bOy += params.by; }
-        } else if (advanced) {
-          rOx = params.rx; rOy = params.ry; gOx = params.gx; gOy = params.gy; bOx = params.bx; bOy = params.by;
         } else {
           rOx = dx; rOy = dy; gOx = 0; gOy = 0; bOx = -dx; bOy = -dy;
         }
@@ -129,7 +116,7 @@ export default {
       const sp = src.pixels;
       const cx = sw / 2, cy = sh / 2;
       const maxD = Math.sqrt(cx * cx + cy * cy) || 1;
-      const { mode, advanced, edgeBias } = params;
+      const { mode, edgeBias } = params;
       const ar = (params.angle * Math.PI) / 180;
       const dx = Math.cos(ar) * params.amount, dy = Math.sin(ar) * params.amount;
       const R = new Uint8ClampedArray(sw * sh * 4);
@@ -146,9 +133,6 @@ export default {
           let rOx, rOy, gOx, gOy, bOx, bOy;
           if (mode === 'radial') {
             rOx = ddx * radScale; rOy = ddy * radScale; gOx = 0; gOy = 0; bOx = -rOx; bOy = -rOy;
-            if (advanced) { rOx += params.rx; rOy += params.ry; gOx = params.gx; gOy = params.gy; bOx += params.bx; bOy += params.by; }
-          } else if (advanced) {
-            rOx = params.rx; rOy = params.ry; gOx = params.gx; gOy = params.gy; bOx = params.bx; bOy = params.by;
           } else {
             rOx = dx; rOy = dy; gOx = 0; gOy = 0; bOx = -dx; bOy = -dy;
           }

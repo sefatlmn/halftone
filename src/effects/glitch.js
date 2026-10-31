@@ -1,5 +1,5 @@
-// glitch.js — static, seeded block-displacement + local corruption.
-// Composites four passes per band, each gated by its own amount. All randomness
+// glitch.js — static, seeded block-displacement.
+// Composites three passes per band, each gated by its own amount. All randomness
 // comes from makeRng(seed) so a given seed reproduces the exact same glitch.
 import { makeRng } from '../util/prng.js';
 import { getScratchPixels } from '../util/scratch.js';
@@ -11,8 +11,6 @@ function getTearBuf(len) {
   if (!_tearBuf || _tearBuf.length < len) _tearBuf = new Uint8Array(len);
   return _tearBuf;
 }
-
-const _crushLut = new Uint8Array(256);
 
 // Split [0,len) into `n` contiguous bands of random size (seeded).
 function randomBands(len, n, rng) {
@@ -26,7 +24,7 @@ function randomBands(len, n, rng) {
 }
 
 // Pass 1 — shift a band along the primary axis, reading from the source snapshot.
-function shiftBand(op, sp, sw, sh, a0, a1, vertical, shift, wrap) {
+function shiftBand(op, sp, sw, sh, a0, a1, vertical, shift) {
   if (shift === 0) { // still copy through so the band is filled
     if (!vertical) {
       op.set(sp.subarray(a0 * sw * 4, a1 * sw * 4), a0 * sw * 4);
@@ -45,7 +43,7 @@ function shiftBand(op, sp, sw, sh, a0, a1, vertical, shift, wrap) {
       const rowOff = y * sw;
       for (let x = 0; x < sw; x++) {
         let sx = x - shift;
-        sx = wrap ? ((sx % sw) + sw) % sw : (sx < 0 ? 0 : sx >= sw ? sw - 1 : sx);
+        sx = ((sx % sw) + sw) % sw;
         const d = (rowOff + x) << 2, s = (rowOff + sx) << 2;
         op[d] = sp[s]; op[d + 1] = sp[s + 1]; op[d + 2] = sp[s + 2]; op[d + 3] = sp[s + 3];
       }
@@ -54,7 +52,7 @@ function shiftBand(op, sp, sw, sh, a0, a1, vertical, shift, wrap) {
     for (let x = a0; x < a1; x++) {
       for (let y = 0; y < sh; y++) {
         let sy = y - shift;
-        sy = wrap ? ((sy % sh) + sh) % sh : (sy < 0 ? 0 : sy >= sh ? sh - 1 : sy);
+        sy = ((sy % sh) + sh) % sh;
         const d = idx(x, y, sw), s = idx(x, sy, sw);
         op[d] = sp[s]; op[d + 1] = sp[s + 1]; op[d + 2] = sp[s + 2]; op[d + 3] = sp[s + 3];
       }
@@ -114,35 +112,6 @@ function tearBand(op, sw, sh, a0, a1, vertical, off, c) {
   }
 }
 
-// Pass 4 — corrupt: posterize / bit-crush the band (broken-JPEG look).
-function corruptBand(op, sw, sh, a0, a1, vertical, amount) {
-  const levels = Math.max(2, Math.round(2 + (1 - amount) * 14)); // more amount → fewer levels
-  const q = 255 / (levels - 1);
-  for (let v = 0; v < 256; v++) {
-    _crushLut[v] = Math.round(Math.round(v / q) * q);
-  }
-  if (!vertical) {
-    for (let y = a0; y < a1; y++) {
-      const rowOff = y * sw;
-      for (let x = 0; x < sw; x++) {
-        const i = (rowOff + x) << 2;
-        op[i] = _crushLut[op[i]];
-        op[i + 1] = _crushLut[op[i + 1]];
-        op[i + 2] = _crushLut[op[i + 2]];
-      }
-    }
-  } else {
-    for (let x = a0; x < a1; x++) {
-      for (let y = 0; y < sh; y++) {
-        const i = idx(x, y, sw);
-        op[i] = _crushLut[op[i]];
-        op[i + 1] = _crushLut[op[i + 1]];
-        op[i + 2] = _crushLut[op[i + 2]];
-      }
-    }
-  }
-}
-
 export default {
   id: 'glitch',
   name: 'Glitch',
@@ -153,10 +122,8 @@ export default {
     { key: 'intensity',   label: 'Intensity',    type: 'range', min: 0, max: 1, step: 0.01, value: 0.7 },
     { key: 'blocks',      label: 'Blocks',       type: 'range', min: 2, max: 48, step: 1, value: 16 },
     { key: 'maxShift',    label: 'Max shift %',  type: 'range', min: 0, max: 50, step: 1, value: 14 },
-    { key: 'wrap',        label: 'Wrap',         type: 'toggle', value: true },
     { key: 'smear',       label: 'Smear',        type: 'range', min: 0, max: 1, step: 0.01, value: 0.3 },
     { key: 'channelTear', label: 'Channel tear', type: 'range', min: 0, max: 1, step: 0.01, value: 0.25 },
-    { key: 'corrupt',     label: 'Corrupt',      type: 'range', min: 0, max: 1, step: 0.01, value: 0.2 },
     { key: 'direction',   label: 'Direction',    type: 'select', options: ['horizontal', 'vertical'], value: 'horizontal' },
   ],
 
@@ -176,7 +143,7 @@ export default {
 
     for (const [a0, a1] of bands) {
       const shift = Math.round((rng() * 2 - 1) * maxShiftPx);
-      shiftBand(op, sp, sw, sh, a0, a1, vertical, shift, params.wrap);
+      shiftBand(op, sp, sw, sh, a0, a1, vertical, shift);
 
       if (params.smear > 0 && rng() < params.smear * I) smearBand(op, sp, sw, sh, a0, a1, vertical, rng);
 
@@ -184,8 +151,6 @@ export default {
         const off = Math.round((0.5 + rng()) * params.channelTear * 0.03 * shiftDim * I);
         tearBand(op, sw, sh, a0, a1, vertical, off, Math.floor(rng() * 3));
       }
-
-      if (params.corrupt > 0 && rng() < params.corrupt * I) corruptBand(op, sw, sh, a0, a1, vertical, params.corrupt);
     }
 
     commit();

@@ -112,8 +112,8 @@ test("All 15 effects render valid pixels across modes, edge cases, stacking, and
           { colorMode: "mono", invert: true, showText: false },
         ],
         riso: [
-          { layers: "2", split: "luminance", screen: "dots", grain: 0.3, misreg: 6 },
-          { layers: "3", split: "rgb", screen: "grain", grain: 0, misreg: 0 },
+          { layers: "2", split: "luminance", screen: "dots", misreg: 6 },
+          { layers: "3", split: "rgb", screen: "grain", misreg: 0 },
         ],
         xerox: [
           { threshold: 0.5, contrast: 0.65, grain: 1.5, noise: 0.3, tonerDensity: 0.85 },
@@ -124,21 +124,21 @@ test("All 15 effects render valid pixels across modes, edge cases, stacking, and
           { threshold: 0.5, roughness: 0, textureStrength: 0, grain: 2 },
         ],
         glitch: [
-          { blocks: 18, maxShift: 20, channelTear: 0.4, smear: 0.25, corrupt: 0.3, intensity: 0.6, direction: "horizontal", wrap: true },
-          { blocks: 10, maxShift: 15, channelTear: 0.2, smear: 0.2, corrupt: 0.2, intensity: 0.5, direction: "vertical", wrap: false },
-          { blocks: 8, maxShift: 0, channelTear: 0, smear: 0, corrupt: 0, intensity: 0, direction: "horizontal", wrap: true },
+          { blocks: 18, maxShift: 20, channelTear: 0.4, smear: 0.25, intensity: 0.6, direction: "horizontal" },
+          { blocks: 10, maxShift: 15, channelTear: 0.2, smear: 0.2, intensity: 0.5, direction: "vertical" },
+          { blocks: 8, maxShift: 0, channelTear: 0, smear: 0, intensity: 0, direction: "horizontal" },
         ],
         "rgb-shift": [
-          { mode: "linear", amount: 16, angle: 15, edgeBias: 0, advanced: false },
-          { mode: "linear", amount: 16, angle: 15, edgeBias: 0.5, advanced: true, rx: 8, ry: -4, gx: 0, gy: 2, bx: -8, by: 4 },
-          { mode: "radial", radialStrength: 30, edgeBias: 0, advanced: false },
-          { mode: "radial", radialStrength: 30, edgeBias: 0.5, advanced: true },
+          { mode: "linear", amount: 16, angle: 15, edgeBias: 0 },
+          { mode: "linear", amount: 16, angle: 15, edgeBias: 0.5 },
+          { mode: "radial", radialStrength: 30, edgeBias: 0 },
+          { mode: "radial", radialStrength: 30, edgeBias: 0.5 },
         ],
         "pixel-sort": [
-          { direction: "horizontal", sortKey: "brightness", intervalMode: "threshold", order: "ascending", reverse: false },
-          { direction: "vertical", sortKey: "hue", intervalMode: "edge", order: "descending", reverse: false },
-          { direction: "horizontal", sortKey: "saturation", intervalMode: "random", order: "ascending", reverse: true },
-          { direction: "vertical", sortKey: "r", intervalMode: "full", order: "descending", reverse: false },
+          { direction: "horizontal", sortKey: "brightness", intervalMode: "threshold", order: "ascending" },
+          { direction: "vertical", sortKey: "hue", intervalMode: "edge", order: "descending" },
+          { direction: "horizontal", sortKey: "saturation", intervalMode: "random", order: "ascending" },
+          { direction: "vertical", sortKey: "r", intervalMode: "full", order: "descending" },
         ],
         "gradient-map": [
           { steps: 0, mix: 1 },

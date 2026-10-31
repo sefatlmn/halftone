@@ -1,6 +1,6 @@
 // riso.js — risograph spot-colour separation. Splits the source into 2–3
 // layers (by luminance band or RGB channel), screens each in a spot colour,
-// offsets them (misregistration), composites with MULTIPLY, then lays grain.
+// offsets them (misregistration) and composites with MULTIPLY.
 import { avgLuma, avgRGB, lumaAt, rgbAt } from '../input.js';
 import { hex2rgb, rng, clamp, n, svgDoc } from './_shared.js';
 
@@ -80,52 +80,6 @@ function drawRisoLayer(g, src, params, ctx, li, col, rand, ox, oy) {
   if (batch > 0) dc.fill();
 }
 
-const GRAIN_BUCKETS = 8;
-const _grainDark = Array.from({ length: GRAIN_BUCKETS }, () => []);
-const _grainLight = Array.from({ length: GRAIN_BUCKETS }, () => []);
-
-function addGrain(g, ctx, amount) {
-  const { w, h } = ctx;
-  const rand = rng(2024);
-  const count = Math.floor(w * h * 0.015 * amount);
-  if (count <= 0) return;
-  for (let b = 0; b < GRAIN_BUCKETS; b++) {
-    _grainDark[b].length = 0;
-    _grainLight[b].length = 0;
-  }
-  for (let i = 0; i < count; i++) {
-    const x = rand() * w, y = rand() * h;
-    const dark = rand() < 0.5;
-    const aNorm = rand();
-    const s = 0.4 + rand() * 1.0;
-    const bi = Math.min(GRAIN_BUCKETS - 1, (aNorm * GRAIN_BUCKETS) | 0);
-    const list = dark ? _grainDark[bi] : _grainLight[bi];
-    list.push(x, y, s);
-  }
-  const dc = g.drawingContext;
-  for (let b = 0; b < GRAIN_BUCKETS; b++) {
-    const alpha = (((30 + ((b + 0.5) / GRAIN_BUCKETS) * 70) * amount) / 255).toFixed(3);
-    const dList = _grainDark[b];
-    if (dList.length) {
-      dc.fillStyle = `rgba(0,0,0,${alpha})`;
-      dc.beginPath();
-      for (let j = 0; j < dList.length; j += 3) {
-        dc.rect(dList[j], dList[j + 1], dList[j + 2], dList[j + 2]);
-      }
-      dc.fill();
-    }
-    const lList = _grainLight[b];
-    if (lList.length) {
-      dc.fillStyle = `rgba(255,255,255,${alpha})`;
-      dc.beginPath();
-      for (let j = 0; j < lList.length; j += 3) {
-        dc.rect(lList[j], lList[j + 1], lList[j + 2], lList[j + 2]);
-      }
-      dc.fill();
-    }
-  }
-}
-
 export default {
   id: 'riso',
   name: 'Risograph',
@@ -137,7 +91,6 @@ export default {
     { key: 'screen', label: 'Screen',           type: 'select', options: ['dots', 'grain'], value: 'dots' },
     { key: 'cell',   label: 'Screen cell',      type: 'range', min: 1, max: 18, step: 0.5, value: 4 },
     { key: 'misreg', label: 'Misregistration',  type: 'range', min: 0, max: 14, step: 1, value: 4 },
-    { key: 'grain',  label: 'Paper grain',      type: 'range', min: 0, max: 1, step: 0.01, value: 0.25 },
     { key: 'color1', label: 'Layer 1',          type: 'color', value: '#ff48b0' },
     { key: 'color2', label: 'Layer 2',          type: 'color', value: '#0078bf' },
     { key: 'color3', label: 'Layer 3',          type: 'color', value: '#ffe800', showIf: s => s.layers === '3' },
@@ -160,12 +113,10 @@ export default {
       drawRisoLayer(g, src, params, ctx, li, cols[li], rng(99 + li * 1000), ox, oy);
     }
     g.blendMode(p.BLEND); // ALWAYS reset after MULTIPLY
-
-    if (params.grain > 0) addGrain(g, ctx, params.grain);
   },
 
-  // Spot-colour separations — one registered plate per layer (no misregistration,
-  // no paper grain), each its spot ink on paper: the natural riso print workflow.
+  // Spot-colour separations — one registered plate per layer (no
+  // misregistration), each its spot ink on paper: the natural riso print workflow.
   separations(src, params, ctx) {
     const { p } = ctx;
     const layers = parseInt(params.layers, 10);
@@ -186,8 +137,7 @@ export default {
   },
 
   // Vector export — one multiply-blended group of spot-colour dots per layer,
-  // in colour, with misregistration preserved (paper grain is raster-only, so
-  // it's dropped). Mirrors render(); overprints like the canvas in viewers that
+  // in colour, with misregistration preserved. Mirrors render(); overprints like the canvas in viewers that
   // honour mix-blend-mode.
   renderSVG(src, params, view) {
     const { w, h } = view;
