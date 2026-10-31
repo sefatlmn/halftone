@@ -38,7 +38,7 @@ const App = {
   srcImage: null, // working source, downscaled to SRC_CAP for the pipeline
   srcDims: null, // { w, h } of the original upload, for the meta readout
   stack: null, // the reusable EffectStack (whole pipeline, self-caching)
-  pre: { brightness: 0, contrast: 0, gamma: 1, invert: false },
+  pre: { brightness: 0, contrast: 0, gamma: 1, grain: 0, invert: false },
   activeId: EFFECTS[0].id,
   states: {}, // per-effect param values
   canvasW: 0,
@@ -98,6 +98,7 @@ const PRE_SCHEMA = [
     step: 0.05,
     value: 1,
   },
+  { key: "grain", label: "Grain", type: "range", min: 0, max: 1, step: 0.01, value: 0 },
   { key: "invert", label: "Invert source", type: "toggle", value: false },
 ];
 

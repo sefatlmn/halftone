@@ -5,6 +5,7 @@
 // capped at SAMPLING_CAP) with pixelDensity(1) so pixel indexing is trivial.
 // Effects sample from it with normalised 0..1 coordinates and draw shapes at
 // full display resolution.
+import { makeRng } from './util/prng.js';
 
 // Long edge of the sampling buffer. Effects iterate over this buffer, so its
 // area sets per-render CPU cost and memory: 3000 quadrupled both vs. the 1200
@@ -70,22 +71,36 @@ function drawFitted(g, img, w, h, fit) {
 let _preLutKey = '';
 const _preLut = new Uint8ClampedArray(256);
 
-// Brightness / contrast / gamma / invert, applied in-place to a buffer.
+// Contrast S-curve strength (logistic steepness) at slider +100. Bounded so
+// the top end stays smooth instead of collapsing into a hard threshold.
+const CONTRAST_K = 8;
+const _sig = (x) => 1 / (1 + Math.exp(-CONTRAST_K * (x - 0.5)));
+const _sigLo = _sig(0);
+const _sigSpan = _sig(1) - _sigLo;
+
+// Fixed seed so grain is the same pattern on every rebuild (stable while
+// scrubbing sliders or playing media).
+const GRAIN_SEED = 1;
+
+// Brightness / contrast / gamma / invert / grain, applied in-place to a buffer.
+// Brightness and contrast are curves with pinned black and white points, so
+// the sliders never clip the whole image to flat black or white.
 // Returns true if pixels were loaded and updated, false if no-op.
 function applyPreAdjust(g, pre) {
-  const { brightness = 0, contrast = 0, gamma = 1, invert = false } = pre || {};
-  if (brightness === 0 && contrast === 0 && gamma === 1 && !invert) return false;
+  const { brightness = 0, contrast = 0, gamma = 1, invert = false, grain = 0 } = pre || {};
+  if (brightness === 0 && contrast === 0 && gamma === 1 && !invert && grain === 0) return false;
 
   const key = `${brightness}|${contrast}|${gamma}|${invert ? 1 : 0}`;
   if (key !== _preLutKey) {
-    const c = (contrast / 100) * 255;          // -255..255
-    const cf = (259 * (c + 255)) / (255 * (259 - c));
+    const c = contrast / 100;                  // -1..1
+    const b = brightness / 100;                // -1..1
     const gInv = 1 / Math.max(0.01, gamma);
-    const b = (brightness / 100) * 255;
     for (let val = 0; val < 256; val++) {
-      let v = cf * (val - 128) + 128 + b;      // contrast + brightness
-      v = clamp(v, 0, 255) / 255;
-      v = 255 * Math.pow(v, gInv);             // gamma
+      let v = val / 255;
+      if (c > 0) v += c * ((_sig(v) - _sigLo) / _sigSpan - v); // S-curve
+      else if (c < 0) v = 0.5 + (v - 0.5) * (1 + 0.75 * c);    // compress toward mid
+      v += b * v * (1 - v);                                    // brightness: midtone lift, ends pinned
+      v = 255 * Math.pow(clamp(v, 0, 1), gInv);                // gamma
       if (invert) v = 255 - v;
       _preLut[val] = v;
     }
@@ -95,10 +110,21 @@ function applyPreAdjust(g, pre) {
   g.loadPixels();
   const px = g.pixels;
   const lut = _preLut;
-  for (let i = 0, len = px.length; i < len; i += 4) {
-    px[i]     = lut[px[i]];
-    px[i + 1] = lut[px[i + 1]];
-    px[i + 2] = lut[px[i + 2]];
+  if (grain > 0) {
+    const rng = makeRng(GRAIN_SEED);
+    const amt = grain * 0.6 * 255;
+    for (let i = 0, len = px.length; i < len; i += 4) {
+      const d = (rng() - 0.5) * amt; // same offset on all channels: monochrome grain
+      px[i]     = lut[px[i]] + d;
+      px[i + 1] = lut[px[i + 1]] + d;
+      px[i + 2] = lut[px[i + 2]] + d;
+    }
+  } else {
+    for (let i = 0, len = px.length; i < len; i += 4) {
+      px[i]     = lut[px[i]];
+      px[i + 1] = lut[px[i + 1]];
+      px[i + 2] = lut[px[i + 2]];
+    }
   }
   g.updatePixels();
   return true;

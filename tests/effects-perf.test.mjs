@@ -141,13 +141,12 @@ test("All 15 effects render valid pixels across modes, edge cases, stacking, and
           { direction: "vertical", sortKey: "r", intervalMode: "full", order: "descending", reverse: false },
         ],
         "gradient-map": [
-          { steps: 0, grain: 0, mix: 1, lumaInvert: false },
-          { steps: 5, grain: 0.25, mix: 0.75, lumaInvert: true },
+          { steps: 0, mix: 1 },
+          { steps: 5, mix: 0.75 },
         ],
         tone: [
-          { advanced: false, brightness: 15, contrast: 25, gamma: 1.1 },
-          { advanced: true, matrixPreset: "sepia", matrixAmount: 0.8 },
-          { advanced: true, matrixPreset: "saturate", matrixAmount: 1 },
+          { gamma: 1.1, inBlack: 10, inWhite: 240 },
+          { outBlack: 20, outWhite: 230 },
         ],
         "hue-sat": [
           { hueShift: 0, saturation: 0, lightness: 0 },
@@ -331,7 +330,7 @@ test("All 15 effects render valid pixels across modes, edge cases, stacking, and
           tinyOut,
           tinySrc,
           {
-            pre: { brightness: 10, contrast: 15, gamma: 1.2, invert: true },
+            pre: { brightness: 10, contrast: 15, gamma: 1.2, grain: 0.3, invert: true },
             sourceVersion: 1,
             preStage: "tone",
             preStageParams: defaultsOf(EFFECTS.find((e) => e.id === "tone").params),
