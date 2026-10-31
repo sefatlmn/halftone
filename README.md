@@ -14,7 +14,7 @@ There's no backend, no framework, no build step. Just static files. Everything r
 | --- | --------------- | ------------ |
 | 00  | **None**        | Pass-through. Shows the source after pre-adjust with no screen applied. Selecting this in slot B clears the second effect. |
 | 01  | **Halftone**    | Classic rotated dot screen where the dot radius maps to darkness. Supports circle, square, and line dots in a single mono ink or full CMYK separation with proper screen angles and multiply blending. |
-| 02  | **Dither**      | Ordered dithering (2x2, 4x4, 8x8 Bayer) and Floyd-Steinberg error diffusion with optional serpentine scan. Multiple palettes (1-bit, duotone, 3/4-tone, C/M/Y), chunky pixel scaling, and a modulation field. |
+| 02  | **Dither**      | Ordered dithering (2x2, 4x4, 8x8 Bayer) and Floyd-Steinberg error diffusion with optional serpentine scan. Multiple palettes (1-bit, duotone, 3/4-tone, CMYK), chunky pixel scaling, and a modulation field. |
 | 03  | **ASCII**       | Converts the image to a grid of characters from an editable brightness ramp. Mono or source-coloured, rendered in a real monospace font. There's an optional selectable-text overlay so you can copy the output. |
 | 04  | **Risograph**   | Simulates 2 or 3 spot-colour separations using luminance bands or RGB channels. Each layer gets its own halftone or grain screen, with misregistration offset, multiply compositing, and paper grain. |
 | 05  | **Xerox**       | High-contrast photocopy look. Cranks up contrast, applies a soft blur, adds a noisy threshold, and sprinkles in toner dropouts and dust. |

@@ -26,7 +26,7 @@ function paletteFor(name, ink, paper) {
     case 'duotone': pal = [ink, paper]; break;
     case '3-tone':  pal = [ink, mix(ink, paper, 0.5), paper]; break;
     case '4-tone':  pal = [ink, mix(ink, paper, 0.34), mix(ink, paper, 0.67), paper]; break;
-    case 'cmy':     pal = [[22, 22, 22], [0, 174, 239], [236, 0, 140], [255, 242, 0], [250, 250, 245]]; break;
+    case 'cmyk':    pal = [[32, 30, 28], [38, 150, 190], [214, 66, 128], [248, 214, 70], [250, 250, 245]]; break;
     default:        pal = [[0, 0, 0], [255, 255, 255]];
   }
   return pal.slice().sort((a, b) => lumaOf(a) - lumaOf(b)); // dark → light
@@ -168,11 +168,11 @@ export default {
     // Bayer matrix only drives the ordered path; serpentine only the Floyd–
     // Steinberg path — hide whichever the current algorithm ignores.
     { key: 'matrixSize', label: 'Bayer matrix', type: 'select', options: ['2', '4', '8'], value: '4', showIf: s => s.mode === 'ordered' },
-    { key: 'palette',    label: 'Palette',     type: 'select', options: ['bw', 'duotone', '3-tone', '4-tone', 'cmy'], value: 'cmy', rebuildOnChange: true },
-    { key: 'pixelScale', label: 'Pixel size',  type: 'range', min: 0.5, max: 14, step: 0.5, value: 3 },
+    { key: 'palette',    label: 'Palette',     type: 'select', options: ['bw', 'duotone', '3-tone', '4-tone', 'cmyk'], value: 'cmyk', rebuildOnChange: true },
+    { key: 'pixelScale', label: 'Pixel size',  type: 'range', min: 0.5, max: 14, step: 0.5, value: 2 },
     { key: 'serpentine', label: 'Serpentine',  type: 'toggle', value: true, showIf: s => s.mode === 'floyd-steinberg' },
     { key: 'modulation', label: 'Modulation',  type: 'range', min: 0, max: 1, step: 0.01, value: 0 },
-    // bw and cmy use hardcoded palettes, so ink/paper do nothing there.
+    // bw and cmyk use hardcoded palettes, so ink/paper do nothing there.
     { key: 'ink',        label: 'Ink',         type: 'color', value: '#15120D', showIf: s => ['duotone', '3-tone', '4-tone'].includes(s.palette) },
     { key: 'paper',      label: 'Paper',       type: 'color', value: '#ffffff', lockRandom: true, showIf: s => ['duotone', '3-tone', '4-tone'].includes(s.palette) },
   ],

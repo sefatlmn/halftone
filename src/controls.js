@@ -9,7 +9,7 @@ const LABELS = {
   'floyd-steinberg': 'Floyd–Steinberg',
   'ordered': 'Ordered (Bayer)',
   'bw': '1-bit B/W',
-  'cmy': 'C / M / Y',
+  'cmyk': 'CMYK',
   '3-tone': '3-tone',
   '4-tone': '4-tone',
   'luminance': 'Luminance',

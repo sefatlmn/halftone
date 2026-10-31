@@ -135,7 +135,7 @@ export default {
     { key: 'layers', label: 'Layers',          type: 'select', options: ['2', '3'], value: '3', rebuildOnChange: true },
     { key: 'split',  label: 'Separation',       type: 'select', options: ['luminance', 'rgb'], value: 'luminance' },
     { key: 'screen', label: 'Screen',           type: 'select', options: ['dots', 'grain'], value: 'dots' },
-    { key: 'cell',   label: 'Screen cell',      type: 'range', min: 1, max: 18, step: 0.5, value: 6 },
+    { key: 'cell',   label: 'Screen cell',      type: 'range', min: 1, max: 18, step: 0.5, value: 4 },
     { key: 'misreg', label: 'Misregistration',  type: 'range', min: 0, max: 14, step: 1, value: 4 },
     { key: 'grain',  label: 'Paper grain',      type: 'range', min: 0, max: 1, step: 0.01, value: 0.25 },
     { key: 'color1', label: 'Layer 1',          type: 'color', value: '#ff48b0' },

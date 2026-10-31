@@ -101,7 +101,7 @@ test("All 15 effects render valid pixels across modes, edge cases, stacking, and
         ],
         dither: [
           { mode: "floyd-steinberg", palette: "bw", modulation: 0, serpentine: true },
-          { mode: "floyd-steinberg", palette: "cmy", modulation: 0, serpentine: false },
+          { mode: "floyd-steinberg", palette: "cmyk", modulation: 0, serpentine: false },
           { mode: "ordered", matrixSize: "2", palette: "duotone", modulation: 0.25 },
           { mode: "ordered", matrixSize: "4", palette: "3-tone", modulation: 0.15 },
           { mode: "ordered", matrixSize: "8", palette: "4-tone", modulation: 0 },

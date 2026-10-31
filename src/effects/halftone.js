@@ -134,10 +134,10 @@ function renderMono(g, src, params, ctx) {
 // Process inks + screen angles, shared by the composite (overprinted with
 // MULTIPLY) and the per-plate separations export so the two stay identical.
 const CMYK_CHANNELS = [
-  { id: 'c', name: 'Cyan',    ang: 15, col: [0, 174, 239], pick: c => c.c },
-  { id: 'm', name: 'Magenta', ang: 75, col: [236, 0, 140], pick: c => c.m },
-  { id: 'y', name: 'Yellow',  ang: 0,  col: [255, 242, 0], pick: c => c.y },
-  { id: 'k', name: 'Black',   ang: 45, col: [22, 22, 22],  pick: c => c.k },
+  { id: 'c', name: 'Cyan',    ang: 15, col: [38, 150, 190], pick: c => c.c },
+  { id: 'm', name: 'Magenta', ang: 75, col: [214, 66, 128], pick: c => c.m },
+  { id: 'y', name: 'Yellow',  ang: 0,  col: [248, 214, 70], pick: c => c.y },
+  { id: 'k', name: 'Black',   ang: 45, col: [32, 30, 28],  pick: c => c.k },
 ];
 
 // Draw one CMYK channel's dot screen into g; the fill colour IS the ink. The
@@ -215,7 +215,7 @@ export default {
   name: 'Halftone',
   no: '01',
   params: [
-    { key: 'cell',   label: 'Cell size',    type: 'range', min: 1, max: 40, step: 0.5, value: 8 },
+    { key: 'cell',   label: 'Cell size',    type: 'range', min: 1, max: 40, step: 0.5, value: 6 },
     { key: 'shape',  label: 'Dot shape',    type: 'select', options: ['circle', 'square', 'line', 'star'], value: 'circle' },
     // CMYK screens at fixed per-channel print angles (moiré-free), so the screen
     // angle only applies to the mono screen; ink is likewise mono-only (CMYK
