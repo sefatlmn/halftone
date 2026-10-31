@@ -450,3 +450,95 @@ test("All 15 effects render valid pixels across modes, edge cases, stacking, and
     await new Promise((r) => server.close(r));
   }
 });
+
+test("pre-adjust curves keep their endpoints, grain is deterministic, and unshuffled tiles are exact", async () => {
+  const server = await startStaticServer();
+  const { port } = server.address();
+  const browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage({ viewport: { width: 1280, height: 860 } });
+
+  const errors = [];
+  page.on("pageerror", (err) => errors.push(err.stack || String(err)));
+
+  try {
+    await page.goto(`http://127.0.0.1:${port}/index.html`, { waitUntil: "load", timeout: 30_000 });
+    await page.waitForFunction(() => Boolean(window.__hp?.p), null, { timeout: 15_000 });
+    await page.click("#btn-demo");
+    await page.waitForFunction(() => Boolean(window.__hp?.srcImage), null, { timeout: 15_000 });
+
+    const report = await page.evaluate(async () => {
+      const { buildWorking } = await import("./src/input.js");
+      const { createEffectStack } = await import("./src/effects/stack.js");
+      const hp = window.__hp;
+      const p = hp.p;
+
+      // 256x16 horizontal ramp: working pixel x has value x, so the buffer reads back as the LUT
+      const ramp = p.createGraphics(256, 16);
+      ramp.pixelDensity(1);
+      ramp.noStroke();
+      for (let x = 0; x < 256; x++) { ramp.fill(x); ramp.rect(x, 0, 1, 16); }
+      const rampRow = (pre) => {
+        const g = buildWorking(p, ramp, 128, 8, "contain", pre, null, 1600);
+        g.loadPixels();
+        const row = [];
+        for (let x = 0; x < 256; x++) row.push(g.pixels[(8 * g.width + x) * 4]);
+        g.remove();
+        return row;
+      };
+      const curves = {};
+      for (const [name, pre] of [
+        ["bright-100", { brightness: -100 }], ["bright+100", { brightness: 100 }],
+        ["contrast-100", { contrast: -100 }], ["contrast+100", { contrast: 100 }],
+      ]) {
+        const row = rampRow(pre);
+        let monotonic = true;
+        for (let i = 1; i < 256; i++) if (row[i] < row[i - 1]) monotonic = false;
+        curves[name] = { first: row[0], last: row[255], levels: new Set(row).size, monotonic };
+      }
+      const identity = rampRow({}).every((v, x) => v === x);
+
+      const grainA = rampRow({ grain: 0.5 }), grainB = rampRow({ grain: 0.5 });
+      const grainDeterministic = grainA.every((v, i) => v === grainB[i]);
+      const grainChanges = grainA.some((v, x) => v !== x);
+
+      // tiles with shuffle 0 and no rotation must reproduce the 'none' pass-through exactly
+      const stack = createEffectStack(p);
+      const out = p.createGraphics(hp.canvasW, hp.canvasH);
+      out.pixelDensity(1);
+      const bundle = (effect, effectParams) => ({
+        pre: {}, sourceVersion: 1, preStage: "none", preStageParams: {},
+        effect, effectParams, effect2: "none", effect2Params: {},
+      });
+      const snap = () => out.canvas.getContext("2d").getImageData(0, 0, out.canvas.width, out.canvas.height).data;
+      stack.renderInto(out, hp.srcImage, bundle("none", {}), hp.canvasW, hp.canvasH);
+      const base = Uint8ClampedArray.from(snap());
+      stack.renderInto(out, hp.srcImage, bundle("tiles", { cols: 8, rows: 8, maxSpan: 3, merge: 0.6, shuffle: 0, rotate: "none" }), hp.canvasW, hp.canvasH);
+      const tiled = snap();
+      let tileDiff = 0;
+      for (let i = 0; i < base.length; i++) if (base[i] !== tiled[i]) tileDiff++;
+
+      out.remove();
+      ramp.remove();
+      stack.dispose();
+      return { curves, identity, grainDeterministic, grainChanges, tileDiff };
+    });
+
+    assert.equal(errors.length, 0, `Unexpected browser errors: ${errors.join("\n")}`);
+    assert.ok(report.identity, "Pre-adjust at defaults must leave the source untouched");
+    for (const [name, c] of Object.entries(report.curves)) {
+      assert.ok(c.monotonic, `${name}: curve must be monotonic`);
+      // negative contrast compresses the range by design (gain 0.25 leaves ~64 levels)
+      if (name !== "contrast-100") assert.ok(c.levels >= 150, `${name}: only ${c.levels} distinct levels (banding)`);
+    }
+    assert.equal(report.curves["bright-100"].first, 0, "Brightness keeps black pinned");
+    assert.equal(report.curves["bright+100"].last, 255, "Brightness keeps white pinned");
+    assert.ok(report.curves["bright-100"].levels >= 200 && report.curves["bright+100"].levels >= 200, "Brightness extremes must not crush the tails");
+    assert.ok(report.grainDeterministic, "Grain must be identical across rebuilds");
+    assert.ok(report.grainChanges, "Grain above 0 must change pixels");
+    assert.equal(report.tileDiff, 0, "Unshuffled tiles must reproduce the source exactly");
+  } finally {
+    await page.close();
+    await browser.close();
+    await new Promise((r) => server.close(r));
+  }
+});

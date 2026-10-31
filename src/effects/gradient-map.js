@@ -27,7 +27,7 @@ export default {
 
     if (mix === 1) {
       for (let i = 0; i < len; i += 4) {
-        let t = (0.2126 * sp[i] + 0.7152 * sp[i + 1] + 0.0722 * sp[i + 2]) / 255;
+        const t = (0.2126 * sp[i] + 0.7152 * sp[i + 1] + 0.0722 * sp[i + 2]) / 255;
         const o = ((t * 255) | 0) * 3;
         op[i]     = lut[o];
         op[i + 1] = lut[o + 1];
@@ -38,7 +38,7 @@ export default {
       const invMix = 1 - mix;
       for (let i = 0; i < len; i += 4) {
         const r = sp[i], gg = sp[i + 1], b = sp[i + 2];
-        let t = (0.2126 * r + 0.7152 * gg + 0.0722 * b) / 255;
+        const t = (0.2126 * r + 0.7152 * gg + 0.0722 * b) / 255;
         const o = ((t * 255) | 0) * 3;
         let R = lut[o], G = lut[o + 1], B = lut[o + 2];
         if (mix < 1) { R = R * mix + r * invMix; G = G * mix + gg * invMix; B = B * mix + b * invMix; }

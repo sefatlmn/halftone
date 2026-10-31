@@ -97,6 +97,14 @@ export default {
       t.invPh = 1 / pxH;
       t.src = tiles[map[idx]];
     }
+    // pixel range each tile owns; taps clamp to it so a swapped tile never
+    // blends in its neighbour's pixels
+    for (const t of tiles) {
+      t.minX = Math.min(sw - 1, Math.ceil(t.x0 - 1e-6));
+      t.maxX = Math.min(sw - 1, Math.max(t.minX, Math.ceil(t.x0 + t.pw - 1e-6) - 1));
+      t.minY = Math.min(sh - 1, Math.ceil(t.y0 - 1e-6));
+      t.maxY = Math.min(sh - 1, Math.max(t.minY, Math.ceil(t.y0 + t.ph - 1e-6) - 1));
+    }
 
     if (!_xColBuf || _xColBuf.length < sw) _xColBuf = new Uint16Array(sw);
     const xCols = _xColBuf;
@@ -115,6 +123,10 @@ export default {
       for (let x = 0; x < sw; x++) {
         const t = tiles[owner[rowOwnerOff + xCols[x]]];
         const o = (yRowOff + x) << 2;
+        if (t.src === t && !t.rot) { // identity tile: copy the pixel
+          op[o] = sp[o]; op[o + 1] = sp[o + 1]; op[o + 2] = sp[o + 2]; op[o + 3] = 255;
+          continue;
+        }
         // pixel-centre coordinates inside the tile
         let u = (x - t.x0 + 0.5) * t.invPw, v = (y - t.y0 + 0.5) * t.invPh, tmp;
         switch (t.rot) {
@@ -129,10 +141,10 @@ export default {
         let x0 = Math.floor(fx), y0 = Math.floor(fy);
         const tx = fx - x0, ty = fy - y0;
         let x1 = x0 + 1, y1 = y0 + 1;
-        if (x0 < 0) x0 = 0; else if (x0 >= sw) x0 = sw - 1;
-        if (x1 < 0) x1 = 0; else if (x1 >= sw) x1 = sw - 1;
-        if (y0 < 0) y0 = 0; else if (y0 >= sh) y0 = sh - 1;
-        if (y1 < 0) y1 = 0; else if (y1 >= sh) y1 = sh - 1;
+        if (x0 < s.minX) x0 = s.minX; else if (x0 > s.maxX) x0 = s.maxX;
+        if (x1 < s.minX) x1 = s.minX; else if (x1 > s.maxX) x1 = s.maxX;
+        if (y0 < s.minY) y0 = s.minY; else if (y0 > s.maxY) y0 = s.maxY;
+        if (y1 < s.minY) y1 = s.minY; else if (y1 > s.maxY) y1 = s.maxY;
         const i00 = (y0 * sw + x0) << 2, i10 = (y0 * sw + x1) << 2;
         const i01 = (y1 * sw + x0) << 2, i11 = (y1 * sw + x1) << 2;
         const w00 = (1 - tx) * (1 - ty), w10 = tx * (1 - ty), w01 = (1 - tx) * ty, w11 = tx * ty;

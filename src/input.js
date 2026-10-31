@@ -78,9 +78,23 @@ const _sig = (x) => 1 / (1 + Math.exp(-CONTRAST_K * (x - 0.5)));
 const _sigLo = _sig(0);
 const _sigSpan = _sig(1) - _sigLo;
 
+// Brightness curve strength at slider ±100. Below 1 so the curve keeps a
+// non-zero slope at black and white and never collapses the tails into bands.
+const BRIGHTNESS_K = 0.7;
+
 // Fixed seed so grain is the same pattern on every rebuild (stable while
 // scrubbing sliders or playing media).
 const GRAIN_SEED = 1;
+let _grainNoise = new Int8Array(0); // cached noise field; the sequence prefix is stable per seed
+
+function getGrainNoise(n) {
+  if (_grainNoise.length < n) {
+    const rng = makeRng(GRAIN_SEED);
+    _grainNoise = new Int8Array(n);
+    for (let i = 0; i < n; i++) _grainNoise[i] = Math.round((rng() - 0.5) * 254);
+  }
+  return _grainNoise;
+}
 
 // Brightness / contrast / gamma / invert / grain, applied in-place to a buffer.
 // Brightness and contrast are curves with pinned black and white points, so
@@ -99,7 +113,7 @@ function applyPreAdjust(g, pre) {
       let v = val / 255;
       if (c > 0) v += c * ((_sig(v) - _sigLo) / _sigSpan - v); // S-curve
       else if (c < 0) v = 0.5 + (v - 0.5) * (1 + 0.75 * c);    // compress toward mid
-      v += b * v * (1 - v);                                    // brightness: midtone lift, ends pinned
+      v += BRIGHTNESS_K * b * v * (1 - v);                     // brightness: midtone lift, ends pinned
       v = 255 * Math.pow(clamp(v, 0, 1), gInv);                // gamma
       if (invert) v = 255 - v;
       _preLut[val] = v;
@@ -111,10 +125,10 @@ function applyPreAdjust(g, pre) {
   const px = g.pixels;
   const lut = _preLut;
   if (grain > 0) {
-    const rng = makeRng(GRAIN_SEED);
-    const amt = grain * 0.6 * 255;
+    const noise = getGrainNoise(px.length >> 2);
+    const amt = (grain * 0.6 * 255) / 254;
     for (let i = 0, len = px.length; i < len; i += 4) {
-      const d = (rng() - 0.5) * amt; // same offset on all channels: monochrome grain
+      const d = noise[i >> 2] * amt; // same offset on all channels: monochrome grain
       px[i]     = lut[px[i]] + d;
       px[i + 1] = lut[px[i + 1]] + d;
       px[i + 2] = lut[px[i + 2]] + d;
