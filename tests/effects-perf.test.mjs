@@ -138,7 +138,7 @@ test("All 15 effects render valid pixels across modes, edge cases, stacking, and
           { direction: "horizontal", sortKey: "brightness", intervalMode: "threshold", order: "ascending" },
           { direction: "vertical", sortKey: "hue", intervalMode: "edge", order: "descending" },
           { direction: "horizontal", sortKey: "saturation", intervalMode: "random", order: "ascending" },
-          { direction: "vertical", sortKey: "r", intervalMode: "full", order: "descending" },
+          { direction: "vertical", sortKey: "brightness", intervalMode: "full", order: "descending" },
         ],
         "gradient-map": [
           { steps: 0, mix: 1 },
@@ -158,9 +158,9 @@ test("All 15 effects render valid pixels across modes, edge cases, stacking, and
           { mode: "colour", angle: 90, depth: 2.5, distance: 1, blend: 0.2 },
         ],
         tiles: [
-          { cols: 8, rows: 8, maxSpan: 3, merge: 0.6, shuffle: 0.35, rotate: "none", gap: 2, jitter: 0 },
-          { cols: 6, rows: 6, maxSpan: 2, merge: 0.5, shuffle: 0.5, rotate: "90°", gap: 0, jitter: 0.2 },
-          { cols: 6, rows: 6, maxSpan: 2, merge: 0.5, shuffle: 0.5, rotate: "180°", gap: 1, jitter: 0.1 },
+          { cols: 8, rows: 8, maxSpan: 3, merge: 0.6, shuffle: 0.35, rotate: "none" },
+          { cols: 6, rows: 6, maxSpan: 2, merge: 0.5, shuffle: 0.5, rotate: "90°" },
+          { cols: 6, rows: 6, maxSpan: 2, merge: 0.5, shuffle: 0.5, rotate: "180°" },
         ],
       };
 

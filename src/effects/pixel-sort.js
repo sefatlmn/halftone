@@ -41,7 +41,7 @@ export default {
   heavy: true,
   params: [
     { key: 'direction',     label: 'Direction',      type: 'select', options: ['horizontal', 'vertical'], value: 'horizontal' },
-    { key: 'sortKey',       label: 'Sort by',        type: 'select', options: ['brightness', 'hue', 'saturation', 'r', 'g', 'b'], value: 'brightness' },
+    { key: 'sortKey',       label: 'Sort by',        type: 'select', options: ['brightness', 'hue', 'saturation'], value: 'brightness' },
     { key: 'intervalMode',  label: 'Intervals',      type: 'select', options: ['threshold', 'edge', 'random', 'full'], value: 'threshold', rebuildOnChange: true },
     { key: 'low',           label: 'Low',            type: 'range', min: 0, max: 1, step: 0.01, value: 0.25, showIf: s => s.intervalMode === 'threshold' },
     { key: 'high',          label: 'High',           type: 'range', min: 0, max: 1, step: 0.01, value: 0.8, showIf: s => s.intervalMode === 'threshold' },
@@ -108,8 +108,7 @@ export default {
         R[q] = r; G[q] = gg; B[q] = b; A[q] = op[off + 3];
         const br = needBright ? (0.299 * r + 0.587 * gg + 0.114 * b) / 255 : 0;
         if (needBright) bright[q] = br;
-        const kv = key === 'r' ? r : key === 'g' ? gg : key === 'b' ? b
-          : key === 'hue' ? rgb2hue(r, gg, b) : key === 'saturation' ? rgb2sat(r, gg, b) : br;
+        const kv = key === 'hue' ? rgb2hue(r, gg, b) : key === 'saturation' ? rgb2sat(r, gg, b) : br;
         K[q] = kv > 0 ? kv : 0; // canonical +0.0 so sign bit is always 0
       }
 

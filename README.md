@@ -21,9 +21,9 @@ There's no backend, no framework, no build step. Just static files. Everything r
 | 06  | **Print Stamp** | Hard black-and-white threshold with Perlin noise rough edges and an ink-texture mask. Gives you that rubber-stamp or letterpress feel. |
 | 07  | **Glitch**      | Static, seeded datamosh. Random-height band shifts, block smears, and channel tears. Works horizontal or vertical. |
 | 08  | **RGB Shift**   | Chromatic aberration in linear or radial (lens fringing) mode. Amount/angle (or radial strength) control with edge bias. |
-| 09  | **Pixel Sort**  | Sorts pixel runs by brightness, hue, saturation, or individual R/G/B channels. Several interval modes: threshold (Asendorf-style), edge detection, seeded random, or full row/column. |
+| 09  | **Pixel Sort**  | Sorts pixel runs by brightness, hue, or saturation. Several interval modes: threshold (Asendorf-style), edge detection, seeded random, or full row/column. |
 | 10  | **Emboss**      | Raised-relief look mapping luminance gradients along a light angle around mid-grey. Supports grey, colour, and tinted modes. |
-| 11  | **Tiles**       | Cuts the frame into a dynamic grid of multi-spanning rectangular tiles with partial shuffle, rotation, jitter, and gaps. |
+| 11  | **Tiles**       | Cuts the frame into a dynamic grid of multi-spanning rectangular tiles with partial shuffle and rotation. |
 
 Effects 07 to 09 are the **glitch family**. Their randomness is seeded, so the same seed always gives you the same result. Hit **Randomize** to reroll.
 

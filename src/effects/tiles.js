@@ -1,10 +1,13 @@
 // tiles.js — cuts the frame into tiles laid out on a grid, where tiles randomly
 // span several columns and rows (a packed, Mondrian-like layout), then
-// optionally shuffles, rotates, jitters and gaps them. Seeded, so a given seed
-// always produces the same layout (and stays stable across animated frames).
+// optionally shuffles and rotates them. The layout is seeded with a fixed seed,
+// so it is always the same for the same params (and stays stable across
+// animated frames). Tiles are resampled bilinearly so a small source tile
+// stretched over a larger one stays smooth instead of blocky.
 import { getScratchPixels } from '../util/scratch.js';
-import { hex2rgb } from './_shared.js';
 import { makeRng } from '../util/prng.js';
+
+const SEED = 42;
 
 const num = (v, d) => (Number.isFinite(+v) ? +v : d);
 
@@ -50,10 +53,6 @@ export default {
     { key: 'merge',    label: 'Span chance',  type: 'range', min: 0, max: 1, step: 0.01, value: 0.6 },
     { key: 'shuffle',  label: 'Shuffle',      type: 'range', min: 0, max: 1, step: 0.01, value: 0.35 },
     { key: 'rotate',   label: 'Rotate tiles', type: 'select', options: ['none', '90°', '180°'], value: 'none' },
-    { key: 'jitter',   label: 'Offset jitter', type: 'range', min: 0, max: 0.5, step: 0.01, value: 0 },
-    { key: 'gap',      label: 'Gap',          type: 'range', min: 0, max: 20, step: 0.5, value: 2 },
-    { key: 'gapColor', label: 'Gap colour',   type: 'color', value: '#15120d' },
-    { key: 'seed',     label: 'Seed',         type: 'range', min: 0, max: 9999, step: 1, value: 42 },
   ],
 
   render(g, src, params, ctx) {
@@ -65,7 +64,7 @@ export default {
     // never more grid lines than pixels, so every cell is at least 1px
     const cols = Math.max(1, Math.min(sw, num(params.cols, 8) | 0));
     const rows = Math.max(1, Math.min(sh, num(params.rows, 8) | 0));
-    const rng = makeRng(num(params.seed, 42));
+    const rng = makeRng(SEED);
     const { owner, tiles } = packGrid(
       cols, rows, Math.max(1, num(params.maxSpan, 3) | 0), num(params.merge, 0.6), rng,
     );
@@ -83,14 +82,6 @@ export default {
       }
     }
 
-    // gap is in display px; convert to buffer px, and never let it swallow a
-    // whole tile (keep at least ~1px of picture per cell)
-    const gapPx = (num(params.gap, 0) * sw) / (w || sw) / 2;
-    const gx = Math.max(0, Math.min(gapPx, cw / 2 - 0.5));
-    const gy = Math.max(0, Math.min(gapPx, ch / 2 - 0.5));
-    const [gr, gg, gb] = hex2rgb(params.gapColor || '#15120d');
-
-    const jitter = num(params.jitter, 0);
     const want90 = params.rotate === '90°', want180 = params.rotate === '180°';
     for (let idx = 0; idx < n; idx++) {
       const t = tiles[idx];
@@ -101,13 +92,9 @@ export default {
       if (want90 && square) t.rot = Math.floor(rng() * 4);
       else if (want90 || want180) t.rot = rng() < 0.5 ? 0 : 2;
       else t.rot = 0;
-      t.jx = (rng() - 0.5) * 2 * jitter;
-      t.jy = (rng() - 0.5) * 2 * jitter;
       t.x0 = t.c * cw; t.y0 = t.r * ch; t.pw = pxW; t.ph = pxH;
       t.invPw = 1 / pxW;
       t.invPh = 1 / pxH;
-      t.maxLx = pxW - gx;
-      t.maxLy = pxH - gy;
       t.src = tiles[map[idx]];
     }
 
@@ -127,27 +114,32 @@ export default {
 
       for (let x = 0; x < sw; x++) {
         const t = tiles[owner[rowOwnerOff + xCols[x]]];
-        const lx = x - t.x0, ly = y - t.y0;
         const o = (yRowOff + x) << 2;
-        if (lx < gx || ly < gy || lx >= t.maxLx || ly >= t.maxLy) {
-          op[o] = gr; op[o + 1] = gg; op[o + 2] = gb; op[o + 3] = 255;
-          continue;
-        }
-        let u = lx * t.invPw, v = ly * t.invPh, tmp;
+        // pixel-centre coordinates inside the tile
+        let u = (x - t.x0 + 0.5) * t.invPw, v = (y - t.y0 + 0.5) * t.invPh, tmp;
         switch (t.rot) {
           case 1: tmp = u; u = v; v = 1 - tmp; break;
           case 2: u = 1 - u; v = 1 - v; break;
           case 3: tmp = u; u = 1 - v; v = tmp; break;
         }
-        u += t.jx; v += t.jy;
-        u -= Math.floor(u); v -= Math.floor(v); // wrap within the tile
         const s = t.src;
-        let sx = (s.x0 + u * s.pw) | 0;
-        let sy = (s.y0 + v * s.ph) | 0;
-        if (sx < 0) sx = 0; else if (sx >= sw) sx = sw - 1;
-        if (sy < 0) sy = 0; else if (sy >= sh) sy = sh - 1;
-        const i = (sy * sw + sx) << 2;
-        op[o] = sp[i]; op[o + 1] = sp[i + 1]; op[o + 2] = sp[i + 2]; op[o + 3] = 255;
+        // bilinear sample of the source tile (identity mapping lands exactly
+        // on pixel centres, so unshuffled tiles are not softened)
+        const fx = s.x0 + u * s.pw - 0.5, fy = s.y0 + v * s.ph - 0.5;
+        let x0 = Math.floor(fx), y0 = Math.floor(fy);
+        const tx = fx - x0, ty = fy - y0;
+        let x1 = x0 + 1, y1 = y0 + 1;
+        if (x0 < 0) x0 = 0; else if (x0 >= sw) x0 = sw - 1;
+        if (x1 < 0) x1 = 0; else if (x1 >= sw) x1 = sw - 1;
+        if (y0 < 0) y0 = 0; else if (y0 >= sh) y0 = sh - 1;
+        if (y1 < 0) y1 = 0; else if (y1 >= sh) y1 = sh - 1;
+        const i00 = (y0 * sw + x0) << 2, i10 = (y0 * sw + x1) << 2;
+        const i01 = (y1 * sw + x0) << 2, i11 = (y1 * sw + x1) << 2;
+        const w00 = (1 - tx) * (1 - ty), w10 = tx * (1 - ty), w01 = (1 - tx) * ty, w11 = tx * ty;
+        op[o]     = sp[i00] * w00 + sp[i10] * w10 + sp[i01] * w01 + sp[i11] * w11;
+        op[o + 1] = sp[i00 + 1] * w00 + sp[i10 + 1] * w10 + sp[i01 + 1] * w01 + sp[i11 + 1] * w11;
+        op[o + 2] = sp[i00 + 2] * w00 + sp[i10 + 2] * w10 + sp[i01 + 2] * w01 + sp[i11 + 2] * w11;
+        op[o + 3] = 255;
       }
     }
 
