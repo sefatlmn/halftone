@@ -15,7 +15,7 @@ There's no backend, no framework, no build step. Just static files. Everything r
 | 00  | **None**        | Pass-through. Shows the source after pre-adjust with no screen applied. Selecting this in slot B clears the second effect. |
 | 01  | **Halftone**    | Classic rotated dot screen where the dot radius maps to darkness. Supports circle, square, line, and star dots in a single mono ink or full CMYK separation with proper screen angles and multiply blending. |
 | 02  | **Dither**      | Ordered dithering (2x2, 4x4, 8x8 Bayer) and Floyd-Steinberg error diffusion with optional serpentine scan. Multiple palettes (1-bit, duotone, 3/4-tone, CMYK), chunky pixel scaling, and a modulation field. |
-| 03  | **ASCII**       | Converts the image to a grid of characters from an editable brightness ramp. Mono or source-coloured, rendered in a real monospace font. There's an optional selectable-text overlay so you can copy the output. |
+| 03  | **ASCII**       | Converts the image to a grid of characters from an editable brightness ramp. Mono, or source-coloured (each cell takes the image colour, with the glyph in a darker shade), rendered in a real monospace font. There's an optional selectable-text overlay so you can copy the output. |
 | 04  | **Risograph**   | Simulates 2 or 3 spot-colour separations using luminance bands or RGB channels. Each layer gets its own halftone or grain screen, with misregistration offset and multiply compositing. |
 | 05  | **Xerox**       | High-contrast photocopy look. Cranks up contrast, applies a soft blur, adds a noisy threshold, and sprinkles in toner dropouts and dust. |
 | 06  | **Analog**      | A MiniDV camera signal on a CRT. Resamples onto a virtual raster of scanlines, applies DV 4:1:1 chroma bleed, highlight clip and edge enhancement (8×8 DCT blocking at high Signal), then draws brightness-dependent beams through an aperture-grille or slot mask, with beam defocus (Blur) and halation. |
@@ -25,7 +25,7 @@ There's no backend, no framework, no build step. Just static files. Everything r
 | 10  | **Emboss**      | Raised-relief look mapping luminance gradients along a light angle around mid-grey. Supports grey, colour, and tinted modes. |
 | 11  | **Tiles**       | Cuts the frame into a dynamic grid of multi-spanning rectangular tiles with partial shuffle and rotation. |
 
-**Analog recipes:** the defaults are a clean broadcast monitor. For a consumer TV, set Mask to Slot, Lines 280, Bloom 0.45, Blur 0.45, Signal 0.5. For a PVM close-up, use Grille, Lines 480, Mask strength 0.55, Scanlines 0.8, Bloom 0.15, Blur 0.05. Fine phosphor and scanline structure only shows when the screen has the pixels for it, so it is clearer in 2× PNG exports and at low Lines.
+**Analog recipes:** the defaults are a clean broadcast monitor. For a consumer TV, set Mask to Slot, Resolution 280, Bloom 0.45, Blur 0.45, Signal 0.5. For a PVM close-up, use Grille, Resolution 450, Mask strength 0.55, Scanlines 0.8, Bloom 0.15, Blur 0.05. Resolution is the number of scanlines (40–450). Fine phosphor and scanline structure only shows when the screen has the pixels for it, so it is clearer in 2× PNG exports and at low Resolution.
 
 Effects 07 to 09 are the **glitch family**. Glitch and Pixel Sort (random intervals) take a seed, so the same seed always gives you the same result. Hit **Rnd** (randomize) or press `R` to reroll the active effect's settings.
 
@@ -89,7 +89,7 @@ output. The same matrix runs automatically in GitHub Actions.
    - **Colour separation ZIP** with one plate per ink (for Halftone CMYK, RGB Shift, and Risograph)
    - **SVG** with true vectors (for Halftone, ASCII, Dither, and Risograph). Not available for raster effects or while two effects are stacked.
    - **Animated GIF** for GIF sources, encoded in a worker at a constant 15 fps (or original if ≤ 15 fps) and capped at 720 px.
-   - **Silent WebM** for video sources, recorded from the processed canvas at a constant 15 fps (or original if ≤ 15 fps). Source audio is never captured. Like most browser recordings, the file has no duration in its header, so some players show an unknown length.
+   - **Silent WebM** for video sources (the button reads "Download GIF" for both kinds of motion), recorded from the processed canvas at a constant 15 fps (or original if ≤ 15 fps). Source audio is never captured. Like most browser recordings, the file has no duration in its header, so some players show an unknown length.
 
 PNG, SVG, and separation exports capture the animated source's current frame when that export is compatible with the selected effect.
 

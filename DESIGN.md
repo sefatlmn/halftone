@@ -192,7 +192,8 @@ Borders are flat hairlines. The proof frame and thumbnail boxes are edged, not r
 - **Stage frame:** Recessed paper surface with a 1px border, centered proof sheet, and registration ticks.
 - **Control blocks:** Recessed paper headers, flat bodies, and 1px dividers. No card shadow or radius.
 - **Export panel:** Warm paper modal with a 1px border and hairline-separated tier columns.
-- **Toast:** A square ink bar with paper text and a 1px hairline, centred under the masthead. No radius and no shadow, like every other surface.
+- **Toast:** The single place for status messages (loads, exports, errors). A square ink bar with paper text and a 1px hairline, centred horizontally at one third of the viewport height. No radius and no shadow, like every other surface.
+- **Hover tip:** Controls with a `data-tip` (the Load media buttons) show a small ink tip next to the mouse cursor, in sentence case Archivo 11px. Mouse only: the tip is supplementary, so touch layouts simply omit it.
 
 ### Navigation
 - **Masthead:** A compact horizontal brand bar with a two-dot mark (overlapping signal-red and 75% ink circles at 102% of the title height), an Expanded 21px title, and a right-aligned workshop credit. On phones the credit is hidden, the title drops to 17px, and the brand padding tightens.

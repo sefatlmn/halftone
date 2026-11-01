@@ -134,9 +134,9 @@ function renderMono(g, src, params, ctx) {
 // Process inks + screen angles, shared by the composite (overprinted with
 // MULTIPLY) and the per-plate separations export so the two stay identical.
 const CMYK_CHANNELS = [
-  { id: 'c', name: 'Cyan',    ang: 15, col: [38, 150, 190], pick: c => c.c },
-  { id: 'm', name: 'Magenta', ang: 75, col: [214, 66, 128], pick: c => c.m },
-  { id: 'y', name: 'Yellow',  ang: 0,  col: [248, 214, 70], pick: c => c.y },
+  { id: 'c', name: 'Cyan',    ang: 15, col: [0, 109, 143], pick: c => c.c },
+  { id: 'm', name: 'Magenta', ang: 75, col: [154, 36, 79], pick: c => c.m },
+  { id: 'y', name: 'Yellow',  ang: 0,  col: [196, 188, 0], pick: c => c.y },
   { id: 'k', name: 'Black',   ang: 45, col: [32, 30, 28],  pick: c => c.k },
 ];
 

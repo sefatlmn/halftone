@@ -207,7 +207,8 @@
           doc.querySelector("#media-loop").dispatchEvent(new win.Event("change", { bubbles: true }));
           assert(!win.__hp.mediaSource.loop, "Loop control did not update the video.");
           doc.querySelector("#btn-export").click();
-          assert(doc.querySelector("#xbtn-animated").textContent.includes("WebM"), "WebM export option is missing.");
+          // the button always reads "Download GIF"; the tier description names the real format
+          assert(doc.querySelector("#xanimated-desc").textContent.includes("WebM") && !doc.querySelector("#xbtn-animated").disabled, "WebM export option is missing.");
           doc.querySelector("#xbtn-animated").click();
           await until(() => !win.__hp.exportBusy && downloads.some((name) => name.endsWith(".webm")), "WebM export did not finish.");
 

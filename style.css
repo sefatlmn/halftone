@@ -927,6 +927,12 @@ input[type="color"]::-moz-color-swatch {
     width: 44px;
     height: 44px;
   }
+
+  /* like .fold: keep the 44px tap targets but reclaim them from the header
+     row, so effect headers match the plain section headers in height */
+  .block-tools {
+    margin-block: -10px;
+  }
 }
 
 /* ---------------- Swap A↔B button (strip head) ---------------- */
@@ -1866,7 +1872,7 @@ input[type="color"]::-moz-color-swatch {
    ============================================================ */
 .toast {
   position: fixed;
-  top: 56px;
+  top: 33vh;
   left: 50%;
   transform: translateX(-50%) translateY(-6px);
   background: var(--ink);
@@ -1891,6 +1897,28 @@ input[type="color"]::-moz-color-swatch {
 .toast.is-visible {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
+}
+
+/* Cursor-following tip for [data-tip] controls (mouse only, see wireHoverTips).
+   Explanatory sentence, so sentence case rather than the uppercase utility style. */
+.hover-tip {
+  position: fixed;
+  top: 0;
+  left: 0;
+  max-width: 260px;
+  padding: 6px 9px;
+  background: var(--ink);
+  color: var(--paper);
+  border: var(--hair);
+  font-family: var(--font);
+  font-size: 11px;
+  line-height: 1.35;
+  pointer-events: none;
+  z-index: 1001;
+}
+
+.hover-tip[hidden] {
+  display: none;
 }
 
 /* ============================================================

@@ -1620,7 +1620,9 @@ function openExportPanel() {
     : App.mediaKind === "gif" && typeof Worker !== "undefined";
   const videoExtLabel = videoMime.includes("mp4") ? "MP4" : "WebM";
   $("#xanimated-label").textContent = App.mediaKind === "video" ? "Video" : "Animated GIF";
-  $("#xbtn-animated").textContent = App.mediaKind === "video" ? `Download ${videoExtLabel}` : "Download GIF";
+  // Always "GIF": "Download WebM" wraps the button, and to users GIF just means
+  // a moving picture; the file keeps its real extension.
+  $("#xbtn-animated").textContent = "Download GIF";
   $("#xbtn-animated").disabled = App.exportBusy || !animated || !animatedSupported;
   const targetFps = animatedTargetFps();
   const fpsLabel = Number.isInteger(targetFps) ? `${targetFps}` : Number(targetFps.toFixed(1));
@@ -1721,7 +1723,6 @@ function updateAsciiOverlay(eff, state) {
   }
 }
 
-let noteTimer = null;
 let toastTimer = null;
 
 function showToast(msg) {
@@ -1742,20 +1743,35 @@ function showToast(msg) {
   }, 4000);
 }
 
+// Every status message goes to the toast.
 function note(msg) {
-  const el = $("#drop-note");
-  el.textContent = msg;
-  el.style.color = "";
-  el.style.fontWeight = "";
-  if (msg && msg !== "Your files stay in your browser and are not stored.") {
-    showToast(msg);
+  if (msg) showToast(msg);
+}
+
+// A text tip that follows the mouse over elements carrying data-tip (mouse
+// only: touch has no hover, and the tip is extra information, not essential).
+function wireHoverTips() {
+  const tip = $("#hover-tip");
+  const place = (e) => {
+    const pad = 14;
+    let x = e.clientX + pad, y = e.clientY + pad + 4;
+    if (x + tip.offsetWidth > window.innerWidth - 8) x = e.clientX - pad - tip.offsetWidth;
+    if (y + tip.offsetHeight > window.innerHeight - 8) y = e.clientY - pad - tip.offsetHeight;
+    tip.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
+  };
+  for (const el of document.querySelectorAll("[data-tip]")) {
+    el.addEventListener("pointerenter", (e) => {
+      if (e.pointerType !== "mouse") return;
+      tip.textContent = el.dataset.tip;
+      tip.removeAttribute("hidden");
+      place(e);
+    });
+    el.addEventListener("pointermove", (e) => {
+      if (!tip.hidden) place(e);
+    });
+    el.addEventListener("pointerleave", () => tip.setAttribute("hidden", ""));
+    el.addEventListener("pointerdown", () => tip.setAttribute("hidden", ""));
   }
-  clearTimeout(noteTimer);
-  noteTimer = setTimeout(() => {
-    el.textContent = "Your files stay in your browser and are not stored.";
-    el.style.color = "";
-    el.style.fontWeight = "";
-  }, 6000);
 }
 
 /* ----------------------------------------------------------------
@@ -1989,6 +2005,7 @@ function init() {
   updateMeta();
   updateMediaControls();
   wireEvents();
+  wireHoverTips();
   wireFolds();
   window.addEventListener("beforeunload", () => {
     App.mediaLoadAbort?.abort();

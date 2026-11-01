@@ -123,8 +123,8 @@ test("All 15 effects render valid pixels across modes, edge cases, stacking, and
           {},
           { mask: "slot", blur: 0.8, bloom: 0.6 },
           { mask: "none", scanlines: 1, signal: 1 },
-          { lines: 120 },
-          { lines: 600, maskStrength: 1 },
+          { lines: 40 },
+          { lines: 450, maskStrength: 1 },
         ],
         glitch: [
           { blocks: 18, maxShift: 20, channelTear: 0.4, smear: 0.25, intensity: 0.6, direction: "horizontal" },

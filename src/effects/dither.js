@@ -26,7 +26,7 @@ function paletteFor(name, ink, paper) {
     case 'duotone': pal = [ink, paper]; break;
     case '3-tone':  pal = [ink, mix(ink, paper, 0.5), paper]; break;
     case '4-tone':  pal = [ink, mix(ink, paper, 0.34), mix(ink, paper, 0.67), paper]; break;
-    case 'cmyk':    pal = [[32, 30, 28], [38, 150, 190], [214, 66, 128], [248, 214, 70], [250, 250, 245]]; break;
+    case 'cmyk':    pal = [[32, 30, 28], [0, 109, 143], [154, 36, 79], [196, 188, 0], [250, 250, 245]]; break;
     default:        pal = [[0, 0, 0], [255, 255, 255]];
   }
   return pal.slice().sort((a, b) => lumaOf(a) - lumaOf(b)); // dark → light

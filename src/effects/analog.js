@@ -297,7 +297,7 @@ export default {
   no: '06',
   heavy: true,
   params: [
-    { key: 'lines',        label: 'Lines',         type: 'range', min: 120, max: 600, step: 10, value: 300, lockRandom: true },
+    { key: 'lines',        label: 'Resolution',    type: 'range', min: 40, max: 450, step: 10, value: 300, lockRandom: true },
     { key: 'mask',         label: 'Mask',          type: 'select', options: ['grille', 'slot', 'none'], value: 'grille' },
     { key: 'maskStrength', label: 'Mask strength', type: 'range', min: 0, max: 1, step: 0.01, value: 0.35 },
     { key: 'scanlines',    label: 'Scanlines',     type: 'range', min: 0, max: 1, step: 0.01, value: 0.75 },

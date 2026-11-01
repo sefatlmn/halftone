@@ -1,6 +1,7 @@
 // ascii.js — render the image as a grid of monospace glyphs picked from a ramp.
 import { lumaAt, rgbAt } from '../input.js';
 import { clamp, n, svgDoc } from './_shared.js';
+import { getScratchPixels, packRGBA } from '../util/scratch.js';
 
 const DEFAULT_RAMP = ' .:-=+*#%@';
 
@@ -23,9 +24,10 @@ const mod = {
     { key: 'font',      label: 'Font',       type: 'select', options: ['Space Mono', 'Courier New', 'monospace'], value: 'Space Mono' },
     { key: 'invert',    label: 'Invert',     type: 'toggle', value: false },
     { key: 'showText',  label: 'Selectable text', type: 'toggle', value: false, lockRandom: true },
-    // In 'source' mode the glyph colour comes from the image, so Ink is unused.
+    // In 'source' mode each cell takes the image colour (glyph and background),
+    // so Ink and Paper are unused there.
     { key: 'ink',       label: 'Ink',        type: 'color', value: '#15120D', showIf: s => s.colorMode === 'mono' },
-    { key: 'paper',     label: 'Paper',      type: 'color', value: '#ffffff', lockRandom: true },
+    { key: 'paper',     label: 'Paper',      type: 'color', value: '#ffffff', lockRandom: true, showIf: s => s.colorMode === 'mono' },
   ],
 
   render(g, src, params, ctx) {
@@ -58,6 +60,27 @@ const mod = {
 
     const sw = src.width, sh = src.height;
     const sp = src.pixels;
+
+    // Source colour: every cell's background is the image colour at that cell,
+    // so light areas (sparse glyphs) keep their colour instead of showing paper.
+    // One pixel per cell in a tiny buffer, drawn up in a single unsmoothed
+    // drawImage; the grid overshoots w×h by up to a cell and is clipped.
+    if (isSourceColor) {
+      const bc = Math.ceil(w / cw), br = Math.ceil(h / ch);
+      const { g: mosaic, u32, commit } = getScratchPixels(p, `ascii:${ctx.slot || 'fx'}`, bc, br);
+      for (let r = 0, k = 0; r < br; r++) {
+        const sy = Math.min(sh - 1, (clamp((r + 0.5) * ch / h, 0, 1) * sh) | 0);
+        for (let c = 0; c < bc; c++, k++) {
+          const sx = Math.min(sw - 1, (clamp((c + 0.5) * cw / w, 0, 1) * sw) | 0);
+          const pi = (sy * sw + sx) << 2;
+          u32[k] = packRGBA(sp[pi], sp[pi + 1], sp[pi + 2], 255);
+        }
+      }
+      commit();
+      dc.imageSmoothingEnabled = false;
+      dc.drawImage(mosaic.canvas, 0, 0, bc, br, 0, 0, bc * cw, br * ch);
+      dc.imageSmoothingEnabled = true;
+    }
     const needText = !!params.showText;
     const lines = needText ? new Array(rows) : null;
     let lastRGB = -1;
@@ -92,7 +115,8 @@ const mod = {
             const rgbInt = (cr << 16) | (cg << 8) | cb;
             if (rgbInt !== lastRGB) {
               lastRGB = rgbInt;
-              dc.fillStyle = `rgb(${cr},${cg},${cb})`;
+              // a darker shade of the cell colour, so the glyph reads on it
+              dc.fillStyle = `rgb(${cr >> 1},${cg >> 1},${cb >> 1})`;
             }
           }
           dc.fillText(glyph, colX[c], py);
@@ -112,10 +136,26 @@ const mod = {
     const cols = Math.max(1, Math.floor(w / cw));
     const rows = Math.max(1, Math.floor(h / ch));
     const last = ramp.length - 1;
-    const parts = [
-      `<rect width="${w}" height="${h}" fill="${params.paper}"/>`,
-      `<g font-family="'${params.font}', monospace" font-size="${size}">`,
-    ];
+    const isSourceColor = params.colorMode === 'source';
+    const parts = [`<rect width="${w}" height="${h}" fill="${params.paper}"/>`];
+    // Source colour: cell backgrounds in the image colour, one rect per run of
+    // equal colour along a row (mirrors render()'s mosaic).
+    if (isSourceColor) {
+      const bc = Math.ceil(w / cw), br = Math.ceil(h / ch);
+      for (let r = 0; r < br; r++) {
+        const ny = clamp((r + 0.5) * ch / h, 0, 1);
+        let runStart = 0, runFill = null;
+        for (let c = 0; c <= bc; c++) {
+          let fill = null;
+          if (c < bc) { const [cr, cg, cb] = rgbAt(src, clamp((c + 0.5) * cw / w, 0, 1), ny); fill = rgbHex(cr, cg, cb); }
+          if (fill !== runFill) {
+            if (runFill) parts.push(`<rect x="${n(runStart * cw)}" y="${n(r * ch)}" width="${n((c - runStart) * cw)}" height="${n(ch)}" fill="${runFill}"/>`);
+            runStart = c; runFill = fill;
+          }
+        }
+      }
+    }
+    parts.push(`<g font-family="'${params.font}', monospace" font-size="${size}">`);
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) {
         const nx = clamp((c + 0.5) * cw / w, 0, 1);
@@ -125,7 +165,7 @@ const mod = {
         const glyph = ramp[clamp(Math.round((1 - l) * last), 0, last)];
         if (glyph === ' ') continue;
         let fill = params.ink;
-        if (params.colorMode === 'source') { const [cr, cg, cb] = rgbAt(src, nx, ny); fill = rgbHex(cr, cg, cb); }
+        if (isSourceColor) { const [cr, cg, cb] = rgbAt(src, nx, ny); fill = rgbHex(cr >> 1, cg >> 1, cb >> 1); }
         parts.push(`<text x="${n(c * cw)}" y="${n(r * ch + size * 0.82)}" fill="${fill}">${esc(glyph)}</text>`);
       }
     }

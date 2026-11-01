@@ -69,6 +69,7 @@
   </header>
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  <div id="hover-tip" class="hover-tip" aria-hidden="true" hidden></div>
 
   <div class="body">
     <!-- LEFT CONTROL RAIL -->
@@ -84,14 +85,11 @@
           <div class="block-fold" id="fold-source">
             <div class="block-body">
               <div class="row row--buttons">
-                <button class="btn btn--block" id="btn-upload-2" type="button">
+                <button class="btn btn--block" id="btn-upload-2" type="button" data-tip="Your files stay in your browser and are not stored.">
                   Load media
                 </button>
                 <button class="btn" id="btn-demo-2" type="button">Demo</button>
               </div>
-              <p class="note" id="drop-note" role="status" aria-live="polite">
-                Your files stay in your browser and are not stored.
-              </p>
             </div>
           </div>
         </section>
@@ -176,7 +174,7 @@
               <h2>Drop media here</h2>
               <p>Load an image, animated GIF or short video.</p>
               <div class="empty-actions">
-                <button class="btn btn--primary" id="btn-upload" type="button">
+                <button class="btn btn--primary" id="btn-upload" type="button" data-tip="Your files stay in your browser and are not stored.">
                   Choose media
                 </button>
                 <button class="btn" id="btn-demo" type="button">
