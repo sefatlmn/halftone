@@ -939,11 +939,12 @@ function effectMotif(id, idx) {
       );
     case "analog":
       return wrap(
-        `<defs><pattern id="${u("ag")}" width="6" height="6" patternUnits="userSpaceOnUse">` +
-        `<rect width="1.6" height="5" fill="${A}"/><rect x="2" width="1.6" height="5" fill="${S}"/>` +
-        `<rect x="4" width="1.6" height="5" fill="${K}" opacity=".6"/></pattern></defs>` +
-        `<rect x="18" y="14" width="82" height="60" rx="12" fill="url(#${u("ag")})" opacity=".9"/>` +
-        `<rect x="18" y="14" width="82" height="60" rx="12" fill="none" stroke="${K}" stroke-width="2.5"/>`,
+        `<defs><clipPath id="${u("ac")}"><circle cx="59" cy="44" r="30"/></clipPath></defs>` +
+        `<circle cx="59" cy="44" r="30" fill="${A}" opacity=".35"/>` +
+        `<circle cx="59" cy="44" r="19" fill="${A}"/>` +
+        `<g fill="${K}" opacity=".55" clip-path="url(#${u("ac")})">` +
+        Array.from({ length: 15 }, (_, i) => `<rect x="29" y="${15 + i * 4}" width="60" height="1.8"/>`).join("") +
+        `</g>`,
       );
     case "glitch":
       return wrap(

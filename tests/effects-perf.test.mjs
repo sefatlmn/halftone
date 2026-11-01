@@ -121,7 +121,7 @@ test("All 15 effects render valid pixels across modes, edge cases, stacking, and
         ],
         analog: [
           {},
-          { mask: "slot", curvature: 0.4, bloom: 0.6 },
+          { mask: "slot", blur: 0.8, bloom: 0.6 },
           { mask: "none", scanlines: 1, signal: 1 },
           { lines: 120 },
           { lines: 600, maskStrength: 1 },
@@ -528,7 +528,7 @@ test("pre-adjust curves keep their endpoints, grain is deterministic, unshuffled
       const analogDefaults = defaultsOf(EFFECTS.find((e) => e.id === "analog").params);
       stack.renderInto(out, hp.srcImage, bundle("analog", analogDefaults), hp.canvasW, hp.canvasH);
       const analogDefaultDelta = meanLuma(snap()) / baseMean - 1;
-      stack.renderInto(out, hp.srcImage, bundle("analog", { ...analogDefaults, maskStrength: 0, scanlines: 0, bloom: 0, signal: 0, curvature: 0 }), hp.canvasW, hp.canvasH);
+      stack.renderInto(out, hp.srcImage, bundle("analog", { ...analogDefaults, maskStrength: 0, scanlines: 0, bloom: 0, signal: 0, blur: 0 }), hp.canvasW, hp.canvasH);
       const analogOffDelta = meanLuma(snap()) / baseMean - 1;
 
       out.remove();

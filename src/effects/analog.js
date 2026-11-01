@@ -1,10 +1,10 @@
 // analog.js — a MiniDV camera signal shown on a CRT. The source is resampled
 // onto a virtual raster of `lines` scanlines, degraded like DV (4:1:1 chroma,
 // highlight clip, edge enhancement, DCT blocks at high values), then drawn as
-// brightness-dependent Gaussian beams through a phosphor mask, with glass
-// halation and curvature. Stateless and deterministic, so animated frames and
+// brightness-dependent Gaussian beams through a phosphor mask, with beam
+// defocus and glass halation. Stateless and deterministic, so animated frames and
 // exports match the preview. All structure is sized relative to the frame.
-import { getScratchPixels, packRGBA } from '../util/scratch.js';
+import { getScratchPixels } from '../util/scratch.js';
 
 // ---- pooled buffers ----------------------------------------------------------
 const pool = {};
@@ -25,21 +25,22 @@ for (let i = 0; i <= LIN_N; i++) {
 
 // ---- beam profile LUT --------------------------------------------------------
 // BEAM[vi * (D_N + 1) + di] = normalised Gaussian weight for a line of linear
-// brightness vi/V_N at distance di/D_N (0..1 line spacing). Each sigma is
-// normalised by the energy the two nearest lines capture, so a flat field
-// keeps its brightness while dark lines narrow into visible gaps. The beam is
-// convolved with one output pixel (variance += px²/12), so lines thinner than
-// the screen can draw soften instead of aliasing into bands.
+// brightness vi/V_N at distance di/D_N (0..1 line spacing). The beam widens
+// with brightness, from sMin to sMax, which Scanlines sets: dark lines thin
+// into visible gaps while highlights fill in. Each sigma is normalised by the
+// energy the two nearest lines capture, so a flat field keeps its brightness.
+// The beam is also convolved with one output pixel (variance += px²/12), so
+// lines thinner than the screen can draw soften instead of aliasing.
 const V_N = 63, D_N = 64;
-const SIGMA_MIN = 0.17, SIGMA_MAX = 0.5;
 const BEAM = new Float32Array((V_N + 1) * (D_N + 1));
-let _beamKey = -1;
-function buildBeam(linePx) {
-  const key = Math.round(linePx * 100);
+let _beamKey = '';
+function buildBeam(linePx, scan) {
+  const key = `${Math.round(linePx * 100)}|${scan}`;
   if (key === _beamKey) return;
+  const sMin = 0.4 + (0.12 - 0.4) * scan, sMax = 0.6 + (0.3 - 0.6) * scan;
   const pxVar = 1 / (12 * linePx * linePx);   // one output pixel, in line units
   for (let vi = 0; vi <= V_N; vi++) {
-    const s0 = SIGMA_MIN + (SIGMA_MAX - SIGMA_MIN) * Math.sqrt(vi / V_N);
+    const s0 = sMin + (sMax - sMin) * (vi / V_N);
     const twoVar = 2 * (s0 * s0 + pxVar);
     const g = (d) => Math.exp(-(d * d) / twoVar);
     // mean over a line spacing of g(d) + g(1 - d), integrated numerically
@@ -231,69 +232,36 @@ function halation(src, dst, C, R, C2, R2, h2, r) {
   }
 }
 
-// Output pixel → raster sample position, cached per geometry: on video the
-// map is reused every frame, so curvature costs nothing after the first.
-const _map = { key: '', idx: null, fx: null, dI: null, fall: null };
-function pixelMap(sw, sh, C, R, curv) {
-  const key = `${sw}x${sh}|${C}x${R}|${curv}`;
-  if (_map.key === key) return _map;
-  const n = sw * sh;
-  if (!_map.idx || _map.idx.length < n) {
-    _map.idx = new Int32Array(n); _map.fx = new Float32Array(n);
-    _map.dI = new Uint8Array(n); _map.fall = new Float32Array(n);
-  }
-  const { idx, fx: fxA, dI: dA, fall: fallA } = _map;
-  const k2 = curv * 0.14, vig = curv * 0.55;
-  let k = 0;
-  for (let y = 0; y < sh; y++) {
-    const cy0 = ((y + 0.5) / sh) * 2 - 1;
-    for (let x = 0; x < sw; x++, k++) {
-      let ux = ((x + 0.5) / sw) * 2 - 1, uy = cy0, fall = 1;
-      if (k2 > 0) {
-        const s = (1 + k2 * (ux * ux + uy * uy)) / (1 + k2); // edge midpoints stay put; only corners round off
-        ux *= s; uy *= s;
-        if (ux < -1 || ux > 1 || uy < -1 || uy > 1) { idx[k] = -1; continue; }
-        const e = (1 - ux * ux) * (1 - uy * uy) * 4;        // corner falloff toward the glass edge
-        fall = 1 - vig * (1 - (e < 1 ? e : 1));
-      }
-      let rx = ((ux + 1) / 2) * C - 0.5;
-      rx = rx < 0 ? 0 : rx > C - 1 ? C - 1 : rx;
-      const x0 = Math.min(C - 2, rx | 0);
-      const ry = ((uy + 1) / 2) * R - 0.5;
-      let l0 = Math.floor(ry), d = ry - l0;
-      if (l0 < 0) { l0 = 0; d = 0; } else if (l0 > R - 2) { l0 = R - 2; d = 1; }
-      idx[k] = l0 * C + x0; fxA[k] = rx - x0; dA[k] = (d * D_N) | 0; fallA[k] = fall;
-    }
-  }
-  _map.key = key;
-  return _map;
-}
-
 const D1 = D_N + 1;
 const SHOULDER = 0.85;
-// 4. Display: beams of the two nearest lines, phosphor mask, halation, glass.
-function display(op, u32, sw, sh, C, map, Lr, Lg, Lb, Br, Bg, Bb, bA, scan, ms, mR, mG, mB, triad, slotA, slotB, glass) {
-  const { idx, fx: fxA, dI: dA, fall: fallA } = map;
+// 4. Display: beams of the two nearest lines, phosphor mask, halation. Rows
+// and columns map to the raster independently, so both use small tables.
+function display(op, sw, sh, C, R, Lr, Lg, Lb, Br, Bg, Bb, bA, scan, ms, mR, mG, mB, triad, slotA, slotB, xs, xf) {
   const useSlot = slotA !== null;
+  const mixBeam = Math.min(1, scan * 4);       // 0 → exact flat resample
   let k = 0;
   for (let y = 0; y < sh; y++) {
+    const ry = ((y + 0.5) / sh) * R - 0.5;
+    let l0 = Math.floor(ry), d = ry - l0;
+    if (l0 < 0) { l0 = 0; d = 0; } else if (l0 > R - 2) { l0 = R - 2; d = 1; }
+    const dI = (d * D_N) | 0, dJ = D_N - dI;
+    d = dI / D_N;
+    const row0 = l0 * C, bRow = dI < 32 ? row0 : row0 + C;
     const sA = useSlot ? slotA[y] : 1, sB = useSlot ? slotB[y] : 1;
     for (let x = 0; x < sw; x++, k++) {
-      const i0 = idx[k];
-      if (i0 < 0) { u32[k] = glass; continue; }
-      const fx = fxA[k], dI = dA[k], dJ = D_N - dI, d = dI / D_N, i1 = i0 + C;
+      const i0 = row0 + xs[x], i1 = i0 + C, fx = xf[x];
 
       const r0 = Lr[i0] + (Lr[i0 + 1] - Lr[i0]) * fx, r1 = Lr[i1] + (Lr[i1 + 1] - Lr[i1]) * fx;
       const g0 = Lg[i0] + (Lg[i0 + 1] - Lg[i0]) * fx, g1 = Lg[i1] + (Lg[i1 + 1] - Lg[i1]) * fx;
       const b0 = Lb[i0] + (Lb[i0 + 1] - Lb[i0]) * fx, b1 = Lb[i1] + (Lb[i1 + 1] - Lb[i1]) * fx;
 
-      // flat (bilinear) and beam profiles, mixed by Scanlines
+      // flat (bilinear) and beam profiles
       let R_ = r0 + (r1 - r0) * d, G_ = g0 + (g1 - g0) * d, B_ = b0 + (b1 - b0) * d;
-      if (scan > 0) {
+      if (mixBeam > 0) {
         const bR = r0 * BEAM[((r0 * V_N) | 0) * D1 + dI] + r1 * BEAM[((r1 * V_N) | 0) * D1 + dJ];
         const bG = g0 * BEAM[((g0 * V_N) | 0) * D1 + dI] + g1 * BEAM[((g1 * V_N) | 0) * D1 + dJ];
         const bB = b0 * BEAM[((b0 * V_N) | 0) * D1 + dI] + b1 * BEAM[((b1 * V_N) | 0) * D1 + dJ];
-        R_ += (bR - R_) * scan; G_ += (bG - G_) * scan; B_ += (bB - B_) * scan;
+        R_ += (bR - R_) * mixBeam; G_ += (bG - G_) * mixBeam; B_ += (bB - B_) * mixBeam;
       }
 
       if (ms > 0) {
@@ -304,14 +272,12 @@ function display(op, u32, sw, sh, C, map, Lr, Lg, Lb, Br, Bg, Bb, bA, scan, ms, 
       // halation in the glass, after the mask (it carries no structure); the
       // field is very smooth, so the nearest line with a horizontal lerp is enough
       if (bA > 0) {
-        const bi = dI < 32 ? i0 : i1;
+        const bi = bRow + xs[x];
         R_ = R_ * (1 - bA) + (Br[bi] + (Br[bi + 1] - Br[bi]) * fx) * bA * 1.6;
         G_ = G_ * (1 - bA) + (Bg[bi] + (Bg[bi + 1] - Bg[bi]) * fx) * bA * 1.6;
         B_ = B_ * (1 - bA) + (Bb[bi] + (Bb[bi + 1] - Bb[bi]) * fx) * bA * 1.6;
       }
 
-      const fall = fallA[k];
-      R_ *= fall; G_ *= fall; B_ *= fall;
       // soft shoulder so mask/beam peaks roll off instead of clipping
       if (R_ > SHOULDER) R_ = SHOULDER + (R_ - SHOULDER) / (1 + (R_ - SHOULDER) / (1 - SHOULDER));
       if (G_ > SHOULDER) G_ = SHOULDER + (G_ - SHOULDER) / (1 + (G_ - SHOULDER) / (1 - SHOULDER));
@@ -331,13 +297,13 @@ export default {
   no: '06',
   heavy: true,
   params: [
-    { key: 'lines',        label: 'Lines',         type: 'range', min: 120, max: 600, step: 10, value: 360, lockRandom: true },
+    { key: 'lines',        label: 'Lines',         type: 'range', min: 120, max: 600, step: 10, value: 300, lockRandom: true },
     { key: 'mask',         label: 'Mask',          type: 'select', options: ['grille', 'slot', 'none'], value: 'grille' },
     { key: 'maskStrength', label: 'Mask strength', type: 'range', min: 0, max: 1, step: 0.01, value: 0.35 },
-    { key: 'scanlines',    label: 'Scanlines',     type: 'range', min: 0, max: 1, step: 0.01, value: 0.5 },
+    { key: 'scanlines',    label: 'Scanlines',     type: 'range', min: 0, max: 1, step: 0.01, value: 0.75 },
     { key: 'bloom',        label: 'Bloom',         type: 'range', min: 0, max: 1, step: 0.01, value: 0.25 },
     { key: 'signal',       label: 'Signal',        type: 'range', min: 0, max: 1, step: 0.01, value: 0.3 },
-    { key: 'curvature',    label: 'Curvature',     type: 'range', min: 0, max: 1, step: 0.01, value: 0.1, lockRandom: true },
+    { key: 'blur',         label: 'Blur',          type: 'range', min: 0, max: 1, step: 0.01, value: 0.2 },
   ],
 
   render(g, src, params, ctx) {
@@ -366,6 +332,14 @@ export default {
     const Lr = buf('Lr', N), Lg = buf('Lg', N), Lb = buf('Lb', N);
     toLinear(Y, Cb, Cr, N, Lr, Lg, Lb);
 
+    // beam defocus and signal bandwidth: a soft spot that smears mostly along
+    // the line (the analog signal's limited bandwidth) and only a little
+    // across lines, so the scanline structure survives
+    if (params.blur > 0) {
+      const bh = params.blur * 3.5, bv = params.blur * 0.6;
+      for (const L of [Lr, Lg, Lb]) { blurRows(L, C, R, bh); blurCols(L, C, R, bv); }
+    }
+
     // 3. halation: a soft, energy-conserving scatter of the raster light
     const bA = bloom * 0.45;
     let Br = null, Bg = null, Bb = null;
@@ -387,9 +361,9 @@ export default {
     const dev = Math.abs(tf ? tf.a : 1);
     const ow = Math.max(2, Math.min(sw, Math.round(w * dev)));
     const oh = Math.max(2, Math.min(sh, Math.round(h * dev)));
-    const { pixels: op, u32, g: out, commit } = getScratchPixels(p, `analog:${ctx.slot || 'fx'}`, ow, oh);
+    const { pixels: op, g: out, commit } = getScratchPixels(p, `analog:${ctx.slot || 'fx'}`, ow, oh);
     const linePx = oh / R;                       // output px per scanline
-    buildBeam(linePx);
+    buildBeam(linePx, scan);
 
     // Phosphor mask, band-limited: each channel's stripe is a cosine at the
     // triad pitch, plus its second harmonic only once the pitch can carry it.
@@ -421,8 +395,13 @@ export default {
       }
     }
 
-    const map = pixelMap(ow, oh, C, R, params.curvature);
-    display(op, u32, ow, oh, C, map, Lr, Lg, Lb, Br, Bg, Bb, bA, scan, ms, mR, mG, mB, triad, slotA, slotB, packRGBA(10, 10, 9, 255));
+    const xs = buf('xs', ow), xf = buf('xf', ow);
+    for (let x = 0; x < ow; x++) {
+      let rx = ((x + 0.5) / ow) * C - 0.5;
+      rx = rx < 0 ? 0 : rx > C - 1 ? C - 1 : rx;
+      xs[x] = Math.min(C - 2, rx | 0); xf[x] = rx - xs[x];
+    }
+    display(op, ow, oh, C, R, Lr, Lg, Lb, Br, Bg, Bb, bA, scan, ms, mR, mG, mB, triad, slotA, slotB, xs, xf);
 
     commit();
     g.image(out, 0, 0, w, h);
