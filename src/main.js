@@ -702,7 +702,7 @@ function setSource(img) {
 }
 
 // A generated demo "plate" so the tool works without an upload — smooth tones
-// for halftone/dither plus shapes and a wordmark for ASCII/stamp texture.
+// for halftone/dither plus shapes and a wordmark for ASCII.
 function useDemo() {
   if (!App.p) {
     note("Still starting up — try that again in a moment.");
@@ -937,11 +937,13 @@ function effectMotif(id, idx) {
         `<rect x="14" y="30" width="70" height="6"/><rect x="20" y="44" width="84" height="6"/>` +
         `<rect x="14" y="58" width="60" height="6"/></g>`,
       );
-    case "stamp":
+    case "analog":
       return wrap(
-        `<rect x="26" y="20" width="66" height="48" fill="none" stroke="${K}" stroke-width="5"/>` +
-        `<circle cx="40" cy="34" r="3" fill="${K}"/><circle cx="80" cy="56" r="2.5" fill="${K}"/>` +
-        `<circle cx="60" cy="44" r="5" fill="${A}"/>`,
+        `<defs><pattern id="${u("ag")}" width="6" height="6" patternUnits="userSpaceOnUse">` +
+        `<rect width="1.6" height="5" fill="${A}"/><rect x="2" width="1.6" height="5" fill="${S}"/>` +
+        `<rect x="4" width="1.6" height="5" fill="${K}" opacity=".6"/></pattern></defs>` +
+        `<rect x="18" y="14" width="82" height="60" rx="12" fill="url(#${u("ag")})" opacity=".9"/>` +
+        `<rect x="18" y="14" width="82" height="60" rx="12" fill="none" stroke="${K}" stroke-width="2.5"/>`,
       );
     case "glitch":
       return wrap(

@@ -18,12 +18,14 @@ There's no backend, no framework, no build step. Just static files. Everything r
 | 03  | **ASCII**       | Converts the image to a grid of characters from an editable brightness ramp. Mono or source-coloured, rendered in a real monospace font. There's an optional selectable-text overlay so you can copy the output. |
 | 04  | **Risograph**   | Simulates 2 or 3 spot-colour separations using luminance bands or RGB channels. Each layer gets its own halftone or grain screen, with misregistration offset and multiply compositing. |
 | 05  | **Xerox**       | High-contrast photocopy look. Cranks up contrast, applies a soft blur, adds a noisy threshold, and sprinkles in toner dropouts and dust. |
-| 06  | **Print Stamp** | Hard black-and-white threshold with Perlin noise rough edges and an ink-texture mask. Gives you that rubber-stamp or letterpress feel. |
+| 06  | **Analog**      | A MiniDV camera signal on a CRT. Resamples onto a virtual raster of scanlines, applies DV 4:1:1 chroma bleed, highlight clip and edge enhancement (8×8 DCT blocking at high Signal), then draws brightness-dependent beams through an aperture-grille or slot mask with halation and glass curvature. |
 | 07  | **Glitch**      | Static, seeded datamosh. Random-height band shifts, block smears, and channel tears. Works horizontal or vertical. |
 | 08  | **RGB Shift**   | Chromatic aberration in linear or radial (lens fringing) mode. Amount/angle (or radial strength) control with edge bias. |
 | 09  | **Pixel Sort**  | Sorts pixel runs by brightness, hue, or saturation. Several interval modes: threshold (Asendorf-style), edge detection, seeded random, or full row/column. |
 | 10  | **Emboss**      | Raised-relief look mapping luminance gradients along a light angle around mid-grey. Supports grey, colour, and tinted modes. |
 | 11  | **Tiles**       | Cuts the frame into a dynamic grid of multi-spanning rectangular tiles with partial shuffle and rotation. |
+
+**Analog recipes:** the defaults are a clean broadcast monitor. For a consumer TV, set Mask to Slot, Lines 280, Bloom 0.45, Curvature 0.35, Signal 0.5. For a PVM close-up, use Grille, Lines 480, Mask strength 0.55, Scanlines 0.7, Bloom 0.15, Curvature 0. Fine phosphor and scanline structure only shows when the screen has the pixels for it, so it is clearer in 2× PNG exports and at low Lines.
 
 Effects 07 to 09 are the **glitch family**. Their randomness is seeded, so the same seed always gives you the same result. Hit **Randomize** to reroll.
 
@@ -102,7 +104,7 @@ src/
     index.js        effect registry (array of modules, in UI order)
     stack.js         rendering pipeline: pre-adjust → pre-stage → [base →] A → [B]
     _shared.js      colour/SVG helpers, re-exports the PRNG
-    none.js halftone.js dither.js ascii.js riso.js xerox.js stamp.js
+    none.js halftone.js dither.js ascii.js riso.js xerox.js analog.js
     glitch.js rgb-shift.js pixel-sort.js gradient-map.js tone.js hue-sat.js
   controls/
     curve-editor.js gradient-editor.js

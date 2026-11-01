@@ -119,9 +119,12 @@ test("All 15 effects render valid pixels across modes, edge cases, stacking, and
           { threshold: 0.5, contrast: 0.65, grain: 1.5, noise: 0.3, tonerDensity: 0.85 },
           { threshold: 0.4, contrast: 0.2, grain: 1, noise: 0, tonerDensity: 1 },
         ],
-        stamp: [
-          { threshold: 0.5, roughness: 0.45, textureStrength: 0.3, grain: 1 },
-          { threshold: 0.5, roughness: 0, textureStrength: 0, grain: 2 },
+        analog: [
+          {},
+          { mask: "slot", curvature: 0.4, bloom: 0.6 },
+          { mask: "none", scanlines: 1, signal: 1 },
+          { lines: 120 },
+          { lines: 600, maskStrength: 1 },
         ],
         glitch: [
           { blocks: 18, maxShift: 20, channelTear: 0.4, smear: 0.25, intensity: 0.6, direction: "horizontal" },
@@ -451,7 +454,7 @@ test("All 15 effects render valid pixels across modes, edge cases, stacking, and
   }
 });
 
-test("pre-adjust curves keep their endpoints, grain is deterministic, and unshuffled tiles are exact", async () => {
+test("pre-adjust curves keep their endpoints, grain is deterministic, unshuffled tiles are exact, and analog keeps brightness", async () => {
   const server = await startStaticServer();
   const { port } = server.address();
   const browser = await chromium.launch({ headless: true });
@@ -469,6 +472,8 @@ test("pre-adjust curves keep their endpoints, grain is deterministic, and unshuf
     const report = await page.evaluate(async () => {
       const { buildWorking } = await import("./src/input.js");
       const { createEffectStack } = await import("./src/effects/stack.js");
+      const EFFECTS = (await import("./src/effects/index.js")).default;
+      const { defaultsOf } = await import("./src/controls.js");
       const hp = window.__hp;
       const p = hp.p;
 
@@ -517,10 +522,19 @@ test("pre-adjust curves keep their endpoints, grain is deterministic, and unshuf
       let tileDiff = 0;
       for (let i = 0; i < base.length; i++) if (base[i] !== tiled[i]) tileDiff++;
 
+      // analog keeps overall brightness: its mask, beams and halation are energy-neutral
+      const meanLuma = (d) => { let s = 0; for (let i = 0; i < d.length; i += 4) s += 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]; return s / (d.length / 4); };
+      const baseMean = meanLuma(base);
+      const analogDefaults = defaultsOf(EFFECTS.find((e) => e.id === "analog").params);
+      stack.renderInto(out, hp.srcImage, bundle("analog", analogDefaults), hp.canvasW, hp.canvasH);
+      const analogDefaultDelta = meanLuma(snap()) / baseMean - 1;
+      stack.renderInto(out, hp.srcImage, bundle("analog", { ...analogDefaults, maskStrength: 0, scanlines: 0, bloom: 0, signal: 0, curvature: 0 }), hp.canvasW, hp.canvasH);
+      const analogOffDelta = meanLuma(snap()) / baseMean - 1;
+
       out.remove();
       ramp.remove();
       stack.dispose();
-      return { curves, identity, grainDeterministic, grainChanges, tileDiff };
+      return { curves, identity, grainDeterministic, grainChanges, tileDiff, analogDefaultDelta, analogOffDelta };
     });
 
     assert.equal(errors.length, 0, `Unexpected browser errors: ${errors.join("\n")}`);
@@ -536,6 +550,8 @@ test("pre-adjust curves keep their endpoints, grain is deterministic, and unshuf
     assert.ok(report.grainDeterministic, "Grain must be identical across rebuilds");
     assert.ok(report.grainChanges, "Grain above 0 must change pixels");
     assert.equal(report.tileDiff, 0, "Unshuffled tiles must reproduce the source exactly");
+    assert.ok(Math.abs(report.analogDefaultDelta) <= 0.06, `Analog defaults shift mean luminance by ${(report.analogDefaultDelta * 100).toFixed(1)}%`);
+    assert.ok(Math.abs(report.analogOffDelta) <= 0.03, `Analog with every stage off shifts mean luminance by ${(report.analogOffDelta * 100).toFixed(1)}%`);
   } finally {
     await page.close();
     await browser.close();
