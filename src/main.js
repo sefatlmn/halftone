@@ -890,9 +890,11 @@ function effectMotif(id, idx) {
       );
     case "halftone":
       return wrap(
-        `<defs><pattern id="${u("hp")}" width="10" height="10" patternUnits="userSpaceOnUse">` +
-        `<circle cx="5" cy="5" r="3.6" fill="${A}"/></pattern></defs>` +
-        `<rect width="118" height="88" fill="url(#${u("hp")})" opacity=".92"/>`,
+        `<g fill="${A}">` +
+        Array.from({ length: 24 }, (_, i) =>
+          `<circle cx="${21.5 + (i % 6) * 15}" cy="${17 + Math.floor(i / 6) * 18}" r="${(1.2 + (i % 6) * 0.95).toFixed(2)}"/>`,
+        ).join("") +
+        `</g>`,
       );
     case "dither":
       return wrap(
@@ -923,19 +925,31 @@ function effectMotif(id, idx) {
     case "ascii":
       return wrap(
         `<g font-family="monospace" font-size="13" fill="${K}">` +
-        `<text x="8" y="22">@%#*+=-:.</text><text x="8" y="40">#*+=-:. @%</text>` +
-        `<text x="8" y="58">+=-:.@%#*</text><text x="8" y="76">%#*+= :.@</text></g>`,
+        ["@%#*+=-:.", "#*+=-:. @%", "+=-:.@%#*", "%#*+= :.@"]
+          .map((line, i) =>
+            `<text x="8" y="${22 + i * 18}">` +
+            line.replace(/[@%]/g, (c) => `<tspan fill="${c === "@" ? A : S}">${c}</tspan>`) +
+            `</text>`,
+          )
+          .join("") +
+        `</g>`,
       );
     case "riso":
       return wrap(
-        `<circle cx="45" cy="44" r="30" fill="${A}" opacity=".85"/>` +
-        `<circle cx="64" cy="50" r="30" fill="${K}" opacity=".5"/>`,
+        `<defs><pattern id="${u("r1")}" width="6" height="6" patternUnits="userSpaceOnUse">` +
+        `<circle cx="3" cy="3" r="2.2" fill="${A}"/></pattern>` +
+        `<pattern id="${u("r2")}" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(30)">` +
+        `<circle cx="3" cy="3" r="2.2" fill="${K}"/></pattern></defs>` +
+        `<circle cx="50" cy="42" r="27" fill="url(#${u("r1")})"/>` +
+        `<circle cx="66" cy="48" r="27" fill="url(#${u("r2")})" opacity=".7"/>`,
       );
     case "xerox":
       return wrap(
-        `<g fill="${K}" opacity=".82"><rect x="14" y="16" width="90" height="6"/>` +
-        `<rect x="14" y="30" width="70" height="6"/><rect x="20" y="44" width="84" height="6"/>` +
-        `<rect x="14" y="58" width="60" height="6"/></g>`,
+        `<g stroke="${K}" stroke-width="6" stroke-linecap="round" stroke-dasharray="0 9" opacity=".82">` +
+        [[14, 19, 90], [14, 33, 70], [20, 47, 84], [14, 61, 60]]
+          .map(([x, y, w]) => `<line x1="${x + 3}" y1="${y}" x2="${x + w - 3}" y2="${y}"/>`)
+          .join("") +
+        `</g>`,
       );
     case "analog":
       return wrap(
@@ -948,15 +962,15 @@ function effectMotif(id, idx) {
       );
     case "glitch":
       return wrap(
-        `<rect x="0" y="18" width="118" height="12" fill="${A}" opacity=".8"/>` +
-        `<rect x="20" y="40" width="118" height="10" fill="${K}" opacity=".7"/>` +
-        `<rect x="-14" y="60" width="118" height="9" fill="${K}" opacity=".5"/>`,
+        `<rect x="14" y="18" width="74" height="12" fill="${A}" opacity=".8"/>` +
+        `<rect x="30" y="40" width="74" height="10" fill="${K}" opacity=".7"/>` +
+        `<rect x="20" y="60" width="74" height="9" fill="${K}" opacity=".5"/>`,
       );
     case "rgb-shift":
       return wrap(
-        `<circle cx="52" cy="44" r="24" fill="none" stroke="${A}" stroke-width="3"/>` +
-        `<circle cx="64" cy="44" r="24" fill="none" stroke="${K}" stroke-width="3"/>` +
-        `<circle cx="58" cy="48" r="24" fill="none" stroke="${S}" stroke-width="1.5"/>`,
+        `<circle cx="49" cy="43" r="24" fill="none" stroke="${A}" stroke-width="3"/>` +
+        `<circle cx="67" cy="43" r="24" fill="none" stroke="${K}" stroke-width="3"/>` +
+        `<circle cx="58" cy="50" r="24" fill="none" stroke="${S}" stroke-width="1.5"/>`,
       );
     case "pixel-sort":
       return wrap(
@@ -969,7 +983,6 @@ function effectMotif(id, idx) {
           [62, K, 60, 0.6],
           [74, K, 34, 0.7],
           [86, A, 50, 0.5],
-          [98, K, 24, 0.6],
         ]
           .map(
             ([x, c, h, o]) =>
@@ -1003,9 +1016,9 @@ function effectMotif(id, idx) {
       );
     case "emboss":
       return wrap(
-        `<path d="M24,66 L59,22 L94,66 Z" fill="${S}" opacity=".35"/>` +
-        `<path d="M24,66 L59,22" stroke="${P}" stroke-width="4" fill="none"/>` +
-        `<path d="M59,22 L94,66 L24,66" stroke="${K}" stroke-width="4" fill="none"/>`,
+        `<rect width="118" height="88" fill="${K}" opacity=".14"/>` +
+        `<path d="M30,59 V29 A7,7 0 0 1 37,22 H81" stroke="${P}" stroke-width="5" fill="none"/>` +
+        `<path d="M81,22 A7,7 0 0 1 88,29 V59 A7,7 0 0 1 81,66 H37 A7,7 0 0 1 30,59" stroke="${K}" stroke-width="5" fill="none"/>`,
       );
     case "tiles":
       return wrap(
