@@ -892,7 +892,7 @@ function effectMotif(id, idx) {
       return wrap(
         `<g fill="${A}">` +
         Array.from({ length: 24 }, (_, i) =>
-          `<circle cx="${21.5 + (i % 6) * 15}" cy="${17 + Math.floor(i / 6) * 18}" r="${(1.2 + (i % 6) * 0.95).toFixed(2)}"/>`,
+          `<circle cx="${19.1 + (i % 6) * 15}" cy="${17 + Math.floor(i / 6) * 18}" r="${(1.2 + (i % 6) * 0.95).toFixed(2)}"/>`,
         ).join("") +
         `</g>`,
       );
@@ -900,23 +900,23 @@ function effectMotif(id, idx) {
       return wrap(
         `<g fill="${K}">` +
         [
-          [6, 8],
-          [16, 8],
-          [11, 16],
-          [26, 12],
-          [36, 20],
-          [46, 10],
-          [56, 26],
-          [20, 34],
-          [70, 14],
-          [84, 30],
-          [96, 18],
-          [40, 48],
-          [64, 54],
-          [100, 60],
-          [30, 64],
-          [80, 70],
-          [52, 74],
+          [10, 9],
+          [20, 9],
+          [15, 17],
+          [30, 13],
+          [40, 21],
+          [50, 11],
+          [60, 27],
+          [24, 35],
+          [74, 15],
+          [88, 31],
+          [100, 19],
+          [44, 49],
+          [68, 55],
+          [104, 61],
+          [34, 65],
+          [84, 71],
+          [56, 75],
         ]
           .map(([x, y]) => `<rect x="${x}" y="${y}" width="4" height="4"/>`)
           .join("") +
@@ -927,7 +927,7 @@ function effectMotif(id, idx) {
         `<g font-family="monospace" font-size="13" fill="${K}">` +
         ["@%#*+=-:.", "#*+=-:. @%", "+=-:.@%#*", "%#*+= :.@"]
           .map((line, i) =>
-            `<text x="8" y="${22 + i * 18}">` +
+            `<text x="20" y="${22 + i * 18}">` +
             line.replace(/[@%]/g, (c) => `<tspan fill="${c === "@" ? A : S}">${c}</tspan>`) +
             `</text>`,
           )
@@ -940,13 +940,13 @@ function effectMotif(id, idx) {
         `<circle cx="3" cy="3" r="2.2" fill="${A}"/></pattern>` +
         `<pattern id="${u("r2")}" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(30)">` +
         `<circle cx="3" cy="3" r="2.2" fill="${K}"/></pattern></defs>` +
-        `<circle cx="50" cy="42" r="27" fill="url(#${u("r1")})"/>` +
-        `<circle cx="66" cy="48" r="27" fill="url(#${u("r2")})" opacity=".7"/>`,
+        `<circle cx="51" cy="41" r="27" fill="url(#${u("r1")})"/>` +
+        `<circle cx="67" cy="47" r="27" fill="url(#${u("r2")})" opacity=".7"/>`,
       );
     case "xerox":
       return wrap(
         `<g stroke="${K}" stroke-width="6" stroke-linecap="round" stroke-dasharray="0 9" opacity=".82">` +
-        [[14, 19, 90], [14, 33, 70], [20, 47, 84], [14, 61, 60]]
+        [[14, 23, 90], [14, 37, 70], [20, 51, 84], [14, 65, 60]]
           .map(([x, y, w]) => `<line x1="${x + 3}" y1="${y}" x2="${x + w - 3}" y2="${y}"/>`)
           .join("") +
         `</g>`,
@@ -962,15 +962,15 @@ function effectMotif(id, idx) {
       );
     case "glitch":
       return wrap(
-        `<rect x="14" y="18" width="74" height="12" fill="${A}" opacity=".8"/>` +
-        `<rect x="30" y="40" width="74" height="10" fill="${K}" opacity=".7"/>` +
-        `<rect x="20" y="60" width="74" height="9" fill="${K}" opacity=".5"/>`,
+        `<rect x="14" y="24.5" width="74" height="12" fill="${A}" opacity=".8"/>` +
+        `<rect x="30" y="40.5" width="74" height="10" fill="${K}" opacity=".7"/>` +
+        `<rect x="20" y="54.5" width="74" height="9" fill="${K}" opacity=".5"/>`,
       );
     case "rgb-shift":
       return wrap(
-        `<circle cx="49" cy="43" r="24" fill="none" stroke="${A}" stroke-width="3"/>` +
-        `<circle cx="67" cy="43" r="24" fill="none" stroke="${K}" stroke-width="3"/>` +
-        `<circle cx="58" cy="50" r="24" fill="none" stroke="${S}" stroke-width="1.5"/>`,
+        `<circle cx="50" cy="40.5" r="24" fill="none" stroke="${A}" stroke-width="3"/>` +
+        `<circle cx="68" cy="40.5" r="24" fill="none" stroke="${K}" stroke-width="3"/>` +
+        `<circle cx="59" cy="47.5" r="24" fill="none" stroke="${S}" stroke-width="3"/>`,
       );
     case "pixel-sort":
       return wrap(
@@ -986,7 +986,7 @@ function effectMotif(id, idx) {
         ]
           .map(
             ([x, c, h, o]) =>
-              `<rect x="${x}" y="${82 - h}" width="6" height="${h}" fill="${c}" opacity="${o}"/>`,
+              `<rect x="${x + 6}" y="${74 - h}" width="6" height="${h}" fill="${c}" opacity="${o}"/>`,
           )
           .join("") +
         `</g>`,
@@ -1016,7 +1016,7 @@ function effectMotif(id, idx) {
       );
     case "emboss":
       return wrap(
-        `<rect width="118" height="88" fill="${K}" opacity=".14"/>` +
+        `<rect x="23" y="15" width="72" height="58" rx="12" fill="${S}" opacity=".7"/>` +
         `<path d="M30,59 V29 A7,7 0 0 1 37,22 H81" stroke="${P}" stroke-width="5" fill="none"/>` +
         `<path d="M81,22 A7,7 0 0 1 88,29 V59 A7,7 0 0 1 81,66 H37 A7,7 0 0 1 30,59" stroke="${K}" stroke-width="5" fill="none"/>`,
       );
