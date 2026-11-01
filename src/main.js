@@ -1099,9 +1099,9 @@ function buildEffect2Panel() {
     return;
   }
 
-  tools.appendChild(
-    makeTool("Random", "Randomize second effect", doRandomize2),
-  );
+  const rnd = makeTool("Rnd", "Randomize second effect", doRandomize2);
+  rnd.setAttribute("aria-label", "Randomize second effect");
+  tools.appendChild(rnd);
   tools.appendChild(makeTool("Reset", "Reset second effect", doReset2));
   appendParams(body, effect2().params, effect2State(), onParam2Change);
 }

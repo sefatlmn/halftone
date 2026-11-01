@@ -95,7 +95,7 @@ The visual language is neo-grotesque Swiss typography over a restrained paper-an
 - Signal red for primary action and slot A; press mustard for secondary action and slot B.
 - Flat construction with hairline dividers instead of shadows or rounded cards.
 - Archivo for interface voice, Archivo Expanded for headings, and Space Mono for measurements and code-like values.
-- A persistent desktop control rail that becomes a collapsible touch-friendly drawer on phones.
+- A persistent desktop control rail of collapsible sections that becomes a touch-friendly drawer on phones.
 
 ## Colors
 
@@ -165,7 +165,7 @@ This is a flat system. It has no drop shadows, blur, gradients used as decoratio
 ### Named Rules
 **The Flat Proof Rule.** Use tonal surfaces and hairlines to separate regions; do not simulate depth with shadows.
 
-**The Hairline Rule.** Structural borders and icon strokes use 1px. A 2px outline is reserved for selected filmstrip items, and a 3px marker is reserved for an active stacked pass.
+**The Hairline Rule.** Structural borders and icon strokes use 1px. A 2px outline is reserved for selected filmstrip items; no other border weight exists.
 
 ## Shapes
 
@@ -180,6 +180,7 @@ Borders are flat hairlines. The proof frame and thumbnail boxes are edged, not r
 - **Primary:** Signal-red fill with fixed light text; the rail Export action uses full-width `16px` padding.
 - **Secondary:** Transparent or ink treatment with a 1px border, Archivo 11px bold uppercase text, and `9px 14px` padding.
 - **Hover / Focus:** Hover changes the fill to ink; focus uses a visible 1px accent outline with a 2px offset. Touch layouts raise interactive targets to at least 44px.
+- **Rail tools:** Each effect header carries two text tools, **Rnd** (randomize; its accessible name is "Randomize") and **Reset**, in Archivo 10px uppercase. On touch screens beside the side rail they keep 44px targets but trim side padding and header gaps so the longest effect name still fits. A header must never widen the rail: its grid column is `minmax(0, 1fr)` and an overlong title truncates with an ellipsis.
 
 ### Inputs / Fields
 - **Style:** Flat, transparent fields with an ink hairline. Selects and text inputs use `8px 10px` padding on desktop.
@@ -191,12 +192,14 @@ Borders are flat hairlines. The proof frame and thumbnail boxes are edged, not r
 - **Stage frame:** Recessed paper surface with a 1px border, centered proof sheet, and registration ticks.
 - **Control blocks:** Recessed paper headers, flat bodies, and 1px dividers. No card shadow or radius.
 - **Export panel:** Warm paper modal with a 1px border and hairline-separated tier columns.
+- **Toast:** A square ink bar with paper text and a 1px hairline, centred under the masthead. No radius and no shadow, like every other surface.
 
 ### Navigation
-- **Masthead:** A compact horizontal brand bar with a three-square mark, Expanded title, and right-aligned workshop credit. On phones the credit is hidden and the brand padding tightens.
+- **Masthead:** A compact horizontal brand bar with a two-dot mark (overlapping signal-red and 75% ink circles at 102% of the title height), an Expanded 21px title, and a right-aligned workshop credit. On phones the credit is hidden, the title drops to 17px, and the brand padding tightens.
 
 ### Chips
 - **Effect film:** Each effect is a 118×88 paper thumbnail on desktop and 68×51 on phones, with a compact uppercase caption. The selected item receives a 2px accent outline; slot B switches that outline to mustard.
+- **Film motifs:** Each thumbnail is a flat SVG drawing of what the effect does, built only from the proof sheet, proof ink, signal red, and press mustard (plus opacity). The artwork is centred on the tile, with its bounding box within half a unit of the tile centre, and sits on the fixed proof sheet in both themes.
 - **A/B target:** A small segmented target control uses red for active A and mustard for active B. On touch layouts the hit areas are at least 44px.
 
 ### Signature Component

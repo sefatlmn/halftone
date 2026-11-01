@@ -55,10 +55,9 @@
       var(--paper));
   /* muted label / meta */
 
-  /* BORDER WEIGHTS — only three exist anywhere:
+  /* BORDER WEIGHTS — only two exist anywhere:
        1px  structure / hairlines (the tokens below)
-       2px  selection emphasis    (.film.on outline)
-       3px  active-pass marker     (.block--stack.is-on stripe) */
+       2px  selection emphasis    (.film.on outline) */
   --hair: 1px solid var(--ink);
   --hair-soft: 1px solid color-mix(in srgb, var(--ink) 18%, transparent);
 
@@ -239,6 +238,8 @@ kbd {
 .block {
   border-bottom: var(--hair);
   display: grid;
+  /* minmax(0, …): a long header must never widen the column past the rail */
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto 1fr;
   transition: grid-template-rows 0.26s cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -330,6 +331,9 @@ kbd {
   text-transform: uppercase;
   white-space: nowrap;
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .block--b .block-head {
@@ -1675,6 +1679,21 @@ input[type="color"]::-moz-color-swatch {
   }
 }
 
+/* Touch screens with a side rail (not the full-width phone drawer): Rnd /
+   Reset keep their 44px tap height but trim side padding and header spacing so
+   the effect name still fits in the header row. */
+@media (pointer: coarse) and (min-width: 721px) {
+  .tool {
+    min-width: 44px;
+    padding-inline: 4px;
+  }
+
+  .block-head,
+  .block-tools {
+    gap: 4px;
+  }
+}
+
 /* Phones — stack into one viewport-tall column: masthead + canvas + strip fixed
    on top, the controls drawer fills the rest. Still no page scroll; the drawer
    (.rail-scroll) and the strip (.films) are the only things that scroll. */
@@ -1858,9 +1877,7 @@ input[type="color"]::-moz-color-swatch {
   letter-spacing: 0.05em;
   text-transform: uppercase;
   padding: 8px 18px;
-  border-radius: 999px;
   border: var(--hair);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.22);
   z-index: 1000;
   pointer-events: none;
   opacity: 0;

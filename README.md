@@ -13,7 +13,7 @@ There's no backend, no framework, no build step. Just static files. Everything r
 | #   | Effect          | What it does |
 | --- | --------------- | ------------ |
 | 00  | **None**        | Pass-through. Shows the source after pre-adjust with no screen applied. Selecting this in slot B clears the second effect. |
-| 01  | **Halftone**    | Classic rotated dot screen where the dot radius maps to darkness. Supports circle, square, and line dots in a single mono ink or full CMYK separation with proper screen angles and multiply blending. |
+| 01  | **Halftone**    | Classic rotated dot screen where the dot radius maps to darkness. Supports circle, square, line, and star dots in a single mono ink or full CMYK separation with proper screen angles and multiply blending. |
 | 02  | **Dither**      | Ordered dithering (2x2, 4x4, 8x8 Bayer) and Floyd-Steinberg error diffusion with optional serpentine scan. Multiple palettes (1-bit, duotone, 3/4-tone, CMYK), chunky pixel scaling, and a modulation field. |
 | 03  | **ASCII**       | Converts the image to a grid of characters from an editable brightness ramp. Mono or source-coloured, rendered in a real monospace font. There's an optional selectable-text overlay so you can copy the output. |
 | 04  | **Risograph**   | Simulates 2 or 3 spot-colour separations using luminance bands or RGB channels. Each layer gets its own halftone or grain screen, with misregistration offset and multiply compositing. |
@@ -27,7 +27,7 @@ There's no backend, no framework, no build step. Just static files. Everything r
 
 **Analog recipes:** the defaults are a clean broadcast monitor. For a consumer TV, set Mask to Slot, Lines 280, Bloom 0.45, Blur 0.45, Signal 0.5. For a PVM close-up, use Grille, Lines 480, Mask strength 0.55, Scanlines 0.8, Bloom 0.15, Blur 0.05. Fine phosphor and scanline structure only shows when the screen has the pixels for it, so it is clearer in 2× PNG exports and at low Lines.
 
-Effects 07 to 09 are the **glitch family**. Their randomness is seeded, so the same seed always gives you the same result. Hit **Randomize** to reroll.
+Effects 07 to 09 are the **glitch family**. Glitch and Pixel Sort (random intervals) take a seed, so the same seed always gives you the same result. Hit **Rnd** (randomize) or press `R` to reroll the active effect's settings.
 
 **Gradient Map**, **Tone**, and **Hue / Sat** are **colour modules**: set them as the **Colour pre-stage** under Pre-adjust to recolour the source before the effect runs (e.g. gradient-map into a halftone).
 
@@ -36,7 +36,7 @@ Effects 07 to 09 are the **glitch family**. Their randomness is seeded, so the s
 It's a static site, so any file server works. From this folder:
 
 ```bash
-# Node
+# Node (same as `npm start`, which serves on port 8000)
 npx serve .
 
 # or Python 3
@@ -46,6 +46,14 @@ python3 -m http.server 8000
 Then open the URL it prints (usually `http://localhost:8000`). Opening `index.html` directly via `file://` won't work because the app uses ES modules, which browsers only load over HTTP.
 
 Tested on current Chrome, Firefox, and Safari.
+
+### Tests
+
+```bash
+npm test
+```
+
+Runs the Node test suite in `tests/*.test.mjs`: media helpers, animated-export guards, the filmstrip wheel, and a headless-Chromium pass that renders every effect across its modes, checks the pre-adjust curves and grain, and enforces a 50 ms warm-frame budget per effect. It needs Playwright's Chromium (`npx playwright install chromium`).
 
 ### Browser smoke tests
 
@@ -69,6 +77,7 @@ output. The same matrix runs automatically in GitHub Actions.
 ## How to use it
 
 1. **Load an image, animated GIF, or short video** (or try the **Demo plate**). You can also drag and drop onto the stage.
+   - Image: up to 20 MB and 8192 px per side (larger images are downscaled to 2560 px on load).
    - GIF: up to 12 MB, 1600 px per side, 240 frames, 30 seconds, and a 48 MB decoded-patch budget.
    - Video: MP4, WebM, MOV, or OGV up to 60 MB, 1920 px per side, and 60 seconds.
    - Animated playback runs at a constant 15 processed frames per second (or the media's original frame rate if 15 fps or lower) to keep motion smooth and the browser responsive.
@@ -79,12 +88,12 @@ output. The same matrix runs automatically in GitHub Actions.
    - **PNG** at 2x device resolution
    - **Colour separation ZIP** with one plate per ink (for Halftone CMYK, RGB Shift, and Risograph)
    - **SVG** with true vectors (for Halftone, ASCII, Dither, and Risograph). Not available for raster effects or while two effects are stacked.
-    - **Animated GIF** for GIF sources, encoded in a worker at a constant 15 fps (or original if ≤ 15 fps) and capped at 720 px.
-    - **Silent WebM** for video sources, recorded from the processed canvas at a constant 15 fps (or original if ≤ 15 fps). Source audio is never captured.
+   - **Animated GIF** for GIF sources, encoded in a worker at a constant 15 fps (or original if ≤ 15 fps) and capped at 720 px.
+   - **Silent WebM** for video sources, recorded from the processed canvas at a constant 15 fps (or original if ≤ 15 fps). Source audio is never captured. Like most browser recordings, the file has no duration in its header, so some players show an unknown length.
 
 PNG, SVG, and separation exports capture the animated source's current frame when that export is compatible with the selected effect.
 
-**Keyboard shortcuts:** `R` randomize the active effect, `E` open Export, `Esc` close it.
+**Keyboard shortcuts:** `R` randomize the active effect, `E` open Export, `Esc` close it, `Space` play or pause animated media.
 
 ## Architecture
 
@@ -102,23 +111,29 @@ src/
   zip.js            minimal STORE-only ZIP writer for separation plates
   effects/
     index.js        effect registry (array of modules, in UI order)
-    stack.js         rendering pipeline: pre-adjust → pre-stage → [base →] A → [B]
+    stack.js        rendering pipeline: pre-adjust → colour pre-stage → A → [B]
     _shared.js      colour/SVG helpers, re-exports the PRNG
     none.js halftone.js dither.js ascii.js riso.js xerox.js analog.js
-    glitch.js rgb-shift.js pixel-sort.js gradient-map.js tone.js hue-sat.js
+    glitch.js rgb-shift.js pixel-sort.js emboss.js tiles.js
+    gradient-map.js tone.js hue-sat.js
   controls/
     curve-editor.js gradient-editor.js
   color/
     curve.js ramps.js
+  ui/
+    filmstrip-wheel.js  mouse-wheel horizontal scrolling for the effect strip
   util/
     prng.js          mulberry32 seeded PRNG
+    scratch.js       pooled scratch canvases + zero-readback pixel buffers
+tests/              Node test suite and browser smoke pages (see Tests)
+DESIGN.md           design system (tokens, rules, components); mirrored in .impeccable/design.json
 ```
 
 Every effect is a self-describing module with an `id`, `name`, `params` array (which drives the control panel automatically), and `render()` / optional `renderSVG()` methods. The pipeline in `stack.js` caches each stage by signature and only recomputes when inputs actually change.
 
 ## Privacy
 
-Your images, GIFs, and videos never leave your machine. There is no backend and no upload. GIF decoding and encoding dependencies are loaded on demand from jsDelivr; processing remains local. The site loads [GoatCounter](https://www.goatcounter.com/), a lightweight, cookieless analytics script that only records anonymous page-view counts. No personal data, no cross-site tracking, no fingerprinting.
+Your images, GIFs, and videos never leave your machine. There is no backend and no upload. The page loads p5.js from cdnjs and its fonts from Google Fonts, and the GIF decoding and encoding libraries are loaded on demand from jsDelivr; all processing stays local. The site loads [GoatCounter](https://www.goatcounter.com/), a lightweight, cookieless analytics script that only records anonymous page-view counts. No personal data, no cross-site tracking, no fingerprinting.
 
 ## Support
 

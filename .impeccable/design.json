@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-08-28T00:00:00.000Z",
+  "generatedAt": "2026-11-01T00:00:00.000Z",
   "title": "Design System: Halftone Tools",
   "extensions": {
     "colorMeta": {
@@ -93,7 +93,7 @@
       {
         "name": "fold",
         "value": "0.26s cubic-bezier(0.22, 1, 0.36, 1)",
-        "purpose": "Open and close phone control sections."
+        "purpose": "Open and close control rail sections."
       },
       {
         "name": "control-feedback",
@@ -119,7 +119,7 @@
         "Signal red for primary action and slot A; press mustard for secondary action and slot B.",
         "Flat construction with hairline dividers instead of shadows or rounded cards.",
         "Archivo for interface voice, Archivo Expanded for headings, and Space Mono for measurements and code-like values.",
-        "A persistent desktop control rail that becomes a collapsible touch-friendly drawer on phones."
+        "A persistent desktop control rail of collapsible sections that becomes a touch-friendly drawer on phones."
       ],
       "rules": [
         {
@@ -149,7 +149,7 @@
         },
         {
           "name": "The Hairline Rule",
-          "body": "Structural borders and icon strokes use 1px. A 2px outline is reserved for selected filmstrip items, and a 3px marker is reserved for an active stacked pass.",
+          "body": "Structural borders and icon strokes use 1px. A 2px outline is reserved for selected filmstrip items; no other border weight exists.",
           "section": "elevation"
         }
       ],
