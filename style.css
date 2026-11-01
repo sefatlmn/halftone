@@ -1888,10 +1888,14 @@ input[type="color"]::-moz-color-swatch {
   pointer-events: none;
   opacity: 0;
   transition: opacity 0.2s ease, transform 0.2s ease;
-  white-space: nowrap;
+  /* The toast is the only place status messages appear, so a long one must
+     wrap rather than be cut off with an ellipsis on a phone. max-content keeps
+     short messages on one line despite the left: 50% shrink-to-fit limit. */
+  width: max-content;
   max-width: calc(100vw - 32px);
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: center;
 }
 
 .toast.is-visible {
