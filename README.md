@@ -80,7 +80,7 @@ output. The same matrix runs automatically in GitHub Actions.
    - Image: up to 20 MB and 8192 px per side, with no megapixel cap (48 MP phone photos load fine). Anything over 2560 px on its long side is downscaled to 2560 px on load.
    - GIF: up to 12 MB, 1600 px per side, 240 frames, 30 seconds, and a 48 MB decoded-patch budget.
    - Video: MP4, WebM, MOV, or OGV up to 60 MB, 1920 px per side, and 60 seconds.
-   - Animated playback runs at a constant 15 processed frames per second (or the media's original frame rate if 15 fps or lower) to keep motion smooth and the browser responsive.
+   - Live playback runs at up to 30 processed frames per second (or the media's own frame rate if lower) to keep motion smooth and the browser responsive. Animated exports use 15 fps, as below.
 2. **Pre-adjust** brightness, contrast, gamma, grain, and invert. Optionally pick a **Colour pre-stage** (Gradient Map, Tone, or Hue/Sat) that gets applied to the working buffer before the effect runs.
 3. Pick **Effect A** from the filmstrip at the bottom and tweak its parameters. The preview updates live.
 4. Want to **stack a second effect**? Click **B** in the filmstrip toggle, then pick any effect. B runs on A's rendered output. Picking **00 None** in slot B clears the stack.

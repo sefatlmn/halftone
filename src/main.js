@@ -173,9 +173,11 @@ const EDGE_CAP = 2200; // absolute long-edge cap (performance)
 function computeCanvasSize() {
   const frame = $("#canvas-holder").parentElement; // .stage-frame
   const rect = frame.getBoundingClientRect();
-  const pad = 44;
-  const availW = Math.max(120, rect.width - pad);
-  const availH = Math.max(120, rect.height - pad);
+  // Never larger than the frame: a size floor here used to overflow (and crop)
+  // short frames, e.g. a phone in landscape with the media controls showing.
+  const pad = Math.min(44, rect.width * 0.2, rect.height * 0.2);
+  const availW = Math.max(1, rect.width - pad);
+  const availH = Math.max(1, rect.height - pad);
 
   // No image yet → fill the available area (the empty-state overlay covers it).
   if (!App.srcImage || !App.srcImage.height) {
@@ -480,12 +482,21 @@ function drawAnimatedFrame({ paint = true, onlyIfAdvanced = false } = {}) {
   return true;
 }
 
+// Exports (GIF and WebM) run at 15 fps; live playback may run at up to 30.
 function animatedTargetFps() {
   const source = App.mediaSource;
   if (!source) return 15;
   return computeTargetFps(source.fps, 15);
 }
 App.animatedTargetFps = animatedTargetFps;
+
+const PLAYBACK_FPS_CAP = 30;
+function playbackTargetFps() {
+  const source = App.mediaSource;
+  if (!source) return 15;
+  return computeTargetFps(source.fps, 15, PLAYBACK_FPS_CAP);
+}
+App.playbackTargetFps = playbackTargetFps;
 
 function startMediaPump() {
   stopMediaPump();
@@ -496,7 +507,7 @@ function startMediaPump() {
   const tick = (now) => {
     App.mediaPump = 0;
     if (!App.mediaPlaying || !App.mediaSource || document.hidden) return;
-    const interval = 1000 / animatedTargetFps();
+    const interval = 1000 / playbackTargetFps();
     if (!App.mediaPumpLast || now - App.mediaPumpLast >= interval - 4) {
       if (typeof App.mediaSource.step === "function") {
         App.mediaSource.step(now);
@@ -508,10 +519,14 @@ function startMediaPump() {
         // Preserve at least min(32ms, 50% of renderCost) of main-thread idle time
         // after heavy renders so UI controls and pointer events never starve.
         const minIdle = renderCost > 16 ? Math.min(32, renderCost * 0.5) : 0;
-        const nextTarget = !App.mediaPumpLast
-          ? now + interval
-          : Math.max(now, App.mediaPumpLast + interval);
-        App.mediaPumpLast = Math.max(nextTarget, after + minIdle) - interval;
+        // Fixed cadence: this frame's slot is the previous slot plus one
+        // interval, resynced to now after a stall. (Anchoring to `now` instead
+        // let every display refresh pass the check, so cheap effects rendered at
+        // 60 fps.) A heavy render pushes the slot out to keep `minIdle` free.
+        const slot = App.mediaPumpLast && now - App.mediaPumpLast < interval * 2
+          ? App.mediaPumpLast + interval
+          : now;
+        App.mediaPumpLast = Math.max(slot, after + minIdle - interval);
       }
     }
     if (!App.mediaSource.playing && !App.mediaSource.loop) {
@@ -581,9 +596,9 @@ async function setAnimatedSource(source) {
   markDirty();
   updateMeta();
   updateMediaControls();
-  const targetFps = animatedTargetFps();
+  const targetFps = playbackTargetFps();
   const fpsLabel = Number.isInteger(targetFps) ? `${targetFps}` : Number(targetFps.toFixed(1));
-  note(`${source.kind === "gif" ? "GIF" : "Video"} loaded · ${source.fps > 15 ? "capped playback at" : "playback at"} ${ANIMATED_FRAME_CAP}px / ${fpsLabel} fps.`);
+  note(`${source.kind === "gif" ? "GIF" : "Video"} loaded · ${source.fps > PLAYBACK_FPS_CAP ? "capped playback at" : "playback at"} ${ANIMATED_FRAME_CAP}px / ${fpsLabel} fps.`);
   await setMediaPlaying(true);
 }
 

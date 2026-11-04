@@ -1685,6 +1685,96 @@ input[type="color"]::-moz-color-swatch {
   }
 }
 
+/* Short landscape screens (phones turned sideways, small windows): keep the
+   two-column layout, which suits the width, but use the phone sizing for the
+   masthead, stage, media controls and effect strip so the proof keeps its
+   height instead of being squeezed to a sliver. */
+@media (min-width: 721px) and (max-height: 520px) {
+  .mh-brand {
+    padding: 10px 20px;
+  }
+
+  .mh-title {
+    font-size: 17px;
+  }
+
+  .mh-mark {
+    height: calc(17px * 1.02);
+  }
+
+  .stage {
+    padding: 10px 16px 8px;
+    gap: 6px;
+  }
+
+  .stage-meta {
+    font-size: 9px;
+  }
+
+  .media-controls {
+    gap: 8px;
+    padding: 4px 7px;
+  }
+
+  .media-controls__play {
+    min-width: 52px;
+    padding: 5px 7px;
+    font-size: 9px;
+  }
+
+  .media-controls__time {
+    font-size: 9px;
+  }
+
+  .strip-head {
+    padding: 6px 16px 8px;
+  }
+
+  .films {
+    gap: 10px;
+    padding: 0 16px 8px;
+  }
+
+  .film,
+  .film .thumb {
+    width: 68px;
+  }
+
+  .film .thumb {
+    height: 51px;
+  }
+
+  .film .cap {
+    font-size: 8.5px;
+    letter-spacing: 0.02em;
+    margin-top: 5px;
+    justify-content: center;
+  }
+
+  .film .cap b {
+    display: none;
+  }
+
+  .empty-inner {
+    padding: 6px 14px;
+  }
+
+  .empty-glyph svg {
+    width: 26px;
+    height: 26px;
+  }
+
+  .empty h2 {
+    font-size: 19px;
+    margin: 6px 0 4px;
+  }
+
+  .empty p {
+    font-size: 11px;
+    margin: 0 0 10px;
+  }
+}
+
 /* Touch screens with a side rail (not the full-width phone drawer): Rnd /
    Reset keep their 44px tap height but trim side padding and header spacing so
    the effect name still fits in the header row. */

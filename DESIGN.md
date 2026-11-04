@@ -153,6 +153,8 @@ The stage uses generous outer padding on desktop (`32px 34px 22px`) and a tighte
 
 At 720px and below, the shell becomes a single viewport-tall column: masthead, proof stage, effect strip, then the control drawer. The stage occupies roughly 35dvh, the rail fills the remaining height, and only the control rail and horizontal filmstrip scroll. Phone content uses 16px side padding; desktop filmstrip and stage content use 34px side padding.
 
+Short landscape screens (wider than 720px but at most 520px tall, e.g. a phone turned sideways) keep the two-column shell but take the phone sizing for the masthead, stage padding, media controls, effect strip (68×51 films) and empty state, so the proof keeps its height. The proof canvas is always sized to fit inside its frame; it is never cropped.
+
 The export panel is a centered overlay up to 860px wide. It uses five columns on desktop and two columns below 620px, with the final animated tier spanning the last mobile row.
 
 ## Elevation & Depth

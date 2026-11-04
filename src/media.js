@@ -159,10 +159,10 @@ function checkDimensions(width, height, limits, label) {
   }
 }
 
-export function computeTargetFps(mediaFps, fallback = 15) {
+export function computeTargetFps(mediaFps, fallback = 15, cap = 15) {
   const fps = Number(mediaFps);
   if (!Number.isFinite(fps) || fps <= 0) return fallback;
-  return fps > 15 ? 15 : fps;
+  return fps > cap ? cap : fps;
 }
 
 export function parseMp4Fps(buffer) {
@@ -654,8 +654,10 @@ export async function loadGifSource(file, { signal, fps } = {}) {
   const renderFrame = (index) => {
     ensure(); index = Math.max(0, Math.min(frames.length - 1, Math.floor(index)));
     if (index === shown) return canvas;
-    if (index === shown + 1) {
-      advance(index);
+    if (index > shown && shown >= 0) {
+      // forward (including skipped frames at a capped playback rate): composite
+      // from the current frame on; only backward seeks replay from frame 0
+      for (let i = shown + 1; i <= index; i++) advance(i);
       return canvas;
     }
     ctx.clearRect(0, 0, width, height);
