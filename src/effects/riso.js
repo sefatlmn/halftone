@@ -2,7 +2,7 @@
 // layers (by luminance band or RGB channel), screens each in a spot colour,
 // offsets them (misregistration) and composites with MULTIPLY.
 import { avgLuma, avgRGB, lumaAt, rgbAt } from '../input.js';
-import { hex2rgb, rng, clamp, n, svgDoc } from './_shared.js';
+import { hex2rgb, rng, clamp, n, svgDoc, SVG_MAX_SHAPES, SVG_TOO_LARGE } from './_shared.js';
 
 const D2R = Math.PI / 180;
 const TAU = Math.PI * 2;
@@ -148,6 +148,7 @@ export default {
     const minR = Math.min(0.35, cell * 0.12);
     const fastSample = cell <= 2.5;
     const parts = [`<rect width="${w}" height="${h}" fill="${params.paper}"/>`];
+    let shapes = 0;
     for (let li = 0; li < layers; li++) {
       const rand = rng(99 + li * 1000); // per-layer seed, matching render()/separations()
       const col = cols[li];
@@ -166,8 +167,10 @@ export default {
           r = half * Math.sqrt(clamp(amt, 0, 1));
         }
         if (r < minR) return;
+        if (++shapes > SVG_MAX_SHAPES) return;
         dots.push(`<circle cx="${n(wx + ox)}" cy="${n(wy + oy)}" r="${n(r)}"/>`);
       });
+      if (shapes > SVG_MAX_SHAPES) return SVG_TOO_LARGE;
       if (dots.length) parts.push(`<g fill="${fill}" style="mix-blend-mode:multiply">${dots.join('')}</g>`);
     }
     return svgDoc(w, h, parts.join('\n'));

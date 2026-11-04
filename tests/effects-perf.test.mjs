@@ -443,9 +443,12 @@ test("All 15 effects render valid pixels across modes, edge cases, stacking, and
 
     assert.equal(errors.length, 0, `Unexpected browser errors: ${errors.join("\n")}`);
     assert.ok(report.stackedSpread > 0, "Stacked effect chain produced uniform/blank output");
+    // 50 ms locally; CI sets EFFECT_BUDGET_MS higher because shared runners are slower
+    const budget = Number(process.env.EFFECT_BUDGET_MS) || 50;
+    console.log(`warm frame ms (budget ${budget}):`, JSON.stringify(report.effectTimings));
     for (const [id, ms] of Object.entries(report.effectTimings)) {
       assert.ok(Number.isFinite(ms) && ms >= 0, `Invalid timing for ${id}: ${ms}`);
-      assert.ok(ms < 50, `Effect ${id} warm frame took too long (${ms}ms)`);
+      assert.ok(ms < budget, `Effect ${id} warm frame took too long (${ms}ms)`);
     }
   } finally {
     await page.close();
@@ -531,10 +534,19 @@ test("pre-adjust curves keep their endpoints, grain is deterministic, unshuffled
       stack.renderInto(out, hp.srcImage, bundle("analog", { ...analogDefaults, maskStrength: 0, scanlines: 0, bloom: 0, signal: 0, blur: 0 }), hp.canvasW, hp.canvasH);
       const analogOffDelta = meanLuma(snap()) / baseMean - 1;
 
+      // SVG export stops at the shape budget instead of building a huge string
+      const { SVG_TOO_LARGE } = await import("./src/effects/_shared.js");
+      const dither = EFFECTS.find((e) => e.id === "dither");
+      const fine = { ...defaultsOf(dither.params), pixelScale: 0.5 };
+      const dSrc = stack.sourceFor(hp.srcImage, bundle("dither", fine), hp.canvasW, hp.canvasH);
+      const svgHuge = dither.renderSVG(dSrc, fine, { w: 2000, h: 2500, p });
+      const svgNormal = dither.renderSVG(dSrc, defaultsOf(dither.params), { w: hp.canvasW, h: hp.canvasH, p });
+      const svgGuard = svgHuge === SVG_TOO_LARGE && typeof svgNormal === "string" && svgNormal.includes("<svg");
+
       out.remove();
       ramp.remove();
       stack.dispose();
-      return { curves, identity, grainDeterministic, grainChanges, tileDiff, analogDefaultDelta, analogOffDelta };
+      return { curves, identity, grainDeterministic, grainChanges, tileDiff, analogDefaultDelta, analogOffDelta, svgGuard };
     });
 
     assert.equal(errors.length, 0, `Unexpected browser errors: ${errors.join("\n")}`);
@@ -551,6 +563,7 @@ test("pre-adjust curves keep their endpoints, grain is deterministic, unshuffled
     assert.ok(report.grainChanges, "Grain above 0 must change pixels");
     assert.equal(report.tileDiff, 0, "Unshuffled tiles must reproduce the source exactly");
     assert.ok(Math.abs(report.analogDefaultDelta) <= 0.06, `Analog defaults shift mean luminance by ${(report.analogDefaultDelta * 100).toFixed(1)}%`);
+    assert.ok(report.svgGuard, "SVG export must stop at the shape budget and still export normal settings");
     assert.ok(Math.abs(report.analogOffDelta) <= 0.03, `Analog with every stage off shifts mean luminance by ${(report.analogOffDelta * 100).toFixed(1)}%`);
   } finally {
     await page.close();

@@ -1,7 +1,7 @@
 // dither.js — ordered (Bayer) and Floyd–Steinberg error-diffusion dithering.
 // Quantises to a palette derived from ink/paper. Computed at a low grid
 // resolution then upscaled with smoothing OFF for crisp chunky pixels.
-import { hex2rgb, mix, clamp, n, svgDoc } from './_shared.js';
+import { hex2rgb, mix, clamp, n, svgDoc, SVG_MAX_SHAPES, SVG_TOO_LARGE } from './_shared.js';
 import { getScratchPixels, packRGBA } from '../util/scratch.js';
 
 const GRID_CAP = 1600; // max dither grid edge — bounds error diffusion AND the pooled buffer
@@ -203,12 +203,14 @@ export default {
     const { cols, rows, idx, pal } = computeDither(src, params, w, h, view.p);
     const cw = w / cols, ch = h / rows;
     const buckets = pal.map(() => []);
+    let shapes = 0;
     for (let y = 0; y < rows; y++) {
       let x = 0;
       while (x < cols) {
         const id = idx[y * cols + x];
         let x2 = x + 1;
         while (x2 < cols && idx[y * cols + x2] === id) x2++;
+        if (++shapes > SVG_MAX_SHAPES) return SVG_TOO_LARGE;
         buckets[id].push(
           `<rect x="${n(x * cw)}" y="${n(y * ch)}" width="${n((x2 - x) * cw)}" height="${n(ch)}"/>`,
         );

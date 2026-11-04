@@ -1,6 +1,6 @@
 // halftone.js — classic halftone screen. Mono single-screen or 4-colour CMYK.
 import { avgLuma, avgRGB, lumaAt, rgbAt } from '../input.js';
-import { clamp, n, svgDoc } from './_shared.js';
+import { clamp, n, svgDoc, SVG_MAX_SHAPES, SVG_TOO_LARGE } from './_shared.js';
 
 const D2R = Math.PI / 180;
 const TAU = Math.PI * 2;
@@ -260,6 +260,7 @@ export default {
     const minR = Math.min(0.35, cellSize * 0.12);
     const fastSample = cellSize <= 2.5;
     const parts = [`<rect width="${w}" height="${h}" fill="${paper}"/>`];
+    let shapes = 0;
 
     if (params.cmyk) {
       for (const ch of CMYK_CHANNELS) {
@@ -272,6 +273,7 @@ export default {
           if (invert) { r = 255 - r; gg = 255 - gg; b = 255 - b; }
           const rad = half * Math.sqrt(clamp(cmykChannelAmount(r, gg, b, chId), 0, 1));
           if (rad < minR) return;
+          if (++shapes > SVG_MAX_SHAPES) return;
           if (shape === 'square') {
             dots.push(`<rect x="${n(-rad)}" y="${n(-rad)}" width="${n(2 * rad)}" height="${n(2 * rad)}" transform="translate(${n(wx)} ${n(wy)}) rotate(${ch.ang})"/>`);
           } else if (shape === 'star') {
@@ -283,6 +285,7 @@ export default {
             dots.push(`<circle cx="${n(wx)}" cy="${n(wy)}" r="${n(rad)}"/>`);
           }
         });
+        if (shapes > SVG_MAX_SHAPES) return SVG_TOO_LARGE;
         if (dots.length) {
           // line → stroke group; every other shape → fill group. Both overprint.
           const attrs = shape === 'line' ? `fill="none" stroke="${col}" stroke-linecap="butt"` : `fill="${col}"`;
@@ -297,6 +300,7 @@ export default {
       if (invert) l = 1 - l;
       const r = half * Math.sqrt(clamp(1 - l, 0, 1));
       if (r < minR) return;
+      if (++shapes > SVG_MAX_SHAPES) return;
       if (shape === 'circle') {
         parts.push(`<circle cx="${n(wx)}" cy="${n(wy)}" r="${n(r)}" fill="${ink}"/>`);
       } else if (shape === 'square') {
@@ -308,6 +312,7 @@ export default {
         parts.push(`<line x1="${n(-half)}" y1="0" x2="${n(half)}" y2="0" stroke="${ink}" stroke-width="${n(Math.max(0.2, 2 * r))}" stroke-linecap="butt" transform="translate(${n(wx)} ${n(wy)}) rotate(${angle})"/>`);
       }
     });
+    if (shapes > SVG_MAX_SHAPES) return SVG_TOO_LARGE;
     return svgDoc(w, h, parts.join('\n'));
   },
 };

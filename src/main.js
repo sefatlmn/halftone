@@ -1596,6 +1596,9 @@ function doExportSVG() {
   if (res.ok) {
     note("Exported SVG (vector).");
     closeExportPanel();
+  } else if (res.reason === "too-large") {
+    closeExportPanel();
+    note("Too detailed for SVG at these settings — raise the cell size or export PNG.");
   } else if (res.reason === "unsupported") {
     closeExportPanel();
     note("SVG isn’t 1:1 for these settings — export PNG instead.");

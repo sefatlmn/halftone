@@ -1,6 +1,6 @@
 // ascii.js — render the image as a grid of monospace glyphs picked from a ramp.
 import { lumaAt, rgbAt } from '../input.js';
-import { clamp, n, svgDoc } from './_shared.js';
+import { clamp, n, svgDoc, SVG_MAX_SHAPES, SVG_TOO_LARGE } from './_shared.js';
 import { getScratchPixels, packRGBA } from '../util/scratch.js';
 
 const DEFAULT_RAMP = ' .:-=+*#%@';
@@ -138,6 +138,7 @@ const mod = {
     const last = ramp.length - 1;
     const isSourceColor = params.colorMode === 'source';
     const parts = [`<rect width="${w}" height="${h}" fill="${params.paper}"/>`];
+    let shapes = 0;
     // Source colour: cell backgrounds in the image colour, one rect per run of
     // equal colour along a row (mirrors render()'s mosaic).
     if (isSourceColor) {
@@ -149,6 +150,7 @@ const mod = {
           let fill = null;
           if (c < bc) { const [cr, cg, cb] = rgbAt(src, clamp((c + 0.5) * cw / w, 0, 1), ny); fill = rgbHex(cr, cg, cb); }
           if (fill !== runFill) {
+            if (runFill && ++shapes > SVG_MAX_SHAPES) return SVG_TOO_LARGE;
             if (runFill) parts.push(`<rect x="${n(runStart * cw)}" y="${n(r * ch)}" width="${n((c - runStart) * cw)}" height="${n(ch)}" fill="${runFill}"/>`);
             runStart = c; runFill = fill;
           }
@@ -166,6 +168,7 @@ const mod = {
         if (glyph === ' ') continue;
         let fill = params.ink;
         if (isSourceColor) { const [cr, cg, cb] = rgbAt(src, nx, ny); fill = rgbHex(cr >> 1, cg >> 1, cb >> 1); }
+        if (++shapes > SVG_MAX_SHAPES) return SVG_TOO_LARGE;
         parts.push(`<text x="${n(c * cw)}" y="${n(r * ch + size * 0.82)}" fill="${fill}">${esc(glyph)}</text>`);
       }
     }

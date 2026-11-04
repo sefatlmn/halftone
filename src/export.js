@@ -2,6 +2,7 @@
 // color-separation ZIP (one plate per ink/channel, bundled via src/zip.js).
 
 import { makeZipBlob } from "./zip.js";
+import { SVG_TOO_LARGE } from "./effects/_shared.js";
 
 function download(blob, filename) {
   const url = URL.createObjectURL(blob);
@@ -103,12 +104,13 @@ export async function exportSeparations(p, plates, w, h, scale, filename) {
 }
 
 // Vector export. Returns a status so the UI can explain a skip.
-//   { ok:true } | { ok:false, reason:'no-svg'|'unsupported' }
+//   { ok:true } | { ok:false, reason:'no-svg'|'unsupported'|'too-large' }
 // `p` is passed through in the view so effects that need p5 (e.g. dither's
 // noise-based modulation) can reproduce the raster exactly in vector form.
 export function exportSVG(effect, src, state, w, h, filename, p) {
   if (typeof effect.renderSVG !== 'function') return { ok: false, reason: 'no-svg' };
   const svg = effect.renderSVG(src, state, { w, h, p });
+  if (svg === SVG_TOO_LARGE) return { ok: false, reason: 'too-large' };
   if (!svg) return { ok: false, reason: 'unsupported' };
   download(new Blob([svg], { type: 'image/svg+xml' }), filename);
   return { ok: true };

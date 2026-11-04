@@ -53,7 +53,7 @@ Tested on current Chrome, Firefox, and Safari.
 npm test
 ```
 
-Runs the Node test suite in `tests/*.test.mjs`: media helpers, animated-export guards, the filmstrip wheel, and a headless-Chromium pass that renders every effect across its modes, checks the pre-adjust curves and grain, and enforces a 50 ms warm-frame budget per effect. It needs Playwright's Chromium (`npx playwright install chromium`).
+Runs the Node test suite in `tests/*.test.mjs`: media helpers, animated-export guards, the filmstrip wheel, and a headless-Chromium pass that renders every effect across its modes, checks the pre-adjust curves, grain and SVG size guard, and enforces a 50 ms warm-frame budget per effect (`EFFECT_BUDGET_MS` overrides it; CI uses 150 ms). It needs Playwright's Chromium (`npx playwright install chromium`). GitHub Actions runs it on every push alongside the browser smoke matrix.
 
 ### Browser smoke tests
 
@@ -87,7 +87,7 @@ output. The same matrix runs automatically in GitHub Actions.
 5. **Export** (button or press `E`) opens the overlay. Every export is free, full-resolution:
    - **PNG** at 2x device resolution
    - **Colour separation ZIP** with one plate per ink (for Halftone CMYK, RGB Shift, and Risograph)
-   - **SVG** with true vectors (for Halftone, ASCII, Dither, and Risograph). Not available for raster effects or while two effects are stacked.
+   - **SVG** with true vectors (for Halftone, ASCII, Dither, and Risograph). Not available for raster effects or while two effects are stacked. Very fine settings that would need more than about 500,000 shapes (roughly a 30 MB file) are refused with a prompt to raise the cell size or export PNG.
    - **Animated GIF** for GIF sources, encoded in a worker at a constant 15 fps (or original if ≤ 15 fps) and capped at 720 px.
    - **Silent WebM** for video sources (the button reads "Download GIF" for both kinds of motion), recorded from the processed canvas at a constant 15 fps (or original if ≤ 15 fps). Source audio is never captured. Like most browser recordings, the file has no duration in its header, so some players show an unknown length.
 

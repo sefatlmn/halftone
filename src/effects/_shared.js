@@ -26,6 +26,14 @@ export function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
 // Round to 2 decimals for compact SVG output.
 export function n(x) { return Math.round(x * 100) / 100; }
 
+// SVG export budget. Vector exports emit one element per dot, glyph or run, so
+// fine settings on a large canvas can reach millions of shapes and a string big
+// enough to freeze the tab (worst on Safari). Each renderSVG counts shapes as
+// it goes and returns SVG_TOO_LARGE once past the cap, so memory stays bounded.
+// ~500k shapes is roughly a 30 MB file.
+export const SVG_MAX_SHAPES = 500_000;
+export const SVG_TOO_LARGE = 'svg-too-large';
+
 // Wrap inner markup in a complete SVG document string.
 export function svgDoc(w, h, inner) {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">\n${inner}\n</svg>`;
