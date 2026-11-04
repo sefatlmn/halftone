@@ -68,6 +68,8 @@ const App = {
   exportAbort: null,
   exportBusy: false,
   _resumeOnVisible: false,
+  _exportRecorder: null, // the MediaRecorder of a running video export
+  _exportHiddenPause: false, // that export is paused because the tab is hidden
 };
 
 const PRE_SCHEMA = [
@@ -630,6 +632,13 @@ async function loadFromFile(file) {
     return;
   }
 
+  try {
+    validateMediaFile(file, kind); // 20 MB cap, before anything is decoded
+  } catch (error) {
+    note(friendlyMediaError(error));
+    return;
+  }
+
   // Object URL, not FileReader→dataURL: the data-URL path held the whole file
   // AND a ~1.4× base64 copy of it in memory just to hand p5 a source. On a
   // phone photo that's tens of MB of avoidable peak, right when Safari's tab
@@ -641,6 +650,14 @@ async function loadFromFile(file) {
       URL.revokeObjectURL(url);
       if (request !== App.sourceLoadVersion) {
         img.remove?.();
+        return;
+      }
+      // Side length is only known after decoding (no megapixel cap: 48 MP phone
+      // photos are within 8192 px and load fine, downscaled by fitSource).
+      const maxEdge = MEDIA_LIMITS.image.maxEdge;
+      if (img.width > maxEdge || img.height > maxEdge) {
+        img.remove?.();
+        note(`Images must be ${maxEdge} px or smaller on each side.`);
         return;
       }
       setSource(img);
@@ -1223,6 +1240,8 @@ function waitForVideoEnd(video, signal) {
       video.removeEventListener("ended", done);
       video.removeEventListener("timeupdate", checkTime);
       video.removeEventListener("error", failed);
+      video.removeEventListener("play", arm);
+      video.removeEventListener("pause", disarm);
       signal?.removeEventListener("abort", aborted);
     };
     const done = () => { clean(); resolve(); };
@@ -1241,9 +1260,18 @@ function waitForVideoEnd(video, signal) {
     video.addEventListener("error", failed, { once: true });
     signal?.addEventListener("abort", aborted, { once: true });
 
-    // Fallback timer: duration + 2.5s buffer prevents hanging if browser drops 'ended'
-    const maxWait = Math.max(3000, ((video.duration || 10) + 2.5) * 1000);
-    timer = setTimeout(done, maxWait);
+    // Fallback timer: remaining duration + 2.5s, in case the browser drops
+    // 'ended'. It only counts while the video plays, so pausing the export
+    // (e.g. while the tab is hidden) can't end the recording early.
+    const arm = () => {
+      clearTimeout(timer);
+      const remaining = (video.duration || 10) - (video.currentTime || 0);
+      timer = setTimeout(done, Math.max(3000, (remaining + 2.5) * 1000));
+    };
+    const disarm = () => clearTimeout(timer);
+    video.addEventListener("play", arm);
+    video.addEventListener("pause", disarm);
+    arm();
   });
 }
 
@@ -1280,6 +1308,7 @@ async function exportAnimatedVideo(signal) {
       fps: targetFps,
       signal,
       onProgress: (value) => setExportProgress(value, "Recording processed WebM…"),
+      onRecorder: (recorder) => { App._exportRecorder = recorder; },
       play: async () => {
         const ended = waitForVideoEnd(source.element, signal);
         await source.play();
@@ -1297,6 +1326,8 @@ async function exportAnimatedVideo(signal) {
     const ext = blob.type.includes("mp4") ? "mp4" : "webm";
     downloadBlob(blob, `halftone-press_${App.activeId}.${ext}`);
   } finally {
+    App._exportRecorder = null;
+    App._exportHiddenPause = false;
     source.loop = previous.loop;
     await source.seek(previous.time);
     drawAnimatedFrame({ paint: false });
@@ -1943,8 +1974,20 @@ function wireEvents() {
         App.mediaPlaying = false;
         stopMediaPump();
         updateMediaControls();
+      } else if (App._exportRecorder?.state === "recording") {
+        // A hidden tab stops painting, so a running video export would record a
+        // frozen canvas while the video plays on. Pause both until visible.
+        App._exportRecorder.pause();
+        App.mediaSource?.pause();
+        stopMediaPump();
+        App._exportHiddenPause = true;
       }
       return;
+    }
+    if (App._exportHiddenPause) {
+      App._exportHiddenPause = false;
+      if (App._exportRecorder?.state === "paused") App._exportRecorder.resume();
+      App.mediaSource?.play().then(startMediaPump, () => {});
     }
     wakeDeferred();
     if (App._resumeOnVisible && App.mediaSource && !App.exportBusy) {

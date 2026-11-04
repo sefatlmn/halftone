@@ -77,7 +77,7 @@ output. The same matrix runs automatically in GitHub Actions.
 ## How to use it
 
 1. **Load an image, animated GIF, or short video** (or try the **Demo plate**). You can also drag and drop onto the stage.
-   - Image: up to 20 MB and 8192 px per side (larger images are downscaled to 2560 px on load).
+   - Image: up to 20 MB and 8192 px per side, with no megapixel cap (48 MP phone photos load fine). Anything over 2560 px on its long side is downscaled to 2560 px on load.
    - GIF: up to 12 MB, 1600 px per side, 240 frames, 30 seconds, and a 48 MB decoded-patch budget.
    - Video: MP4, WebM, MOV, or OGV up to 60 MB, 1920 px per side, and 60 seconds.
    - Animated playback runs at a constant 15 processed frames per second (or the media's original frame rate if 15 fps or lower) to keep motion smooth and the browser responsive.

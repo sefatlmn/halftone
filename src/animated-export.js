@@ -29,6 +29,7 @@ export async function recordCanvasWebM({
   play,
   stop,
   onProgress,
+  onRecorder,
   signal,
 }) {
   if (signal?.aborted) throw signal.reason || new DOMException("Aborted", "AbortError");
@@ -71,6 +72,7 @@ export async function recordCanvasWebM({
 
   try {
     recorder.start(500);
+    onRecorder?.(recorder); // lets the caller pause/resume, e.g. while the tab is hidden
     const started = performance.now();
     timer = window.setInterval(() => {
       const elapsed = (performance.now() - started) / 1000;

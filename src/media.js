@@ -4,7 +4,7 @@
 export const MEDIA_LIMITS = Object.freeze({
   image: Object.freeze({
     bytes: 20 * 1024 * 1024, maxBytes: 20 * 1024 * 1024,
-    maxEdge: 8192, maxWidth: 8192, maxHeight: 8192, pixels: 32_000_000, maxPixels: 32_000_000,
+    maxEdge: 8192, maxWidth: 8192, maxHeight: 8192,
     frames: 1, maxFrames: 1, duration: 0, maxDuration: 0, fps: 0, maxFps: 0,
   }),
   gif: Object.freeze({
