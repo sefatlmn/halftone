@@ -53,7 +53,7 @@ Tested on current Chrome, Firefox, and Safari.
 npm test
 ```
 
-Runs the Node test suite in `tests/*.test.mjs`: media helpers, animated-export guards, the filmstrip wheel, and a headless-Chromium pass that renders every effect across its modes, checks the pre-adjust curves, grain and SVG size guard, and enforces a 50 ms warm-frame budget per effect (`EFFECT_BUDGET_MS` overrides it; CI uses 150 ms). It needs Playwright's Chromium (`npx playwright install chromium`). GitHub Actions runs it on every push alongside the browser smoke matrix.
+Runs the Node test suite in `tests/*.test.mjs`: media helpers, animated-export guards, the filmstrip wheel, and a headless-Chromium pass that renders every effect across its modes, checks the pre-adjust curves, grain and SVG size guard, and enforces a 50 ms warm-frame budget per effect (`EFFECT_BUDGET_MS` overrides it; CI uses 100 ms). It needs Playwright's Chromium (`npx playwright install chromium`). GitHub Actions runs it on every push alongside the browser smoke matrix.
 
 ### Browser smoke tests
 
