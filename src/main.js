@@ -1688,6 +1688,7 @@ function openExportPanel() {
     App._exportLastFocus = document.activeElement;
   }
   panel.removeAttribute("hidden");
+  setBackgroundInert(true);
 
   const focusables = getFocusableElements(panel);
   if (focusables.length) {
@@ -1700,11 +1701,20 @@ function openExportPanel() {
   }
 }
 
+// While the export dialog is open, everything behind it is inert: no focus, no
+// clicks. The Tab trap alone isn't enough in Safari, whose default keyboard
+// setting skips buttons and links, so Tab would land on a dropdown behind the
+// dialog.
+function setBackgroundInert(on) {
+  for (const el of document.querySelectorAll(".masthead, .body")) el.inert = on;
+}
+
 function closeExportPanel() {
   if (App.exportBusy) return;
   const panel = $("#xpanel");
   if (panel.hasAttribute("hidden")) return;
   panel.setAttribute("hidden", "");
+  setBackgroundInert(false);
   const targetToFocus =
     App._exportLastFocus &&
     App._exportLastFocus !== document.body &&
@@ -1937,6 +1947,14 @@ function wireEvents() {
   // Keyboard: R randomize, E export, Space play/pause animated media
   window.addEventListener("keydown", (e) => {
     if (e.metaKey || e.ctrlKey || e.altKey) return; // don't shadow browser shortcuts (⌘R, Ctrl+R, …)
+    // Esc closes the export dialog whatever has focus
+    if (e.key === "Escape") {
+      if (!$("#xpanel").hasAttribute("hidden")) {
+        e.preventDefault();
+        closeExportPanel();
+      }
+      return;
+    }
     const tag = (e.target.tagName || "").toLowerCase();
     if (tag === "input" || tag === "select" || tag === "textarea") return;
     if (e.key === " " || e.code === "Space") {
@@ -1949,12 +1967,6 @@ function wireEvents() {
       if ($("#xpanel").hasAttribute("hidden")) doRandomize();
     } else if (e.key === "e" || e.key === "E") {
       if ($("#xpanel").hasAttribute("hidden")) openExportPanel();
-    }
-    else if (e.key === "Escape") {
-      if (!$("#xpanel").hasAttribute("hidden")) {
-        e.preventDefault();
-        closeExportPanel();
-      }
     }
   });
 
